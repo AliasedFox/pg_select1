@@ -1,142 +1,58 @@
-# ---------------------------------------------------------------------------
 # Dependencies
-# ---------------------------------------------------------------------------
 node_modules/
-jspm_packages/
-.pnpm-store/
 
-# Yarn (berry)
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
-.yarn-integrity
+# Bun is the only package manager; keep other lockfiles out (bun.lock is committed)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
 
-# npm
-.npm/
-*.tgz
-
-# ---------------------------------------------------------------------------
-# Bun
-# ---------------------------------------------------------------------------
-# Note: bun.lock / bun.lockb SHOULD be committed.
-.bun/
-# Temporary files left behind by `bun build --compile`
+# Build output, the `bun build --compile` executables included
+dist/
+*.tsbuildinfo
 .*.bun-build
 
-# ---------------------------------------------------------------------------
-# Build output
-# ---------------------------------------------------------------------------
-dist/
-build/
-out/
-.output/
+# Storybook's static build
 storybook-static/
-
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
 
 # Vite
 .vite/
-vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Next.js
-.next/
+# Prisma 8: the contract's contract.json and contract.d.ts (src/prisma/generated/) and the
+# migrations are committed, so nothing of Prisma's is ignored.
 
-# Monorepo tooling
-.turbo/
-.nx/cache
-.nx/workspace-data
-
-# Misc bundler caches
-.cache/
-.parcel-cache/
-
-# ---------------------------------------------------------------------------
-# Prisma
-# ---------------------------------------------------------------------------
-# Note: prisma/schema.prisma and prisma/migrations/ SHOULD be committed.
-# Generated client when using a custom `output` path
-generated/prisma/
-src/generated/prisma/
-# SQLite databases sometimes used for local Prisma experiments
-prisma/*.db
-prisma/*.db-journal
-
-# ---------------------------------------------------------------------------
-# PostgreSQL
-# ---------------------------------------------------------------------------
-# Local data directories (e.g. Docker volumes mounted into the repo)
+# Local Postgres data and dumps
 pgdata/
-.pgdata/
-postgres-data/
-.postgres/
-docker/data/
-# Dumps and backups
 *.dump
-*.backup
 *.pgdump
 *.sql.gz
-.psql_history
 
-# ---------------------------------------------------------------------------
-# Environment & secrets
-# ---------------------------------------------------------------------------
+# Environment files and secrets (keep the .env.example templates)
 .env
 .env.*
 !.env.example
 *.pem
 *.key
 
-# ---------------------------------------------------------------------------
-# Testing & coverage
-# ---------------------------------------------------------------------------
+# Tests
 coverage/
-*.lcov
-.nyc_output/
-test-results/
-playwright-report/
-blob-report/
-playwright/.cache/
 
-# ---------------------------------------------------------------------------
-# Logs & runtime data
-# ---------------------------------------------------------------------------
+# Logs
 logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-pids/
-*.pid
-*.seed
-*.pid.lock
 
-# ---------------------------------------------------------------------------
-# Linters & tool caches
-# ---------------------------------------------------------------------------
-.eslintcache
-.stylelintcache
-.prettiercache
-.node_repl_history
-
-# ---------------------------------------------------------------------------
-# Editors & OS
-# ---------------------------------------------------------------------------
+# Editors
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
 *.swp
-*.swo
-*~
+
+# OS
 .DS_Store
 Thumbs.db
+
+# Personal agent settings (shared settings stay tracked)
+.claude/settings.local.json
+CLAUDE.local.md
