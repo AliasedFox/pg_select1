@@ -27,20 +27,22 @@ TypeScript on Bun, as runtime and package manager: `bun install`, `bun add`, `bu
 
 Run from the repo root unless noted.
 
-| Command                | What it does                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------- |
-| `bun run up`           | The local stack in Docker with hot reload: Postgres, migrations, API, web, Storybook  |
-| `bun run down`         | Stops it                                                                              |
-| `bun run dev`          | API and web dev server without Docker (needs `apps/backend/.env` and a Postgres)      |
-| `bun run check`        | Typecheck, lint, format check and tests, each one's output prefixed with its name     |
-| `bun run lint:fix`     | oxlint, type-aware, fixing what it can                                                |
-| `bun run format`       | oxfmt over everything                                                                 |
-| `bun run build`        | Builds the web app into `apps/web/dist`                                               |
-| `bun run build:binary` | Builds the web app, then `apps/backend/dist/select1`, one executable with it embedded |
+| Command                | What it does                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| `bun run up`           | The local stack in Docker with hot reload: Postgres, migrations, API, web, Storybook, pgweb |
+| `bun run down`         | Stops it                                                                                    |
+| `bun run dev`          | API and web dev server without Docker (needs `apps/backend/.env` and a Postgres)            |
+| `bun run check`        | Typecheck, lint, format check and tests, each one's output prefixed with its name           |
+| `bun run lint:fix`     | oxlint, type-aware, fixing what it can                                                      |
+| `bun run format`       | oxfmt over everything                                                                       |
+| `bun run build`        | Builds the web app into `apps/web/dist`                                                     |
+| `bun run build:binary` | Builds the web app, then `apps/backend/dist/select1`, one executable with it embedded       |
 
 In `apps/backend`: `bun run db:emit`, `bun run db:plan <name>`, `bun run db:migrate` (Prisma, see below). In `apps/web`: `bun run storybook`.
 
-Ports: select1's Postgres 5440, API 3100, web 5180, Storybook 6016.
+Ports: select1's Postgres 5440, API 3100, web 5180, Storybook 6016, pgweb 8091.
+
+- pgweb (http://localhost:8091) is temporary: it browses select1's own database until select1's explorer can, then it goes. Don't build on it.
 
 - Run the Prisma CLI with `bun --bun prisma ...` (the `db:*` scripts do), since the contract is TypeScript, and with `DO_NOT_TRACK=1` to keep its telemetry off.
 - Backend tests start their own Postgres with Testcontainers (`apps/backend/test/setup.ts`), so Docker must be running. Drive the API through `request()` from `test/api.ts`.
@@ -69,4 +71,4 @@ Ports: select1's Postgres 5440, API 3100, web 5180, Storybook 6016.
 
 ## Agent skills
 
-Skills live in `.agents/skills/<name>/SKILL.md`, linked from `.claude/skills`. `create-pr` formats the code, fixes lint and runs `bun run check` before opening a PR.
+Skills live in `.agents/skills/<name>/SKILL.md`, linked from `.claude/skills`, and subagents in `.agents/agents/<name>.md`, linked from `.claude/agents`. `create-pr` formats the code, fixes lint and runs `bun run check` before opening a PR, and, when asked for a review too ("create a PR and review"), has the `code-reviewer` agent review the PR and post its findings on it.

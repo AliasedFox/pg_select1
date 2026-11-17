@@ -64,11 +64,21 @@ There's nothing to use yet beyond a health page, but the project runs. You need
 
 ```sh
 bun install
-bun run up       # Postgres, migrations, API, web app and Storybook, with hot reload
+bun run up       # Postgres, migrations, API, web app, Storybook and pgweb, with hot reload
 ```
 
-Then open http://localhost:5180 for the web app, or http://localhost:6016 for
-Storybook. `bun run check` runs the typecheck, linter, format check and tests.
+Then open:
+
+| What               | URL                                                   |
+| ------------------ | ----------------------------------------------------- |
+| Web app            | http://localhost:5180                                 |
+| API health check   | http://localhost:3100/health                          |
+| Storybook          | http://localhost:6016                                 |
+| pgweb (temporary)  | http://localhost:8091                                 |
+| select1's Postgres | `postgresql://select1:select1@localhost:5440/select1` |
+
+pgweb browses select1's own database until select1 can do it itself, then it
+goes. `bun run check` runs the typecheck, linter, format check and tests.
 
 ## Contributing
 
