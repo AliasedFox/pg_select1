@@ -2,7 +2,7 @@
 
 Every language, tool, library, service and approach select1 uses, and where each lives. select1 is an open-source tool people run themselves, on a laptop or a server, so it needs nothing but Postgres to run.
 
-> **Status:** this is the planned stack. Nothing is scaffolded yet, so paths below are where things will go.
+> **Status:** the skeleton is in place: the workspaces, tooling, local stack, Docker image and executable, with a health check end to end. Modules and files that don't exist yet are listed where they will go. Not set up yet: the sample target Postgres (it comes with the explorer) and the Claude Code `Stop` hook.
 
 ## At a glance
 
@@ -31,14 +31,14 @@ Two kinds of database, kept apart throughout:
 
 ## Languages
 
-| What                   | Where                                                                                                                   |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| What                   | Where                                                                                                                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TypeScript (7, strict) | Everything: apps, shared package, tests, stories, config, and the Prisma schema (`apps/backend/src/prisma/contract.ts`). `noUncheckedIndexedAccess` and `verbatimModuleSyntax` are on. |
-| TSX (React)            | The web app.                                                                                                            |
-| SQL                    | Migrations in `apps/backend/migrations/`, the catalog queries that introspect target databases, test fixtures.          |
-| CSS (Tailwind v4)      | `apps/web/src/index.css`: the theme, with no `tailwind.config`.                                                         |
-| Markdown + Mermaid     | `docs/`, `README.md`, `AGENTS.md`, and the agent skills.                                                                |
-| YAML                   | `compose.yaml` (local stack, and the example for self-hosting) and the GitHub Actions workflows.                        |
+| TSX (React)            | The web app.                                                                                                                                                                           |
+| SQL                    | Migrations in `apps/backend/migrations/`, the catalog queries that introspect target databases, test fixtures.                                                                         |
+| CSS (Tailwind v4)      | `apps/web/src/index.css`: the theme, with no `tailwind.config`.                                                                                                                        |
+| Markdown + Mermaid     | `docs/`, `README.md`, `AGENTS.md`, and the agent skills.                                                                                                                               |
+| YAML                   | `compose.yaml` (local stack, and the example for self-hosting) and the GitHub Actions workflows.                                                                                       |
 
 ## Runtime, packages and the monorepo
 
@@ -66,14 +66,14 @@ One `src/index.ts` of Zod schemas for every request and response, the types infe
 
 The API is split by product area into modules in `apps/backend/src/modules/<name>/`. They share one Prisma contract and one Postgres schema (`public`) in select1's database:
 
-| Module       | What it holds                                                                                                  |
-| ------------ | -------------------------------------------------------------------------------------------------------------- |
-| `user`       | Accounts, sessions, roles (admin, editor, viewer), settings                                                    |
+| Module       | What it holds                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------- |
+| `user`       | Accounts, sessions, roles (admin, editor, viewer), settings                                                   |
 | `connection` | Connections to target databases, their encrypted credentials, read-only and limits settings, connection tests |
-| `explore`    | Schema introspection (schemas, tables, columns, indexes, constraints), table browsing, ad-hoc queries          |
-| `query`      | Saved queries, their history and last results                                                                  |
-| `alert`      | Alerts, their schedules and conditions, alert runs, the ok → triggered → resolved state                        |
-| `notify`     | Notification channels (Slack, webhook), deliveries and their retries                                           |
+| `explore`    | Schema introspection (schemas, tables, columns, indexes, constraints), table browsing, ad-hoc queries         |
+| `query`      | Saved queries, their history and last results                                                                 |
+| `alert`      | Alerts, their schedules and conditions, alert runs, the ok → triggered → resolved state                       |
+| `notify`     | Notification channels (Slack, webhook), deliveries and their retries                                          |
 
 Each module has the same shape: `api.ts` (its `endpoints` list), `service.ts` (the logic), `jobs.ts` (its background jobs), and tests next to each file. `modules/index.ts` registers them all. Shared plumbing sits in `src/`: `app.ts` (the Express app), `api.ts` (starts the workers and serves, the web app included), `endpoint.ts`, `auth.ts`, `job.ts`, `crypto.ts`, `targets.ts` (the pools to target databases), `db.ts`.
 
@@ -83,16 +83,16 @@ Each module has the same shape: `api.ts` (its `endpoints` list), `service.ts` (t
 
 ## Backend
 
-| Tool                  | Used for                                                                                                                            |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Express 5**         | The HTTP API, and serving the web app's build. Routes are declared in `endpoints` lists, which apply the sign-in and role guards.   |
-| **Zod 4**             | Validating every request (`parseRequest()`) against `packages/shared`'s schemas.                                                    |
-| **Prisma 8** (RC)     | ORM and migrations for select1's own database. The schema is TypeScript: one `src/prisma/contract.ts` built with `defineContract` (`@prisma/orm-postgres/contract-builder`). `prisma contract emit` writes `contract.json` and `contract.d.ts` into `src/prisma/generated/`; `prisma migration plan` writes a migration and `prisma db migrate` applies it. On the release candidate until 8.0.0 is out. |
-| **PostgreSQL**        | select1's own database (17 locally; Prisma 8 needs 15 or later), all in the `public` schema.                                       |
-| **pg** (node-postgres) | Talking to target databases: one pool per connection, with `statement_timeout`, read-only transactions and column type metadata.   |
-| **pg-boss**           | Running alerts on their schedules, sending notifications with retries, and housekeeping, stored in Postgres and run in the API process. |
-| **Better Auth**       | Accounts and sessions in select1's own database, with email and password, and OIDC for single sign-on on a server.                  |
-| **Web Crypto**        | Encrypting connection credentials at rest with AES-GCM, under a key from `SELECT1_SECRET_KEY`.                                     |
+| Tool                   | Used for                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Express 5**          | The HTTP API, and serving the web app's build. Routes are declared in `endpoints` lists, which apply the sign-in and role guards.                                                                                                                                                                                                                                                                        |
+| **Zod 4**              | Validating every request (`parseRequest()`) against `packages/shared`'s schemas.                                                                                                                                                                                                                                                                                                                         |
+| **Prisma 8** (RC)      | ORM and migrations for select1's own database. The schema is TypeScript: one `src/prisma/contract.ts` built with `defineContract` (`@prisma/orm-postgres/contract-builder`). `prisma contract emit` writes `contract.json` and `contract.d.ts` into `src/prisma/generated/`; `prisma migration plan` writes a migration and `prisma db migrate` applies it. On the release candidate until 8.0.0 is out. |
+| **PostgreSQL**         | select1's own database (17 locally; Prisma 8 needs 15 or later), all in the `public` schema.                                                                                                                                                                                                                                                                                                             |
+| **pg** (node-postgres) | Talking to target databases: one pool per connection, with `statement_timeout`, read-only transactions and column type metadata.                                                                                                                                                                                                                                                                         |
+| **pg-boss**            | Running alerts on their schedules, sending notifications with retries, and housekeeping, stored in Postgres and run in the API process.                                                                                                                                                                                                                                                                  |
+| **Better Auth**        | Accounts and sessions in select1's own database, with email and password, and OIDC for single sign-on on a server.                                                                                                                                                                                                                                                                                       |
+| **Web Crypto**         | Encrypting connection credentials at rest with AES-GCM, under a key from `SELECT1_SECRET_KEY`.                                                                                                                                                                                                                                                                                                           |
 
 ## Frontend
 
@@ -118,18 +118,18 @@ The web app is served by the API on the same origin, so there's no CORS and sign
 
 Black, white and greys, with a chartreuse yellow for small marks and green for things that are fine. The theme is shadcn/ui's neutral one, as CSS variables in `apps/web/src/index.css`, light and dark.
 
-| Color                       | Light                                     | Dark                                      | Used for                                                                                                 |
-| --------------------------- | ----------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Background                  | `#ffffff`                                 | `#0a0a0a` (`oklch(0.145 0 0)`)            | The page.                                                                                                |
-| Foreground                  | `#0a0a0a` (`oklch(0.145 0 0)`)            | `#fafafa` (`oklch(0.985 0 0)`)            | Text.                                                                                                    |
-| Primary                     | `#171717` (`oklch(0.205 0 0)`)            | `#e5e5e5` (`oklch(0.922 0 0)`)            | Main buttons.                                                                                            |
-| Muted, secondary, accent    | `#f5f5f5` (`oklch(0.97 0 0)`)             | `#262626` (`oklch(0.269 0 0)`)            | Quiet backgrounds, hovered items.                                                                        |
-| Muted foreground            | `#737373` (`oklch(0.556 0 0)`)            | `#a1a1a1` (`oklch(0.708 0 0)`)            | Secondary text.                                                                                          |
-| Border, input               | `#e5e5e5` (`oklch(0.922 0 0)`)            | white at 10% / 15%                        | Lines and fields.                                                                                        |
-| Slate grey                  | `#5c5f66`                                 | `#5c5f66`                                 | The second half of the wordmark.                                                                         |
-| **Highlight** (chartreuse)  | `#e8f04a`                                 | `#e8f04a`                                 | Small marks only: the current page, dots, step numbers, pills. Always black text on it, never yellow text on white. |
-| **Success** (green)         | `#16a34a` (`oklch(0.627 0.17 149.214)`)   | `#22c55e` (`oklch(0.723 0.192 149.579)`)  | Things that are fine: an alert that's ok or resolved, a connection that works.                           |
-| Destructive (red)           | `oklch(0.577 0.245 27.325)`               | `oklch(0.704 0.191 22.216)`               | Errors, a triggered alert, deleting.                                                                     |
+| Color                      | Light                                   | Dark                                     | Used for                                                                                                            |
+| -------------------------- | --------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Background                 | `#ffffff`                               | `#0a0a0a` (`oklch(0.145 0 0)`)           | The page.                                                                                                           |
+| Foreground                 | `#0a0a0a` (`oklch(0.145 0 0)`)          | `#fafafa` (`oklch(0.985 0 0)`)           | Text.                                                                                                               |
+| Primary                    | `#171717` (`oklch(0.205 0 0)`)          | `#e5e5e5` (`oklch(0.922 0 0)`)           | Main buttons.                                                                                                       |
+| Muted, secondary, accent   | `#f5f5f5` (`oklch(0.97 0 0)`)           | `#262626` (`oklch(0.269 0 0)`)           | Quiet backgrounds, hovered items.                                                                                   |
+| Muted foreground           | `#737373` (`oklch(0.556 0 0)`)          | `#a1a1a1` (`oklch(0.708 0 0)`)           | Secondary text.                                                                                                     |
+| Border, input              | `#e5e5e5` (`oklch(0.922 0 0)`)          | white at 10% / 15%                       | Lines and fields.                                                                                                   |
+| Slate grey                 | `#5c5f66`                               | `#5c5f66`                                | The second half of the wordmark.                                                                                    |
+| **Highlight** (chartreuse) | `#e8f04a`                               | `#e8f04a`                                | Small marks only: the current page, dots, step numbers, pills. Always black text on it, never yellow text on white. |
+| **Success** (green)        | `#16a34a` (`oklch(0.627 0.17 149.214)`) | `#22c55e` (`oklch(0.723 0.192 149.579)`) | Things that are fine: an alert that's ok or resolved, a connection that works.                                      |
+| Destructive (red)          | `oklch(0.577 0.245 27.325)`             | `oklch(0.704 0.191 22.216)`              | Errors, a triggered alert, deleting.                                                                                |
 
 No other accents: no blue links, no gold. shadcn's `accent` is the grey of hovered items, not a brand color.
 
@@ -147,14 +147,14 @@ Conventions on top: a `/** */` doc comment on every export, lint rules disabled 
 
 ## Tests
 
-| Tool                                 | Used for                                                                                                          |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| **Bun's test runner**                | Every workspace's tests, `*.test.ts(x)` next to the code.                                                         |
+| Tool                                 | Used for                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| **Bun's test runner**                | Every workspace's tests, `*.test.ts(x)` next to the code.                                                           |
 | **Testcontainers**                   | Throwaway Postgres containers per backend test run: one as select1's database, and seeded ones as target databases. |
-| **MSW** (Mock Service Worker)        | Intercepting all outgoing HTTP in tests and Storybook (Slack, webhooks); an unhandled request fails the test.     |
-| Fakes in `apps/*/test/`              | A clock for driving alert schedules.                                                                              |
-| **Testing Library** + **user-event** | Rendering the whole web app at a path and using it by role and label.                                             |
-| **happy-dom**                        | The DOM for the web app's tests.                                                                                  |
+| **MSW** (Mock Service Worker)        | Intercepting all outgoing HTTP in tests and Storybook (Slack, webhooks); an unhandled request fails the test.       |
+| Fakes in `apps/*/test/`              | A clock for driving alert schedules.                                                                                |
+| **Testing Library** + **user-event** | Rendering the whole web app at a path and using it by role and label.                                               |
+| **happy-dom**                        | The DOM for the web app's tests.                                                                                    |
 
 Backend tests are integration tests over HTTP (`request()` from `test/api.ts`), against real Postgres for both kinds of database; the web app's logic without React has plain unit tests.
 
@@ -168,24 +168,23 @@ Backend tests are integration tests over HTTP (`request()` from `test/api.ts`), 
 - No pgweb: select1 is the database browser, so the stack uses itself, with its own database added as a read-only connection.
 - A **Claude Code `Stop` hook** (`.claude/settings.json`) applies new migrations to the stack's database after each reply.
 
-
-| Service                | Port |
-| ---------------------- | ---- |
-| select1's Postgres     | 5440 |
-| Sample target Postgres | 5441 |
+| Service                 | Port |
+| ----------------------- | ---- |
+| select1's Postgres      | 5440 |
+| Sample target Postgres  | 5441 |
 | API (and built web app) | 3100 |
-| Web (Vite dev server)  | 5180 |
-| Storybook              | 6016 |
+| Web (Vite dev server)   | 5180 |
+| Storybook               | 6016 |
 
 ## Distribution
 
 select1 isn't a hosted service: people run it. Releases come from GitHub Actions on a version tag:
 
-| Artifact             | What                                                                                                                                    |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Docker image         | `ghcr.io/<org>/select1`, from `apps/backend/Dockerfile` (`oven/bun` slim) with the web app built in. Runs migrations on start; health check on `/health`. |
-| Executables          | `bun build --compile` for macOS and Linux (arm64 and x64), attached to the GitHub release.                                             |
-| `compose.yaml` example | select1 plus its Postgres, in the README, for running it on a server.                                                                |
+| Artifact               | What                                                                                                                                                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Docker image           | `ghcr.io/<org>/select1`, from `apps/backend/Dockerfile` (`oven/bun` slim) with the web app built in. Runs migrations on start; health check on `/health`. |
+| Executables            | `bun build --compile` for macOS and Linux (arm64 and x64), attached to the GitHub release.                                                                |
+| `compose.yaml` example | select1 plus its Postgres, in the README, for running it on a server.                                                                                     |
 
 Settings come from environment variables (`DATABASE_URL`, `SELECT1_SECRET_KEY`, `SELECT1_AUTH`...), read and validated by one Zod schema at start-up.
 
@@ -193,12 +192,12 @@ Settings come from environment variables (`DATABASE_URL`, `SELECT1_SECRET_KEY`, 
 
 None are required: select1 runs with only Postgres.
 
-| Service                     | Used for                                                                                  |
-| --------------------------- | ----------------------------------------------------------------------------------------- |
-| **Slack**                   | Alert notifications, through incoming webhooks.                                           |
-| **Webhooks**                | Alert notifications to anything else (PagerDuty, Opsgenie, Discord, your own endpoint).   |
-| **OIDC providers**          | Optional single sign-on (Google, GitHub, Okta...), through Better Auth.                  |
-| **GitHub**                  | The repo, issues, pull requests, Actions and the container registry, through the `gh` CLI. |
+| Service            | Used for                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| **Slack**          | Alert notifications, through incoming webhooks.                                            |
+| **Webhooks**       | Alert notifications to anything else (PagerDuty, Opsgenie, Discord, your own endpoint).    |
+| **OIDC providers** | Optional single sign-on (Google, GitHub, Okta...), through Better Auth.                    |
+| **GitHub**         | The repo, issues, pull requests, Actions and the container registry, through the `gh` CLI. |
 
 ## Approaches
 

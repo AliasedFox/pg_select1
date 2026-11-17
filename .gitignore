@@ -11,6 +11,7 @@ bun.lockb
 dist/
 *.tsbuildinfo
 .*.bun-build
+.compile/
 
 # Storybook's static build
 storybook-static/
@@ -43,9 +44,7 @@ logs/
 *.log
 
 # Editors
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+.vscode/
 .idea/
 *.swp
 

@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "sortImports": true,
+  "sortTailwindcss": {
+    "stylesheet": "apps/web/src/index.css",
+    "functions": ["cn", "cva", "clsx"]
+  },
+  "sortPackageJson": true,
+  "ignorePatterns": ["bun.lock", "**/src/prisma/generated/**", "apps/backend/migrations/**"]
+}

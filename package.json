@@ -1,0 +1,30 @@
+{
+  "name": "select1",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "oxlint --type-aware",
+    "lint:fix": "oxlint --type-aware --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "test": "bun run --filter '*' test",
+    "check": "bun run --sequential --no-exit-on-error typecheck lint format:check test",
+    "up": "docker compose watch",
+    "down": "docker compose down",
+    "dev": "bun run --filter '@select1/backend' --filter '@select1/web' dev",
+    "build": "bun run --filter '@select1/web' build",
+    "build:binary": "bun run build && bun run --filter '@select1/backend' build:binary"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
+    "oxlint-tsgolint": "^7.0.2007",
+    "typescript": "7"
+  }
+}

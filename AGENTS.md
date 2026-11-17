@@ -2,8 +2,6 @@
 
 Instructions for AI coding agents in this repo. `CLAUDE.md` only imports this file.
 
-> **Status:** nothing is scaffolded yet. `docs/stack.md` is the plan; as pieces land, add their commands and conventions here.
-
 ## Product rules
 
 select1 is an open-source SQL database explorer and alerting tool that people run themselves, on a laptop against their local database or on a server against production.
@@ -25,6 +23,29 @@ TypeScript on Bun, as runtime and package manager: `bun install`, `bun add`, `bu
 
 `docs/stack.md` has the full list and where each lives.
 
+## Commands
+
+Run from the repo root unless noted.
+
+| Command                | What it does                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------- |
+| `bun run up`           | The local stack in Docker with hot reload: Postgres, migrations, API, web, Storybook  |
+| `bun run down`         | Stops it                                                                              |
+| `bun run dev`          | API and web dev server without Docker (needs `apps/backend/.env` and a Postgres)      |
+| `bun run check`        | Typecheck, lint, format check and tests, each one's output prefixed with its name     |
+| `bun run lint:fix`     | oxlint, type-aware, fixing what it can                                                |
+| `bun run format`       | oxfmt over everything                                                                 |
+| `bun run build`        | Builds the web app into `apps/web/dist`                                               |
+| `bun run build:binary` | Builds the web app, then `apps/backend/dist/select1`, one executable with it embedded |
+
+In `apps/backend`: `bun run db:emit`, `bun run db:plan <name>`, `bun run db:migrate` (Prisma, see below). In `apps/web`: `bun run storybook`.
+
+Ports: select1's Postgres 5440, API 3100, web 5180, Storybook 6016.
+
+- Run the Prisma CLI with `bun --bun prisma ...` (the `db:*` scripts do), since the contract is TypeScript, and with `DO_NOT_TRACK=1` to keep its telemetry off.
+- Backend tests start their own Postgres with Testcontainers (`apps/backend/test/setup.ts`), so Docker must be running. Drive the API through `request()` from `test/api.ts`.
+- Web tests render the whole app with `renderApp(path)` from `apps/web/test/render.tsx`, against the fake API in `test/fixtures.ts`, which Storybook uses too. Override a route with `server.use()` in a test and `msw.use()` in a story's `beforeEach`.
+
 ## Code comments
 
 - **Every exported function, React components included, has a `/** */` doc comment.** It starts with a sentence on what the function does or answers, not its name again; then, when there's more to say, its side effects, its limits and why it works as it does. Other exports take one in the same form whenever they need explaining.
@@ -36,7 +57,8 @@ TypeScript on Bun, as runtime and package manager: `bun install`, `bun add`, `bu
 
 - Prisma 8, on its release candidate until 8.0.0 is out. Its docs and guides are new: check them rather than going by Prisma 7 habits (`schema.prisma`, `prisma generate`, `prisma migrate dev` are gone).
 - One schema for the whole backend, in TypeScript: `apps/backend/src/prisma/contract.ts`, built with `defineContract`. Not `.prisma` files, and not one file per module. Every table is in the `public` Postgres schema.
-- After changing it, run `prisma contract emit` (writes `contract.json` and `contract.d.ts` into `src/prisma/generated/`; commit them with the contract), then `prisma migration plan` to write the migration and `prisma db migrate` to apply it. Name migrations for what they change, e.g. `add_alert_channels`.
+- After changing it, run `bun run db:emit` (writes `contract.json` and `contract.d.ts` into `src/prisma/generated/`; commit them with the contract), then `bun run db:plan <name>` to write the migration into `apps/backend/migrations/` and `bun run db:migrate` to apply it. Name migrations for what they change, e.g. `add_alert_channels`. Never edit a planned migration's `ops.json` or format the migrations: they're hashed.
+- Prisma 8's own guide for agents ships inside the package: `apps/backend/node_modules/@prisma/orm-postgres/skills/prisma-8/`. Read its `SKILL.md` and the reference for the task before writing Prisma code.
 
 ## Colors
 
