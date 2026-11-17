@@ -53,7 +53,7 @@ apps/backend     Express API, jobs, alert evaluation, notifications, the Prisma 
 apps/web         The web app: explorer, SQL editor, saved queries, alerts, settings
 packages/shared  Zod schemas, types and product constants shared by both apps
 docs/            This page, architecture notes and ideas
-.agents/         Skills for AI coding agents, linked from .claude/
+.agents/         Skills and subagents for AI coding agents, linked from .claude/
 ```
 
 There's no separate admin UI or landing page: managing users and connections is part of the web app, behind an admin role, and the README is the landing page until there's a docs site.
@@ -165,7 +165,7 @@ Backend tests are integration tests over HTTP (`request()` from `test/api.ts`), 
 ## Local development
 
 - **Docker** and **Docker Compose** (`compose.yaml`, `Dockerfile.dev`): `bun run up` starts select1's Postgres and a sample target Postgres seeded with demo data, runs migrations, then the API, web app and Storybook with hot reload through `docker compose watch`.
-- No pgweb: select1 is the database browser, so the stack uses itself, with its own database added as a read-only connection.
+- **pgweb** (temporary): browses and queries select1's own database on 8091 until select1's explorer can. Then it's removed, and the stack uses select1 itself, with its own database added as a read-only connection.
 - A **Claude Code `Stop` hook** (`.claude/settings.json`) applies new migrations to the stack's database after each reply.
 
 | Service                 | Port |
@@ -175,6 +175,7 @@ Backend tests are integration tests over HTTP (`request()` from `test/api.ts`), 
 | API (and built web app) | 3100 |
 | Web (Vite dev server)   | 5180 |
 | Storybook               | 6016 |
+| pgweb (temporary)       | 8091 |
 
 ## Distribution
 
@@ -214,7 +215,7 @@ None are required: select1 runs with only Postgres.
 - **Integration tests over mocks of our own code**: backend tests hit real Postgres over HTTP; only external services are faked.
 - **Permissive dependencies only**: select1 is Apache 2.0, so every dependency is MIT, BSD, ISC or Apache.
 - **Design in code**: UI is prototyped in the app or standalone HTML, with Storybook for components; no Figma.
-- **AI agents**: `AGENTS.md` (imported by `CLAUDE.md`) holds the rules; `.agents/` holds the `create-pr` skill.
+- **AI agents**: `AGENTS.md` (imported by `CLAUDE.md`) holds the rules; `.agents/` holds the `create-pr` skill and the `code-reviewer` subagent.
 
 ## Editors and docs
 

@@ -1,5 +1,5 @@
 # The local stack: `bun run up` starts it with hot reload (`docker compose watch`).
-# Ports: select1's Postgres 5440, API 3100, web 5180, Storybook 6016.
+# Ports: select1's Postgres 5440, API 3100, web 5180, Storybook 6016, pgweb 8091.
 name: select1
 
 services:
@@ -66,6 +66,17 @@ services:
       - "6016:6016"
     develop:
       watch: *watch
+
+  # Temporary: pgweb, to browse and query select1's database until select1 can do it itself.
+  # http://localhost:8091. Remove it once the explorer works (see docs/stack.md).
+  pgweb:
+    image: sosedoff/pgweb:0.17.0
+    environment:
+      PGWEB_DATABASE_URL: postgresql://select1:select1@db:5432/select1?sslmode=disable
+    ports:
+      - "8091:8081"
+    depends_on:
+      db: { condition: service_healthy }
 
 volumes:
   db:
