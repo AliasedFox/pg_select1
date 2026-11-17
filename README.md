@@ -59,7 +59,16 @@ without wiring up a full BI stack. select1 aims to be one tool for both.
 
 ## Getting started
 
-Setup instructions will be added once there is something to run.
+There's nothing to use yet beyond a health page, but the project runs. You need
+[Bun](https://bun.sh) 1.3 or later and Docker.
+
+```sh
+bun install
+bun run up       # Postgres, migrations, API, web app and Storybook, with hot reload
+```
+
+Then open http://localhost:5180 for the web app, or http://localhost:6016 for
+Storybook. `bun run check` runs the typecheck, linter, format check and tests.
 
 ## Contributing
 

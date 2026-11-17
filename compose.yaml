@@ -1,0 +1,71 @@
+# The local stack: `bun run up` starts it with hot reload (`docker compose watch`).
+# Ports: select1's Postgres 5440, API 3100, web 5180, Storybook 6016.
+name: select1
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: select1
+      POSTGRES_PASSWORD: select1
+      POSTGRES_DB: select1
+    ports:
+      - "5440:5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U select1 -d select1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Applies select1's migrations, then exits; the API waits for it.
+  migrate:
+    build: { context: ., dockerfile: Dockerfile.dev }
+    working_dir: /app/apps/backend
+    command: ["bun", "run", "db:migrate"]
+    environment: &backend-env
+      DATABASE_URL: postgresql://select1:select1@db:5432/select1
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    build: { context: ., dockerfile: Dockerfile.dev }
+    working_dir: /app/apps/backend
+    command: ["bun", "run", "dev"]
+    environment:
+      <<: *backend-env
+      PORT: "3100"
+    ports:
+      - "3100:3100"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    develop:
+      watch: &watch
+        - { action: sync, path: ./apps, target: /app/apps, ignore: ["**/node_modules/"] }
+        - { action: sync, path: ./packages, target: /app/packages, ignore: ["**/node_modules/"] }
+        - { action: rebuild, path: ./bun.lock }
+
+  web:
+    build: { context: ., dockerfile: Dockerfile.dev }
+    working_dir: /app/apps/web
+    command: ["bun", "run", "dev"]
+    environment:
+      API_URL: http://api:3100
+    ports:
+      - "5180:5180"
+    depends_on: [api]
+    develop:
+      watch: *watch
+
+  storybook:
+    build: { context: ., dockerfile: Dockerfile.dev }
+    working_dir: /app/apps/web
+    command: ["bun", "run", "storybook", "--host", "0.0.0.0"]
+    ports:
+      - "6016:6016"
+    develop:
+      watch: *watch
+
+volumes:
+  db:
