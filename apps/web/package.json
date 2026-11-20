@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc",
     "test": "bun test",
-    "storybook": "storybook dev --port 6016 --no-open",
+    "storybook": "storybook dev --port 6026 --no-open",
     "build:storybook": "storybook build -o storybook-static"
   },
   "dependencies": {

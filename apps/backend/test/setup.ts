@@ -12,6 +12,8 @@ const container = await new PostgreSqlContainer("postgres:17-alpine")
   .start();
 process.env.DATABASE_URL = container.getConnectionUri();
 process.env.NODE_ENV = "test";
+process.env.PG_SELECT1_SECRET_KEY = "test-secret-key-at-least-32-characters";
+process.env.PG_SELECT1_URL = "http://localhost:5190";
 
 const migrate = Bun.spawnSync(["bun", "--bun", "prisma", "db", "migrate"], {
   cwd: `${import.meta.dir}/..`,

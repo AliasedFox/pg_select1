@@ -88,21 +88,30 @@ a row cap. [docs/queries.md](docs/queries.md) has the details.
 
 ## Getting started
 
-There's nothing to use yet beyond a health page, but the project runs. You need
-[Bun](https://bun.sh) 1.3 or later and Docker.
+There's nothing to use yet beyond signing in, managing users and a health page,
+but the project runs. You need [Bun](https://bun.sh) 1.3 or later and Docker.
 
 ```sh
 bun install
 bun run up       # Postgres, migrations, API, web app, Storybook and pgweb, with hot reload
+bun run user:add you@example.com --admin   # in another terminal: the first admin
 ```
+
+Nobody can sign up: admins invite people from the Users page, and `user add`
+makes the first admin. Either way you get a link to set a password with, valid
+for 7 days; pg_select1 doesn't send email, so you pass it on yourself. On a
+server, run the same command in pg_select1's container
+(`docker exec <container> pg_select1 user add you@example.com --admin`) or with
+the executable (`pg_select1 user add ...`), with `PG_SELECT1_URL` set to the
+address people open pg_select1 at, so the link points there.
 
 Then open:
 
 | What                  | URL                                                      |
 | --------------------- | -------------------------------------------------------- |
-| Web app               | http://localhost:5180                                    |
+| Web app               | http://localhost:5190                                    |
 | API health check      | http://localhost:3100/health                             |
-| Storybook             | http://localhost:6016                                    |
+| Storybook             | http://localhost:6026                                    |
 | pgweb (temporary)     | http://localhost:8091                                    |
 | pg_select1's Postgres | `postgresql://select1:select1@localhost:5440/pg_select1` |
 

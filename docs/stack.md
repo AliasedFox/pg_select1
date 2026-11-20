@@ -72,14 +72,14 @@ The API is split by product area into modules in `apps/backend/src/modules/<name
 
 | Module       | What it holds                                                                                                                                                                                                                                                                                 |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `user`       | Accounts, sessions, roles (admin, editor, viewer), settings                                                                                                                                                                                                                                   |
+| `user`       | Users and their roles (admin, editor, viewer), invites and set-password links, `pg_select1 user add`, settings                                                                                                                                                                                |
 | `connection` | Connections to target databases, their encrypted credentials, read-only and limits settings, the address pg_select1's database sees them at, connection tests, and, for connections used across connections, their foreign servers, user mappings and foreign tables, refreshed on a schedule |
 | `explore`    | Schema introspection on the target's own catalog (schemas, tables, columns, indexes, constraints), table browsing, ad-hoc queries on one connection or across several                                                                                                                         |
 | `query`      | Saved queries, their history and last results                                                                                                                                                                                                                                                 |
 | `alert`      | Alerts, their schedules and conditions, alert runs, the ok → triggered → resolved state                                                                                                                                                                                                       |
 | `notify`     | Notification channels (Slack, webhook), deliveries and their retries                                                                                                                                                                                                                          |
 
-Each module has the same shape: `api.ts` (its `endpoints` list), `service.ts` (the logic), `jobs.ts` (its background jobs), and tests next to each file. `modules/index.ts` registers them all. Shared plumbing sits in `src/`: `app.ts` (the Express app), `api.ts` (starts the workers and serves, the web app included), `endpoint.ts`, `auth.ts`, `job.ts`, `crypto.ts`, `targets.ts` (a `pg` pool per connection), `run.ts` (running people's SQL on either path, with its limits), `fdw.ts` (the start-up check, the `select1_query` pool, and the DDL for foreign servers, user mappings and foreign tables), `db.ts`.
+Each module has the same shape: `api.ts` (its `endpoints` list), `service.ts` (the logic), `jobs.ts` (its background jobs), and tests next to each file. `modules/index.ts` registers them all. Shared plumbing sits in `src/`: `cli.ts` (the command line the executable and image start in: `serve`, the default, and `user add`), `app.ts` (the Express app), `api.ts` (starts the workers and serves, the web app included), `endpoint.ts` (every endpoint says who may call it: `public`, `user` or `admin`), `auth.ts` (Better Auth, at `/api/auth`), `job.ts`, `crypto.ts`, `targets.ts` (a `pg` pool per connection), `run.ts` (running people's SQL on either path, with its limits), `fdw.ts` (the start-up check, the `select1_query` pool, and the DDL for foreign servers, user mappings and foreign tables), `db.ts`.
 
 ### Web app areas
 
@@ -96,7 +96,7 @@ Each module has the same shape: `api.ts` (its `endpoints` list), `service.ts` (t
 | **postgres_fdw**       | Optional: queries across connections. A foreign server and a user mapping for each connection used across connections, and foreign tables for its tables. Created by a check at start-up, not a migration. It isn't a trusted extension, so creating it takes a superuser, or an admin creating it beforehand. Without it, queries across connections are off.                                              |
 | **pg** (node-postgres) | Running people's SQL: directly on a target, from one pool per connection, or in pg_select1's database as `select1_query`, from its own pool. Both with `statement_timeout`, read-only transactions, a cursor for the row cap and column type metadata.                                                                                                                                                      |
 | **pg-boss**            | Running alerts on their schedules, sending notifications with retries, and housekeeping, stored in Postgres and run in the API process.                                                                                                                                                                                                                                                                     |
-| **Better Auth**        | Accounts and sessions in pg_select1's own database, with email and password, and OIDC for single sign-on on a server.                                                                                                                                                                                                                                                                                       |
+| **Better Auth**        | Accounts and sessions in pg_select1's own database, with email and password, and OIDC for single sign-on on a server. Sign-up is off: admins invite people, and the invite is a link to Better Auth's reset-password flow. Its tables are in the Prisma contract; it reads and writes them through `pg`.                                                                                                    |
 | **Web Crypto**         | Encrypting connection credentials at rest with AES-GCM, under a key from `PG_SELECT1_SECRET_KEY`, and deriving `select1_query`'s password from it. The user mappings postgres_fdw needs, for connections used across connections, are the credentials' only plain copy.                                                                                                                                     |
 
 ## Frontend
@@ -178,8 +178,8 @@ Backend tests are integration tests over HTTP (`request()` from `test/api.ts`), 
 | pg_select1's Postgres   | 5440 |
 | Sample target Postgres  | 5441 |
 | API (and built web app) | 3100 |
-| Web (Vite dev server)   | 5180 |
-| Storybook               | 6016 |
+| Web (Vite dev server)   | 5190 |
+| Storybook               | 6026 |
 | pgweb (temporary)       | 8091 |
 
 ## Distribution
@@ -192,7 +192,7 @@ pg_select1 isn't a hosted service: people run it. Releases come from GitHub Acti
 | Executables            | `bun build --compile` for macOS and Linux (arm64 and x64), attached to the GitHub release.                                                                   |
 | `compose.yaml` example | pg_select1 plus its Postgres, in the README, for running it on a server.                                                                                     |
 
-Settings come from environment variables (`DATABASE_URL`, `PG_SELECT1_SECRET_KEY`, `PG_SELECT1_AUTH`...), read and validated by one Zod schema at start-up.
+Settings come from environment variables (`DATABASE_URL`, `PG_SELECT1_SECRET_KEY`, `PG_SELECT1_URL`, `PG_SELECT1_AUTH`...), read and validated by one Zod schema at start-up. `PG_SELECT1_URL` is the address people open pg_select1 at, for invite links and Better Auth's origin check.
 
 ## Third-party services
 

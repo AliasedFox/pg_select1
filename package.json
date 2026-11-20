@@ -14,8 +14,9 @@
     "format:check": "oxfmt --check",
     "test": "bun run --filter '*' test",
     "check": "bun run --sequential --no-exit-on-error typecheck lint format:check test",
-    "up": "docker compose watch",
+    "up": "docker compose build && docker compose watch",
     "down": "docker compose down",
+    "user:add": "docker compose exec api bun src/cli.ts user add",
     "dev": "bun run --filter '@pg_select1/backend' --filter '@pg_select1/web' dev",
     "build": "bun run --filter '@pg_select1/web' build",
     "build:binary": "bun run build && bun run --filter '@pg_select1/backend' build:binary"

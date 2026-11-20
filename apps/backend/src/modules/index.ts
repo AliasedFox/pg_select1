@@ -1,5 +1,6 @@
 import type { Endpoint } from "../endpoint";
 import { endpoints as health } from "./health/api";
+import { endpoints as user } from "./user/api";
 
 /** Every module's endpoints, in the order they're mounted. */
-export const endpoints: Endpoint[] = [...health];
+export const endpoints: Endpoint[] = [...health, ...user];

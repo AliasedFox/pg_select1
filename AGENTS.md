@@ -42,7 +42,7 @@ Run from the repo root unless noted.
 
 In `apps/backend`: `bun run db:emit`, `bun run db:plan <name>`, `bun run db:migrate` (Prisma, see below). In `apps/web`: `bun run storybook`.
 
-Ports: pg_select1's Postgres 5440, API 3100, web 5180, Storybook 6016, pgweb 8091.
+Ports: pg_select1's Postgres 5440, API 3100, web 5190, Storybook 6026, pgweb 8091.
 
 - pgweb (http://localhost:8091) is temporary: it browses pg_select1's own database until pg_select1's explorer can, then it goes. Don't build on it.
 
