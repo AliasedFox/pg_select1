@@ -13,12 +13,12 @@
       },
     },
     "apps/backend": {
-      "name": "@select1/backend",
+      "name": "@pg_select1/backend",
       "version": "0.0.0",
       "dependencies": {
+        "@pg_select1/shared": "workspace:*",
         "@prisma/cli-engine": "0.10.0",
         "@prisma/orm-postgres": "8.0.0-rc.24",
-        "@select1/shared": "workspace:*",
         "better-auth": "^1.7.25",
         "dotenv": "^18.0.10",
         "express": "^5.3.0",
@@ -36,13 +36,13 @@
       },
     },
     "apps/web": {
-      "name": "@select1/web",
+      "name": "@pg_select1/web",
       "version": "0.0.0",
       "dependencies": {
         "@codemirror/lang-sql": "^6.10.0",
         "@fontsource-variable/geist": "^5.3.0",
         "@fontsource-variable/geist-mono": "^5.3.0",
-        "@select1/shared": "workspace:*",
+        "@pg_select1/shared": "workspace:*",
         "@tanstack/react-table": "^9.3.1",
         "@tanstack/react-virtual": "^3.14.26",
         "class-variance-authority": "^0.7.1",
@@ -80,7 +80,7 @@
       },
     },
     "packages/shared": {
-      "name": "@select1/shared",
+      "name": "@pg_select1/shared",
       "version": "0.0.0",
       "dependencies": {
         "zod": "4",
@@ -480,6 +480,12 @@
 
     "@oxlint/binding-win32-x64-msvc": ["@oxlint/binding-win32-x64-msvc@1.94.0", "", { "os": "win32", "cpu": "x64" }, "sha512-I3eZdd4bemIJQDNv9XDV/FEofDxIoN32tzCv98wIgLdW05EqxZb5hF4AwPrRzHD/dQhl0n7KgPy5AQPfM0HWrA=="],
 
+    "@pg_select1/backend": ["@pg_select1/backend@workspace:apps/backend"],
+
+    "@pg_select1/shared": ["@pg_select1/shared@workspace:packages/shared"],
+
+    "@pg_select1/web": ["@pg_select1/web@workspace:apps/web"],
+
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
 
     "@prisma/cli-engine": ["@prisma/cli-engine@0.10.0", "", { "dependencies": { "@clack/prompts": "1.5.0", "@stricli/core": "1.3.0", "arktype": "^2.2.7", "c12": "3.3.4", "colorette": "^2.0.20", "package-manager-detector": "1.8.0", "string-width": "^8.2.1" }, "peerDependencies": { "@prisma/management-api-sdk": "^1.55.0" } }, "sha512-GdeeXQg5dmlY5aBX+coqtO8AbUwszGL/Sa9z5NcRQkUKIS7hk4EBG8mhwZFN9dKOVwahw7e9dWfpM7skl2MyGg=="],
@@ -677,12 +683,6 @@
     "@rollup/pluginutils": ["@rollup/pluginutils@5.5.1", "", { "dependencies": { "@types/estree": "^1.0.0", "estree-walker": "^2.0.2", "picomatch": "^4.0.2" }, "peerDependencies": { "rollup": "^1.20.0||^2.0.0||^3.0.0||^4.0.0" }, "optionalPeers": ["rollup"] }, "sha512-P9ZvnfouRu4MSC+ilERaw6FmZs8zqKhpHxEs4aGDGWQAMzQGXnhvCSvoNwokfNvdt7t3Y5Y4p6gStQgezeIqug=="],
 
     "@sec-ant/readable-stream": ["@sec-ant/readable-stream@0.4.1", "", {}, "sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg=="],
-
-    "@select1/backend": ["@select1/backend@workspace:apps/backend"],
-
-    "@select1/shared": ["@select1/shared@workspace:packages/shared"],
-
-    "@select1/web": ["@select1/web@workspace:apps/web"],
 
     "@sindresorhus/merge-streams": ["@sindresorhus/merge-streams@4.0.0", "", {}, "sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ=="],
 

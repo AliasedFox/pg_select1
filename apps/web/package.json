@@ -1,5 +1,5 @@
 {
-  "name": "@select1/web",
+  "name": "@pg_select1/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -16,7 +16,7 @@
     "@codemirror/lang-sql": "^6.10.0",
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
-    "@select1/shared": "workspace:*",
+    "@pg_select1/shared": "workspace:*",
     "@tanstack/react-table": "^9.3.1",
     "@tanstack/react-virtual": "^3.14.26",
     "class-variance-authority": "^0.7.1",

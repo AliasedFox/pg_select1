@@ -1,5 +1,5 @@
 {
-  "name": "@select1/shared",
+  "name": "@pg_select1/shared",
   "version": "0.0.0",
   "private": true,
   "type": "module",

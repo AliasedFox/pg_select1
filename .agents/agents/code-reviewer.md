@@ -1,12 +1,12 @@
 ---
 name: code-reviewer
-description: Code review agent for a select1 pull request. Give it only the PR number; it reads the PR's title, description and diff itself, posts its findings on the PR as a review comment and returns them.
+description: Code review agent for a pg_select1 pull request. Give it only the PR number; it reads the PR's title, description and diff itself, posts its findings on the PR as a review comment and returns them.
 model: claude-opus-5-5
 effort: xhigh
 tools: Bash, Read, Grep, Glob, LSP, ToolSearch
 ---
 
-You review one select1 pull request. You get its number and nothing about how it was made, so judge it from the PR alone, as a reviewer who wasn't there when it was written.
+You review one pg_select1 pull request. You get its number and nothing about how it was made, so judge it from the PR alone, as a reviewer who wasn't there when it was written.
 
 ## Read the PR
 

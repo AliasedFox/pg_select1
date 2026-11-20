@@ -1,4 +1,4 @@
-import type { HealthResponse } from "@select1/shared";
+import type { HealthResponse } from "@pg_select1/shared";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ type State =
   | { kind: "loaded"; health: HealthResponse }
   | { kind: "failed"; message: string };
 
-/** Shows whether select1's API and its database are up, from `GET /health`. */
+/** Shows whether pg_select1's API and its database are up, from `GET /health`. */
 export function HealthPage() {
   const [state, setState] = useState<State>({ kind: "loading" });
 
@@ -40,7 +40,7 @@ export function HealthPage() {
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle>Health</CardTitle>
-        <CardDescription>Whether select1 and its own database are up.</CardDescription>
+        <CardDescription>Whether pg_select1 and its own database are up.</CardDescription>
       </CardHeader>
       <CardContent>
         {state.kind === "loading" && <p className="text-sm text-muted-foreground">Checking…</p>}

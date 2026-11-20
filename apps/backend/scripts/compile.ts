@@ -1,5 +1,5 @@
-// Builds select1 into one executable with the web app embedded: `bun run build:binary [target]`,
-// e.g. `bun-darwin-arm64` or `bun-linux-x64` (default: this machine). Writes `dist/select1`.
+// Builds pg_select1 into one executable with the web app embedded: `bun run build:binary [target]`,
+// e.g. `bun-darwin-arm64` or `bun-linux-x64` (default: this machine). Writes `dist/pg_select1`.
 //
 // The web app must be built first (`bun run build` at the root). Each of its files is embedded
 // with an import `with { type: "file" }`, in an entry point generated for the build.
@@ -43,7 +43,7 @@ await rm(genDir, { recursive: true, force: true });
 await mkdir(genDir);
 await writeFile(resolve(genDir, "entry.ts"), entry);
 
-const outfile = resolve(root, "dist/select1");
+const outfile = resolve(root, "dist/pg_select1");
 const result = await Bun.build({
   entrypoints: [resolve(genDir, "entry.ts")],
   compile: { target, outfile },

@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Open a GitHub pull request for select1, after formatting the code, fixing lint and running the typecheck, linter, format check and tests, and, only when the user asks for a review too ("create a PR and review"), having the code-reviewer agent review it. Use whenever the user asks to open, create or make a PR.
+description: Open a GitHub pull request for pg_select1, after formatting the code, fixing lint and running the typecheck, linter, format check and tests, and, only when the user asks for a review too ("create a PR and review"), having the code-reviewer agent review it. Use whenever the user asks to open, create or make a PR.
 ---
 
 # Create a pull request

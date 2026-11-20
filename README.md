@@ -1,12 +1,17 @@
-# select1
+# pg_select1
 
-SQL database explorer & real-time alerting system.
+PostgreSQL explorer & real-time alerting system.
 
-select1 is an open-source tool for looking at your data — the same way, whether
-it's your local database while you develop or your production database when you
-need to know what's really going on. On top of exploring, it lets you define
-**alerts**: SQL-backed conditions that notify you when your data does something
-it shouldn't.
+pg_select1 is an open-source tool for looking at the data in your PostgreSQL
+databases — the same way, whether it's your local database while you develop or
+your production database when you need to know what's really going on. On top of
+exploring, it lets you define **alerts**: SQL-backed conditions that notify you
+when your data does something it shouldn't.
+
+It's Postgres all the way down. A query on one database runs directly on it, and
+one query can join tables from several databases, through
+[postgres_fdw](https://www.postgresql.org/docs/current/postgres-fdw.html) in
+pg_select1's own Postgres database.
 
 Think of it as a cross between [pgweb](https://github.com/sosedoff/pgweb)
 (a lightweight database browser) and [Redash](https://github.com/getredash/redash)
@@ -20,15 +25,17 @@ built to be equally at home on a laptop and on a server.
 During development you want a fast, no-ceremony way to poke at tables, run a
 query, and check what your code just wrote. In production you want the same
 thing, plus guardrails, plus a way to be told when something goes wrong —
-without wiring up a full BI stack. select1 aims to be one tool for both.
+without wiring up a full BI stack. pg_select1 aims to be one tool for both.
 
 ## Features
 
 ### Explore (local & production)
 
-- Connect to one or more databases (PostgreSQL first)
+- Connect to one or more PostgreSQL databases
 - Browse schemas, tables, columns, indexes, and constraints
 - Run ad-hoc SQL with a proper editor and inspect results
+- Query across databases: add a second connection to a query, and
+  `select ... from orders join crm.customers ...` just works
 - Save, name, and re-run queries
 - Read-only mode and safe defaults for production connections
 
@@ -36,9 +43,31 @@ without wiring up a full BI stack. select1 aims to be one tool for both.
 
 - Define an alert as a SQL query plus a condition
   (e.g. "row count > 0", "value above threshold", "result changed")
+- Alert on one database, or on how several disagree (paid orders in one with no
+  invoice in another)
 - Run alerts on a schedule
 - Get notified when an alert triggers, and again when it resolves
-- Pluggable notification channels (e.g. email, Slack, webhooks)
+- Notification channels: Slack and webhooks
+
+## How it works
+
+pg_select1 keeps its users, connections, saved queries and alerts in a Postgres
+database of its own. Every query names the connections it reads:
+
+- **One connection**: pg_select1 runs the query directly on that database, so
+  the SQL you'd write against the database itself works as it is.
+- **Two or more**: the query runs in pg_select1's database, where the
+  [postgres_fdw](https://www.postgresql.org/docs/current/postgres-fdw.html)
+  extension makes each connection's tables foreign tables in a schema named
+  after it. Each database filters its own rows, and pg_select1's database
+  joins them.
+
+postgres_fdw is optional. Most Postgres hosts have it. Where pg_select1's
+database doesn't (Render's managed Postgres, Heroku's Essential plans), queries
+across connections are off and everything else works.
+
+Queries are read-only unless a connection is marked writable, with a timeout and
+a row cap. [docs/queries.md](docs/queries.md) has the details.
 
 ## Use cases
 
@@ -55,7 +84,7 @@ without wiring up a full BI stack. select1 aims to be one tool for both.
 - [Bun](https://bun.sh) / Node.js
 - React
 - [Prisma](https://www.prisma.io)
-- PostgreSQL
+- PostgreSQL 15 or later, and postgres_fdw for queries across databases
 
 ## Getting started
 
@@ -69,16 +98,18 @@ bun run up       # Postgres, migrations, API, web app, Storybook and pgweb, with
 
 Then open:
 
-| What               | URL                                                   |
-| ------------------ | ----------------------------------------------------- |
-| Web app            | http://localhost:5180                                 |
-| API health check   | http://localhost:3100/health                          |
-| Storybook          | http://localhost:6016                                 |
-| pgweb (temporary)  | http://localhost:8091                                 |
-| select1's Postgres | `postgresql://select1:select1@localhost:5440/select1` |
+| What                  | URL                                                      |
+| --------------------- | -------------------------------------------------------- |
+| Web app               | http://localhost:5180                                    |
+| API health check      | http://localhost:3100/health                             |
+| Storybook             | http://localhost:6016                                    |
+| pgweb (temporary)     | http://localhost:8091                                    |
+| pg_select1's Postgres | `postgresql://select1:select1@localhost:5440/pg_select1` |
 
-pgweb browses select1's own database until select1 can do it itself, then it
-goes. `bun run check` runs the typecheck, linter, format check and tests.
+The role is `select1`, not `pg_select1`, because Postgres reserves role names
+starting with `pg_`. pgweb browses pg_select1's own database until pg_select1
+can do it itself, then it goes. `bun run check` runs the typecheck, linter,
+format check and tests.
 
 ## Contributing
 
@@ -87,4 +118,4 @@ request.
 
 ## License
 
-select1 is open source under the [Apache License 2.0](LICENSE).
+pg_select1 is open source under the [Apache License 2.0](LICENSE).

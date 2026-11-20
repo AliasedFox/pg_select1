@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** What `GET /health` answers: whether select1 is up and can reach its own database. */
+/** What `GET /health` answers: whether pg_select1 is up and can reach its own database. */
 export const healthResponse = z.object({
   status: z.enum(["ok", "error"]),
   version: z.string(),

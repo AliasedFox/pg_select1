@@ -5,11 +5,11 @@ import { readEnv } from "./env";
 import type { Contract } from "./prisma/generated/contract.d.ts";
 import contractJson from "./prisma/generated/contract.json" with { type: "json" };
 
-/** select1's own database contract, as `prisma contract emit` last wrote it. */
+/** pg_select1's own database contract, as `prisma contract emit` last wrote it. */
 export const contract = contractFromJson<Contract>(contractJson);
 
 /**
- * The Prisma client for select1's own database, one pool for the process's lifetime.
+ * The Prisma client for pg_select1's own database, one pool for the process's lifetime.
  *
  * Never use it for target databases: those go through `pg` in `targets.ts`.
  */
