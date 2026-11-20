@@ -5,14 +5,14 @@ const schema = z.object({
   PORT: z.coerce.number().int().min(0).max(65_535).default(3100),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   // Where the web app's build is; it's served only when there is one.
-  SELECT1_WEB_DIR: z.string().optional(),
+  PG_SELECT1_WEB_DIR: z.string().optional(),
 });
 
-/** select1's settings, read from environment variables and validated once, at start-up. */
+/** pg_select1's settings, read from environment variables and validated once, at start-up. */
 export type Env = z.infer<typeof schema>;
 
 /**
- * Reads select1's settings from the environment.
+ * Reads pg_select1's settings from the environment.
  *
  * @throws {Error} naming every variable that is missing or invalid, so start-up fails early
  *   rather than on the first request that needs it.

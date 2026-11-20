@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 
-import { healthResponse } from "@select1/shared";
+import { healthResponse } from "@pg_select1/shared";
 
 import { request } from "../../../test/api";
 
-test("GET /health answers ok when select1's database is reachable", async () => {
+test("GET /health answers ok when pg_select1's database is reachable", async () => {
   const res = await request("/health");
 
   expect(res.status).toBe(200);

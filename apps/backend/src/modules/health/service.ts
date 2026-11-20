@@ -1,10 +1,10 @@
-import type { HealthResponse } from "@select1/shared";
+import type { HealthResponse } from "@pg_select1/shared";
 
 import packageJson from "../../../package.json" with { type: "json" };
 import { db } from "../../db";
 
 /**
- * Answers whether select1 is up and can reach its own database, timing a `SELECT 1` on it.
+ * Answers whether pg_select1 is up and can reach its own database, timing a `SELECT 1` on it.
  *
  * A database that can't be reached makes the status `error` rather than throwing.
  */

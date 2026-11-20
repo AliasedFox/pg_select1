@@ -5,8 +5,8 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* shadcn/ui's neutral theme, plus select1's own marks: highlight, success and slate. Every color
-   is listed in docs/stack.md; add none that isn't there. */
+/* shadcn/ui's neutral theme, plus pg_select1's own marks: highlight, success and slate. Every
+   color is listed in docs/stack.md; add none that isn't there. */
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);

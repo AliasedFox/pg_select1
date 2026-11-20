@@ -1,31 +1,33 @@
 # The local stack: `bun run up` starts it with hot reload (`docker compose watch`).
-# Ports: select1's Postgres 5440, API 3100, web 5180, Storybook 6016, pgweb 8091.
-name: select1
+# Ports: pg_select1's Postgres 5440, API 3100, web 5180, Storybook 6016, pgweb 8091.
+name: pg_select1
 
 services:
+  # pg_select1's own database. Postgres reserves role names starting with `pg_`, so its role is
+  # `select1`. The image ships postgres_fdw; the role is a superuser here, so it can create it.
   db:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: select1
       POSTGRES_PASSWORD: select1
-      POSTGRES_DB: select1
+      POSTGRES_DB: pg_select1
     ports:
       - "5440:5432"
     volumes:
       - db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U select1 -d select1"]
+      test: ["CMD-SHELL", "pg_isready -U select1 -d pg_select1"]
       interval: 2s
       timeout: 3s
       retries: 30
 
-  # Applies select1's migrations, then exits; the API waits for it.
+  # Applies pg_select1's migrations, then exits; the API waits for it.
   migrate:
     build: { context: ., dockerfile: Dockerfile.dev }
     working_dir: /app/apps/backend
     command: ["bun", "run", "db:migrate"]
     environment: &backend-env
-      DATABASE_URL: postgresql://select1:select1@db:5432/select1
+      DATABASE_URL: postgresql://select1:select1@db:5432/pg_select1
     depends_on:
       db: { condition: service_healthy }
 
@@ -67,12 +69,12 @@ services:
     develop:
       watch: *watch
 
-  # Temporary: pgweb, to browse and query select1's database until select1 can do it itself.
+  # Temporary: pgweb, to browse and query pg_select1's database until pg_select1 can do it itself.
   # http://localhost:8091. Remove it once the explorer works (see docs/stack.md).
   pgweb:
     image: sosedoff/pgweb:0.17.0
     environment:
-      PGWEB_DATABASE_URL: postgresql://select1:select1@db:5432/select1?sslmode=disable
+      PGWEB_DATABASE_URL: postgresql://select1:select1@db:5432/pg_select1?sslmode=disable
     ports:
       - "8091:8081"
     depends_on:

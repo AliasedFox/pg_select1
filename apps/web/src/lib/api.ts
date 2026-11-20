@@ -1,12 +1,12 @@
 import type { z } from "zod";
 
-/** A response from select1's API with a body that isn't what its schema says. */
+/** A response from pg_select1's API with a body that isn't what its schema says. */
 export class ApiError extends Error {
   override name = "ApiError";
 }
 
 /**
- * Fetches a path on select1's API and parses the JSON body with `schema`, whatever the status,
+ * Fetches a path on pg_select1's API and parses the JSON body with `schema`, whatever the status,
  * since some endpoints (like `/health`) answer with a body on errors too.
  *
  * @throws {ApiError} when the body isn't JSON or doesn't match `schema`.

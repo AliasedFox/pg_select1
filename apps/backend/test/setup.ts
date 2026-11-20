@@ -1,4 +1,4 @@
-// Runs before every backend test file: one throwaway Postgres as select1's database, migrated
+// Runs before every backend test file: one throwaway Postgres as pg_select1's database, migrated
 // the way production is, for the whole test run.
 import { afterAll } from "bun:test";
 

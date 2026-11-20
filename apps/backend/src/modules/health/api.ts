@@ -1,7 +1,7 @@
 import type { Endpoint } from "../../endpoint";
 import { checkHealth } from "./service";
 
-/** The health check: `GET /health`, 200 when select1 and its database are up, 503 otherwise. */
+/** The health check: `GET /health`, 200 when pg_select1 and its database are up, 503 otherwise. */
 export const endpoints: Endpoint[] = [
   {
     method: "get",

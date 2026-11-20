@@ -1,5 +1,5 @@
 {
-  "name": "select1",
+  "name": "pg_select1",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -16,9 +16,9 @@
     "check": "bun run --sequential --no-exit-on-error typecheck lint format:check test",
     "up": "docker compose watch",
     "down": "docker compose down",
-    "dev": "bun run --filter '@select1/backend' --filter '@select1/web' dev",
-    "build": "bun run --filter '@select1/web' build",
-    "build:binary": "bun run build && bun run --filter '@select1/backend' build:binary"
+    "dev": "bun run --filter '@pg_select1/backend' --filter '@pg_select1/web' dev",
+    "build": "bun run --filter '@pg_select1/web' build",
+    "build:binary": "bun run build && bun run --filter '@pg_select1/backend' build:binary"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

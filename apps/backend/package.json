@@ -1,5 +1,5 @@
 {
-  "name": "@select1/backend",
+  "name": "@pg_select1/backend",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,9 +14,9 @@
     "build:binary": "bun scripts/compile.ts"
   },
   "dependencies": {
+    "@pg_select1/shared": "workspace:*",
     "@prisma/cli-engine": "0.10.0",
     "@prisma/orm-postgres": "8.0.0-rc.24",
-    "@select1/shared": "workspace:*",
     "better-auth": "^1.7.25",
     "dotenv": "^18.0.10",
     "express": "^5.3.0",
