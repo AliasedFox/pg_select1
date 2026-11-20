@@ -1,5 +1,5 @@
 # The local stack: `bun run up` starts it with hot reload (`docker compose watch`).
-# Ports: pg_select1's Postgres 5440, API 3100, web 5180, Storybook 6016, pgweb 8091.
+# Ports: pg_select1's Postgres 5440, API 3100, web 5190, Storybook 6026, pgweb 8091.
 name: pg_select1
 
 services:
@@ -38,6 +38,10 @@ services:
     environment:
       <<: *backend-env
       PORT: "3100"
+      # Development only: a real install sets its own, e.g. `openssl rand -base64 32`.
+      PG_SELECT1_SECRET_KEY: development-secret-key-not-for-production
+      # People open the web dev server, which forwards /api here.
+      PG_SELECT1_URL: http://localhost:5190
     ports:
       - "3100:3100"
     depends_on:
@@ -55,7 +59,7 @@ services:
     environment:
       API_URL: http://api:3100
     ports:
-      - "5180:5180"
+      - "5190:5190"
     depends_on: [api]
     develop:
       watch: *watch
@@ -65,7 +69,7 @@ services:
     working_dir: /app/apps/web
     command: ["bun", "run", "storybook", "--host", "0.0.0.0"]
     ports:
-      - "6016:6016"
+      - "6026:6026"
     develop:
       watch: *watch
 

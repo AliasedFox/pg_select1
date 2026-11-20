@@ -6,6 +6,7 @@ export const endpoints: Endpoint[] = [
   {
     method: "get",
     path: "/health",
+    access: "public",
     handler: async (_req, res) => {
       const health = await checkHealth();
       res.status(health.status === "ok" ? 200 : 503).json(health);
