@@ -28,6 +28,7 @@ export const auth = betterAuth({
   appName: "pg_select1",
   baseURL: env.PG_SELECT1_URL,
   basePath: "/api/auth",
+  trustedOrigins: env.trustedOrigins,
   secret: env.PG_SELECT1_SECRET_KEY,
   database: new Pool({ connectionString: env.DATABASE_URL, max: 5 }),
   emailAndPassword: {

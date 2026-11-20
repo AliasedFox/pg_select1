@@ -102,8 +102,12 @@ makes the first admin. Either way you get a link to set a password with, valid
 for 7 days; pg_select1 doesn't send email, so you pass it on yourself. On a
 server, run the same command in pg_select1's container
 (`docker exec <container> pg_select1 user add you@example.com --admin`) or with
-the executable (`pg_select1 user add ...`), with `PG_SELECT1_URL` set to the
-address people open pg_select1 at, so the link points there.
+the executable (`pg_select1 user add ...`).
+
+On a server, set `PG_SELECT1_URL` to the address people open pg_select1 at,
+e.g. `https://pg_select1.example.com`: sign-in only works from that address,
+and links point there. The Docker image won't start without it; the executable
+falls back to `http://localhost:3100`, which only works on your own machine.
 
 Then open:
 

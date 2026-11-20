@@ -192,7 +192,7 @@ pg_select1 isn't a hosted service: people run it. Releases come from GitHub Acti
 | Executables            | `bun build --compile` for macOS and Linux (arm64 and x64), attached to the GitHub release.                                                                   |
 | `compose.yaml` example | pg_select1 plus its Postgres, in the README, for running it on a server.                                                                                     |
 
-Settings come from environment variables (`DATABASE_URL`, `PG_SELECT1_SECRET_KEY`, `PG_SELECT1_URL`, `PG_SELECT1_AUTH`...), read and validated by one Zod schema at start-up. `PG_SELECT1_URL` is the address people open pg_select1 at, for invite links and Better Auth's origin check.
+Settings come from environment variables (`DATABASE_URL`, `PG_SELECT1_SECRET_KEY`, `PG_SELECT1_URL`, `PG_SELECT1_AUTH`...), read and validated by one Zod schema at start-up. `PG_SELECT1_URL` is the address people open pg_select1 at, for invite links and Better Auth's origin check: sign-in only works from it, so it's required in production (the Docker image fails to start without it). Elsewhere it defaults to `http://localhost:<PORT>`, with `http://127.0.0.1:<PORT>` trusted too.
 
 ## Third-party services
 
