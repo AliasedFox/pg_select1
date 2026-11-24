@@ -2,6 +2,7 @@ import type { SetPasswordLink, User } from "@pg_select1/shared";
 import { MoreHorizontalIcon, PlusIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Loading } from "@/components/Loading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -110,7 +111,7 @@ export function UsersPage({ currentUserId }: { currentUserId: string }) {
           {actionError}
         </p>
       )}
-      {state.kind === "loading" && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {state.kind === "loading" && <Loading />}
       {state.kind === "failed" && (
         <p role="alert" className="animate-fade-in text-sm text-destructive">
           Couldn't load users: {state.message}

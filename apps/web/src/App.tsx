@@ -1,14 +1,17 @@
 import type { Me } from "@pg_select1/shared";
-import { type MouseEvent, type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
 
 import { AccountMenu } from "@/auth/AccountMenu";
 import { useSession } from "@/auth/session";
 import { SessionProvider } from "@/auth/SessionProvider";
 import { SetPasswordPage } from "@/auth/SetPasswordPage";
 import { SignInPage } from "@/auth/SignInPage";
+import { Brand } from "@/Brand";
+import { Loading } from "@/components/Loading";
 import { ConnectionsPage } from "@/connections/ConnectionsPage";
+import { Footer } from "@/Footer";
 import { Nav } from "@/Nav";
-import { navigate, redirect, usePath } from "@/router";
+import { redirect, usePath } from "@/router";
 import { UsersPage } from "@/users/UsersPage";
 
 /** The app: who's signed in, and the shell around the page for the current path. */
@@ -32,7 +35,9 @@ function Shell() {
     // Whoever has the link sets a password, signed in or not.
     page = <SetPasswordPage token={params.get("token")} />;
   } else if (session.kind === "loading") {
-    page = <p className="text-sm text-muted-foreground">Loading…</p>;
+    // Only a spinner until it's known who's signed in, rather than a header and footer that then
+    // change around the page.
+    return <Loading className="min-h-svh" />;
   } else if (session.kind === "failed") {
     page = (
       <p role="alert" className="animate-fade-in text-sm text-destructive">
@@ -51,17 +56,7 @@ function Shell() {
     <div className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-screen-xl items-center gap-x-6 px-4 sm:px-6">
-          <a
-            href="/"
-            aria-label="pg_select1 home"
-            className="rounded-md font-mono text-lg font-semibold tracking-tight outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            onClick={(event: MouseEvent) => {
-              event.preventDefault();
-              navigate("/");
-            }}
-          >
-            select<span className="text-slate">1</span>
-          </a>
+          <Brand />
           {user && <Nav path={path} user={user} />}
           {user && (
             <div className="ml-auto flex">
@@ -77,6 +72,7 @@ function Shell() {
       >
         {page}
       </main>
+      <Footer user={user} />
     </div>
   );
 }
