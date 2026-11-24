@@ -106,13 +106,13 @@ export function UsersPage({ currentUserId }: { currentUserId: string }) {
       </div>
 
       {actionError && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="animate-fade-in text-sm text-destructive">
           {actionError}
         </p>
       )}
       {state.kind === "loading" && <p className="text-sm text-muted-foreground">Loading…</p>}
       {state.kind === "failed" && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="animate-fade-in text-sm text-destructive">
           Couldn't load users: {state.message}
         </p>
       )}

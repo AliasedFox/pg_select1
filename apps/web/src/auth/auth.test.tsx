@@ -37,7 +37,8 @@ test("signs in and shows the app", async () => {
   await user.click(screen.getByRole("button", { name: "Sign in" }));
 
   expect(await screen.findByText("Ada Admin")).toBeDefined();
-  expect(window.location.pathname).toBe("/");
+  expect(await screen.findByRole("heading", { name: "Connections" })).toBeDefined();
+  expect(window.location.pathname).toBe("/connections");
 });
 
 test("says so when the password is wrong", async () => {
@@ -131,4 +132,12 @@ test("a viewer sees no Users page", async () => {
 
   expect(await screen.findByText("Only admins can manage users.")).toBeDefined();
   expect(screen.queryByRole("link", { name: "Users" })).toBeNull();
+});
+
+test("someone who isn't an admin lands on a page saying there's nothing yet", async () => {
+  server.use(http.get("/api/me", () => HttpResponse.json(viewer)));
+  renderApp("/");
+
+  expect(await screen.findByText(/There's nothing to explore yet/)).toBeDefined();
+  expect(window.location.pathname).toBe("/");
 });

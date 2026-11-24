@@ -70,7 +70,7 @@ function RoleField({ value, onChange }: { value: Role; onChange: (role: Role) =>
 function FormError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <p role="alert" className="text-sm text-destructive">
+    <p role="alert" className="animate-fade-in text-sm text-destructive">
       {message}
     </p>
   );

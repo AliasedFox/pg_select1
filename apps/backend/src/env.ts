@@ -7,7 +7,8 @@ const schema = z
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
     // Where the web app's build is; it's served only when there is one.
     PG_SELECT1_WEB_DIR: z.string().optional(),
-    // Signs sessions and tokens. Changing it signs everyone out.
+    // Signs sessions and tokens, and encrypts connection passwords. Changing it signs everyone out
+    // and makes saved passwords unreadable, so admins enter them again.
     PG_SELECT1_SECRET_KEY: z.string().min(32, "must be at least 32 characters"),
     // The address people open pg_select1 at. Sign-in only works from it, and invite links point
     // at it. Required in production; elsewhere, http://localhost:<PORT>.

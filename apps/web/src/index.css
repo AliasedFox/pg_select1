@@ -84,6 +84,23 @@
   --color-highlight-foreground: var(--highlight-foreground);
   --color-success: var(--success);
   --color-slate: var(--slate);
+
+  /* A fade for things in the page's flow, like each page as it opens. Unlike
+     tw-animate-css's `animate-in`, it has no transform: a transform puts the element on its own
+     layer, snapped to whole pixels, so content at a fractional x (a centred column) shifts by a
+     pixel when it ends. */
+  --animate-fade-in: fade-in 0.25s ease-out;
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none;
+  }
 }
 
 @layer base {
