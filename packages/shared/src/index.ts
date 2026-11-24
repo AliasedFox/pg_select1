@@ -236,3 +236,63 @@ export const testConnectionResult = z.discriminatedUnion("ok", [
 
 /** The result of testing a connection, as {@link testConnectionResult} parses it. */
 export type TestConnectionResult = z.infer<typeof testConnectionResult>;
+
+/**
+ * A connection as anyone signed in sees it to explore: only its name. Admins see every
+ * connection, everyone else only the visible ones.
+ */
+export const explorableConnection = z.object({ id: z.string(), name: z.string() });
+
+/** A connection to explore, as {@link explorableConnection} parses it. */
+export type ExplorableConnection = z.infer<typeof explorableConnection>;
+
+/** What `GET /api/explore/connections` answers: the connections the caller can explore, by name. */
+export const explorableConnectionList = z.object({
+  connections: z.array(explorableConnection),
+});
+
+/** The kinds of relation the explorer lists, as `pg_class.relkind` names them. */
+export const tableKind = z.enum([
+  "table",
+  "view",
+  "materialized view",
+  "partitioned table",
+  "foreign table",
+]);
+
+/** One of the {@link tableKind}s. */
+export type TableKind = z.infer<typeof tableKind>;
+
+/** A table, view or the like in a target database, by schema and name. */
+export const targetTable = z.object({ schema: z.string(), name: z.string(), kind: tableKind });
+
+/** A table in a target database, as {@link targetTable} parses it. */
+export type TargetTable = z.infer<typeof targetTable>;
+
+/**
+ * What `GET /api/explore/connections/:id/tables` answers: the tables, views, materialized views
+ * and partitioned tables in a connection's database outside Postgres's own schemas, by schema
+ * then name. Partitions aren't listed apart from their parent.
+ */
+export const targetTableList = z.object({ tables: z.array(targetTable) });
+
+/** A column of a table's rows: its name and its type as Postgres writes it, like `varchar(80)`. */
+export const resultColumn = z.object({ name: z.string(), type: z.string() });
+
+/** A column, as {@link resultColumn} parses it. */
+export type ResultColumn = z.infer<typeof resultColumn>;
+
+/**
+ * What `GET /api/explore/connections/:id/rows` answers: a table's columns and its rows, each
+ * value as Postgres prints it, or `null`. At most `rowCap` rows come back; `truncated` says
+ * there are more.
+ */
+export const tableRows = z.object({
+  columns: z.array(resultColumn),
+  rows: z.array(z.array(z.string().nullable())),
+  truncated: z.boolean(),
+  rowCap: z.number().int(),
+});
+
+/** A table's rows, as {@link tableRows} parses it. */
+export type TableRows = z.infer<typeof tableRows>;

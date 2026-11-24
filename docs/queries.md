@@ -7,7 +7,7 @@ Every query, saved query and alert names its **connections**, one or more, picke
 
 postgres_fdw is used only for a query that needs it. Where pg_select1's database doesn't have postgres_fdw, queries across connections are off, and everything else still works.
 
-> **Status:** spec. None of this is built yet.
+> **Status:** mostly spec. Built so far, on the direct path only: a pool per connection (`apps/backend/src/targets.ts`) and table browsing in the `explore` module, which lists a connection's tables and reads up to 1,000 rows of one in a `READ ONLY` transaction with a 30-second `statement_timeout`. Running people's SQL, cancelling and everything across connections aren't built yet.
 
 ```mermaid
 flowchart LR

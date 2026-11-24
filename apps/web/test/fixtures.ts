@@ -1,6 +1,8 @@
 import {
   type Connection,
   createConnectionRequest,
+  type TableRows,
+  type TargetTable,
   inviteUserRequest,
   type Me,
   updateMeRequest,
@@ -80,6 +82,31 @@ export const connections: Connection[] = [
   },
 ];
 
+/** The tables `GET /api/explore/connections/:id/tables` answers for any connection. */
+export const tables: TargetTable[] = [
+  { schema: "public", name: "customers", kind: "table" },
+  { schema: "public", name: "orders", kind: "table" },
+  { schema: "reporting", name: "daily_sales", kind: "materialized view" },
+  { schema: "reporting", name: "open_orders", kind: "view" },
+];
+
+/** The rows `GET /api/explore/connections/:id/rows` answers for any table. */
+export const customerRows: TableRows = {
+  columns: [
+    { name: "id", type: "bigint" },
+    { name: "email", type: "text" },
+    { name: "name", type: "character varying(80)" },
+    { name: "created_at", type: "timestamp with time zone" },
+  ],
+  rows: [
+    ["1", "ada@example.com", "Ada Lovelace", "2026-01-02 09:00:00+00"],
+    ["2", "grace@example.com", "Grace Hopper", "2026-01-03 10:30:00+00"],
+    ["3", "alan@example.com", null, "2026-01-04 11:45:00+00"],
+  ],
+  truncated: false,
+  rowCap: 1000,
+};
+
 /** Answers `GET /api/me` as nobody signed in, for `server.use()` or `msw.use()`. */
 export const signedOut = http.get("/api/me", () =>
   HttpResponse.json({ error: "Sign in first" }, { status: 401 }),
@@ -115,6 +142,11 @@ export const handlers = [
   }),
   http.delete("/api/users/:id", () => new HttpResponse(null, { status: 204 })),
   http.post("/api/users/:id/set-password-link", () => HttpResponse.json(link)),
+  http.get("/api/explore/connections", () =>
+    HttpResponse.json({ connections: connections.map(({ id, name }) => ({ id, name })) }),
+  ),
+  http.get("/api/explore/connections/:id/tables", () => HttpResponse.json({ tables })),
+  http.get("/api/explore/connections/:id/rows", () => HttpResponse.json(customerRows)),
   http.get("/api/connections", () => HttpResponse.json({ connections })),
   http.post("/api/connections", async ({ request }) => {
     const { password, ...body } = createConnectionRequest.parse(await request.json());

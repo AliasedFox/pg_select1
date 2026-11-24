@@ -33,7 +33,7 @@ test("shows someone who isn't an admin their profile and the project's links", a
   server.use(http.get("/api/me", () => HttpResponse.json(viewer)));
   renderApp("/");
 
-  await screen.findByText(/There's nothing to explore yet/);
+  await screen.findByRole("heading", { name: "Explore" });
   const footer = screen.getByRole("navigation", { name: "Footer" });
   expect(within(footer).queryByRole("link", { name: "Connections" })).toBeNull();
   expect(within(footer).getByRole("link", { name: "Your profile" })).toBeDefined();
