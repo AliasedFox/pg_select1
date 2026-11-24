@@ -1,6 +1,6 @@
 import type { IncomingHttpHeaders } from "node:http";
 
-import { type Role, role } from "@pg_select1/shared";
+import { MIN_PASSWORD_LENGTH, type Role, role } from "@pg_select1/shared";
 import { betterAuth } from "better-auth";
 import { fromNodeHeaders } from "better-auth/node";
 import { Pool } from "pg";
@@ -23,6 +23,7 @@ export const SET_PASSWORD_LINK_DAYS = 7;
  * Nobody can sign up: an admin invites people (`user` module) or adds them from the shell
  * (`pg_select1 user add`), and they set their password from the link they're given, through
  * Better Auth's reset-password endpoint. There's no email, so asking for a reset link is off.
+ * Someone signed in changes their own password with its change-password endpoint.
  */
 export const auth = betterAuth({
   appName: "pg_select1",
@@ -34,7 +35,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     disableSignUp: true,
-    minPasswordLength: 12,
+    minPasswordLength: MIN_PASSWORD_LENGTH,
     resetPasswordTokenExpiresIn: SET_PASSWORD_LINK_DAYS * 24 * 60 * 60,
     revokeSessionsOnPasswordReset: true,
   },

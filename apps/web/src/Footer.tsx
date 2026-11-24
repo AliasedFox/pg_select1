@@ -14,6 +14,9 @@ const ADMIN_LINKS = [
   { path: "/users", label: "Users" },
 ];
 
+// The signed-in user's own pages, as in the header's account menu.
+const ACCOUNT_LINKS = [{ path: "/profile", label: "Your profile" }];
+
 // Where pg_select1 itself lives, outside the app.
 const PROJECT_LINKS = [
   { href: REPO_URL, label: "Source on GitHub" },
@@ -28,8 +31,8 @@ const footerLinkClass =
   "inline-flex items-center gap-1.5 rounded-sm transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /**
- * The footer under every page: links to the pages the signed-in user can open, to pg_select1's
- * repository, and who makes it. Nobody signed in sees only the repository's links.
+ * The footer under every page: links to the pages the signed-in user can open, their profile among
+ * them, to pg_select1's repository, and who makes it. Nobody signed in sees only the repository's links.
  */
 export function Footer({ user }: { user?: Me }) {
   return (
@@ -42,17 +45,14 @@ export function Footer({ user }: { user?: Me }) {
           {user?.role === "admin" && (
             <FooterColumn title="Admin">
               {ADMIN_LINKS.map(({ path, label }) => (
-                <a
-                  key={path}
-                  href={path}
-                  className={footerLinkClass}
-                  onClick={(event: MouseEvent) => {
-                    event.preventDefault();
-                    navigate(path);
-                  }}
-                >
-                  {label}
-                </a>
+                <PageLink key={path} path={path} label={label} />
+              ))}
+            </FooterColumn>
+          )}
+          {user && (
+            <FooterColumn title="Account">
+              {ACCOUNT_LINKS.map(({ path, label }) => (
+                <PageLink key={path} path={path} label={label} />
               ))}
             </FooterColumn>
           )}
@@ -95,6 +95,22 @@ export function Footer({ user }: { user?: Me }) {
         </div>
       </div>
     </footer>
+  );
+}
+
+// A link to a page of the app, opened without reloading.
+function PageLink({ path, label }: { path: string; label: string }) {
+  return (
+    <a
+      href={path}
+      className={footerLinkClass}
+      onClick={(event: MouseEvent) => {
+        event.preventDefault();
+        navigate(path);
+      }}
+    >
+      {label}
+    </a>
   );
 }
 

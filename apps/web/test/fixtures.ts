@@ -3,6 +3,7 @@ import {
   createConnectionRequest,
   inviteUserRequest,
   type Me,
+  updateMeRequest,
   updateUserRequest,
   updateConnectionRequest,
   type User,
@@ -89,7 +90,12 @@ export const handlers = [
   http.get("/api/me", () => HttpResponse.json(admin)),
   http.post("/api/auth/sign-in/email", () => HttpResponse.json({ redirect: false, token: "t" })),
   http.post("/api/auth/sign-out", () => HttpResponse.json({ success: true })),
+  http.patch("/api/me", async ({ request }) => {
+    const { name } = updateMeRequest.parse(await request.json());
+    return HttpResponse.json({ ...admin, name });
+  }),
   http.post("/api/auth/reset-password", () => HttpResponse.json({ status: true })),
+  http.post("/api/auth/change-password", () => HttpResponse.json({ token: "t2", user: admin })),
   http.get("/api/users", () => HttpResponse.json({ users })),
   http.post("/api/users", async ({ request }) => {
     const body = inviteUserRequest.parse(await request.json());

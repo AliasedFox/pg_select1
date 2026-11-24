@@ -18,13 +18,25 @@ test("goes to the admins' pages from the footer", async () => {
   expect(window.location.pathname).toBe("/users");
 });
 
-test("shows someone who isn't an admin only the project's links", async () => {
+test("goes to one's profile from the footer, admin or not", async () => {
+  server.use(http.get("/api/me", () => HttpResponse.json(viewer)));
+  const user = userEvent.setup();
+  renderApp("/");
+
+  const footer = await screen.findByRole("navigation", { name: "Footer" });
+  await user.click(await within(footer).findByRole("link", { name: "Your profile" }));
+  expect(await screen.findByRole("heading", { name: "Your profile" })).toBeDefined();
+  expect(window.location.pathname).toBe("/profile");
+});
+
+test("shows someone who isn't an admin their profile and the project's links", async () => {
   server.use(http.get("/api/me", () => HttpResponse.json(viewer)));
   renderApp("/");
 
   await screen.findByText(/There's nothing to explore yet/);
   const footer = screen.getByRole("navigation", { name: "Footer" });
   expect(within(footer).queryByRole("link", { name: "Connections" })).toBeNull();
+  expect(within(footer).getByRole("link", { name: "Your profile" })).toBeDefined();
   expect(within(footer).getByRole("link", { name: "Source on GitHub" }).getAttribute("href")).toBe(
     "https://github.com/AliasedFox/pg_select1",
   );
@@ -38,4 +50,5 @@ test("shows the project's links to nobody signed in", async () => {
   const footer = screen.getByRole("navigation", { name: "Footer" });
   expect(within(footer).getByRole("link", { name: "Report an issue" })).toBeDefined();
   expect(within(footer).queryByRole("link", { name: "Users" })).toBeNull();
+  expect(within(footer).queryByRole("link", { name: "Your profile" })).toBeNull();
 });

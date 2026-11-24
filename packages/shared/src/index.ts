@@ -43,6 +43,18 @@ export const me = z.object({
 /** The signed-in user, as {@link me} parses it. */
 export type Me = z.infer<typeof me>;
 
+/** The fewest characters a password can have, which Better Auth enforces too. */
+export const MIN_PASSWORD_LENGTH = 12;
+
+// A user's name, as an admin or they themselves give it.
+const userName = z.string().trim().min(1, "Give a name").max(200);
+
+/** The body of `PATCH /api/me`: the signed-in user's new name. Their email and role stay. */
+export const updateMeRequest = z.object({ name: userName });
+
+/** A change to the signed-in user, as {@link updateMeRequest} parses it. */
+export type UpdateMeRequest = z.infer<typeof updateMeRequest>;
+
 /**
  * A user as an admin sees them in `GET /api/users`. `invited` means they haven't set a password
  * from their invite link yet.
@@ -65,7 +77,7 @@ export const userList = z.object({ users: z.array(user) });
 /** The body of `POST /api/users`: who to invite and with what role. */
 export const inviteUserRequest = z.object({
   email: z.email().trim().toLowerCase(),
-  name: z.string().trim().min(1).max(200),
+  name: userName,
   role,
 });
 
@@ -74,7 +86,7 @@ export type InviteUserRequest = z.infer<typeof inviteUserRequest>;
 
 /** The body of `PATCH /api/users/:id`: the fields to change. */
 export const updateUserRequest = z.object({
-  name: z.string().trim().min(1).max(200).optional(),
+  name: userName.optional(),
   role: role.optional(),
 });
 
