@@ -146,16 +146,31 @@ describe("tables", () => {
     ]);
   });
 
-  test("a database that can't be reached says why", async () => {
+  test("a database that can't be reached says why to an admin", async () => {
     const unreachable = await addConnection(true, { host: "127.0.0.1", port: 1 });
-    const viewer = await signedInAs("viewer");
+    const admin = await signedInAs("admin");
 
-    const res = await get(`/api/explore/connections/${unreachable.id}/tables`, viewer.cookie);
+    const res = await get(`/api/explore/connections/${unreachable.id}/tables`, admin.cookie);
 
     expect(res.status).toBe(502);
     expect(errorResponse.parse(await res.json()).error).toBe(
       "Nothing is accepting connections at 127.0.0.1:1",
     );
+  });
+
+  test("anyone else isn't told where the database is or who connects to it", async () => {
+    const unreachable = await addConnection(true, { host: "127.0.0.1", port: 1 });
+    const refused = await addConnection(true, { password: "not the password" });
+    const viewer = await signedInAs("viewer");
+
+    for (const c of [unreachable, refused]) {
+      const res = await get(`/api/explore/connections/${c.id}/tables`, viewer.cookie);
+
+      expect(res.status).toBe(502);
+      expect(errorResponse.parse(await res.json()).error).toBe(
+        `${c.name} can't be reached right now. An admin can test its connection.`,
+      );
+    }
   });
 });
 

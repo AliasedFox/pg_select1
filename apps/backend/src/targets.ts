@@ -48,11 +48,27 @@ interface OpenPool {
 
 const pools = new Map<string, OpenPool>();
 
-/** A connection to open a pool for: its id, its target, and when its settings last changed. */
+/** A connection to open a pool for: its id, its name, its target, and when its settings last changed. */
 export interface PooledTarget {
   id: string;
+  name: string;
   target: Target;
   updatedAt: Date;
+}
+
+/**
+ * Connecting to a target failed, before any query ran. Its `cause` is what `pg` or the network
+ * answered, which names the host, port, user or database, so it's for admins' eyes only.
+ */
+export class ConnectError extends Error {
+  override name = "ConnectError";
+
+  constructor(
+    readonly connection: PooledTarget,
+    cause: unknown,
+  ) {
+    super(`Couldn't connect to ${connection.name}`, { cause });
+  }
 }
 
 function poolFor({ id, target, updatedAt }: PooledTarget): Pool {
@@ -79,13 +95,19 @@ function poolFor({ id, target, updatedAt }: PooledTarget): Pool {
  * Runs `work` on a client from a connection's pool, opening the pool on first use and again
  * when the connection's settings have changed since, and gives the client back after.
  *
- * @throws {Error} as `pg` does, when the target can't be reached or `work` fails.
+ * @throws {ConnectError} when the target can't be reached or refuses the connection, and as
+ *   `pg` does when `work` fails.
  */
 export async function withTarget<T>(
   connection: PooledTarget,
   work: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await poolFor(connection).connect();
+  let client: PoolClient;
+  try {
+    client = await poolFor(connection).connect();
+  } catch (error) {
+    throw new ConnectError(connection, error);
+  }
   let broken = false;
   try {
     return await work(client);

@@ -3,7 +3,7 @@ import { DatabaseError, escapeIdentifier, type PoolClient } from "pg";
 
 import type { SessionUser } from "../../auth";
 import { HttpError } from "../../endpoint";
-import { type PooledTarget, withTarget } from "../../targets";
+import { ConnectError, type PooledTarget, withTarget } from "../../targets";
 import { describeConnectError, explorableTarget } from "../connection/service";
 
 /** The most rows a table's page shows; the rest aren't read. */
@@ -30,11 +30,13 @@ const asText = { getTypeParser: () => (value: string) => value };
  * Runs `work` on a connection's database, in a `READ ONLY` transaction with a statement timeout
  * that is rolled back after, whatever `work` sends.
  *
- * @throws {HttpError} a 502 saying why when the database can't be reached or refuses, and a 504
- *   when it takes longer than {@link STATEMENT_TIMEOUT_MS}.
+ * @throws {HttpError} a 502 when the database can't be reached or refuses (saying why to an
+ *   admin only, since why names its host, port and user), and a 504 when it takes longer than
+ *   {@link STATEMENT_TIMEOUT_MS}.
  */
 async function readTarget<T>(
   connection: PooledTarget,
+  user: SessionUser,
   work: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   try {
@@ -47,6 +49,14 @@ async function readTarget<T>(
     });
   } catch (error) {
     if (error instanceof HttpError) throw error;
+    if (error instanceof ConnectError) {
+      throw new HttpError(
+        502,
+        user.role === "admin"
+          ? describeConnectError(error.cause, connection.target)
+          : `${connection.name} can't be reached right now. An admin can test its connection.`,
+      );
+    }
     // 57014 is query_canceled, which the statement timeout raises.
     if (error instanceof DatabaseError && error.code === "57014") {
       throw new HttpError(
@@ -54,8 +64,9 @@ async function readTarget<T>(
         `The database didn't answer within ${STATEMENT_TIMEOUT_MS / 1000} seconds`,
       );
     }
+    // Once connected, Postgres's errors are about the query, like a table the role can't read.
     if (error instanceof DatabaseError) throw new HttpError(502, error.message);
-    throw new HttpError(502, describeConnectError(error, connection.target));
+    throw error;
   }
 }
 
@@ -68,7 +79,7 @@ async function readTarget<T>(
  */
 export async function listTables(connectionId: string, user: SessionUser): Promise<TargetTable[]> {
   const connection = await explorableTarget(connectionId, user);
-  return readTarget(connection, async (client) => {
+  return readTarget(connection, user, async (client) => {
     const { rows } = await client.query<{ schema: string; name: string; relkind: string }>(
       `SELECT n.nspname AS schema, c.relname AS name, c.relkind::text AS relkind
          FROM pg_catalog.pg_class c
@@ -102,7 +113,7 @@ export async function readTable(
   user: SessionUser,
 ): Promise<TableRows> {
   const connection = await explorableTarget(connectionId, user);
-  return readTarget(connection, async (client) => {
+  return readTarget(connection, user, async (client) => {
     const relation = await client.query<{ oid: number }>(
       `SELECT c.oid
          FROM pg_catalog.pg_class c

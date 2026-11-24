@@ -249,7 +249,7 @@ export async function explorableTarget(id: string, user: SessionUser): Promise<P
     throw new HttpError(404, "There's no such connection");
   }
   try {
-    return { id: row.id, target: targetOf(row), updatedAt: row.updatedAt };
+    return { id: row.id, name: row.name, target: targetOf(row), updatedAt: row.updatedAt };
   } catch {
     throw new HttpError(
       500,
