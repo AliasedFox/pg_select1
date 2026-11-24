@@ -8,6 +8,9 @@ import { navigate } from "@/router";
 const REPO_URL = "https://github.com/AliasedFox/pg_select1";
 const ALIASEDFOX_URL = "https://aliasedfox.com";
 
+// The pages everyone signed in sees, as in the header.
+const MAIN_LINKS = [{ path: "/explore", label: "Explore" }];
+
 // The pages only admins see, as in the header's Admin menu.
 const ADMIN_LINKS = [
   { path: "/connections", label: "Connections" },
@@ -42,6 +45,13 @@ export function Footer({ user }: { user?: Me }) {
           aria-label="Footer"
           className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:grid-cols-6"
         >
+          {user && (
+            <FooterColumn title="Data">
+              {MAIN_LINKS.map(({ path, label }) => (
+                <PageLink key={path} path={path} label={label} />
+              ))}
+            </FooterColumn>
+          )}
           {user?.role === "admin" && (
             <FooterColumn title="Admin">
               {ADMIN_LINKS.map(({ path, label }) => (

@@ -10,7 +10,9 @@ import { SignInPage } from "@/auth/SignInPage";
 import { Brand } from "@/Brand";
 import { Loading } from "@/components/Loading";
 import { ConnectionsPage } from "@/connections/ConnectionsPage";
+import { ExplorePage } from "@/explore/ExplorePage";
 import { Footer } from "@/Footer";
+import { cn } from "@/lib/utils";
 import { Nav } from "@/Nav";
 import { redirect, usePath } from "@/router";
 import { UsersPage } from "@/users/UsersPage";
@@ -69,7 +71,11 @@ function Shell() {
       {/* Keyed so each page fades in, rather than swapping in at once. */}
       <main
         key={path}
-        className="mx-auto w-full max-w-screen-xl flex-1 animate-fade-in px-4 pt-6 pb-16 sm:px-6 sm:pt-10"
+        className={cn(
+          "mx-auto w-full flex-1 animate-fade-in px-4 pt-6 pb-16 sm:px-6 sm:pt-10",
+          // The explorer's tables use the whole width; other pages keep to the header's.
+          path !== "/explore" && "max-w-screen-xl",
+        )}
       >
         {page}
       </main>
@@ -87,15 +93,9 @@ function Redirect({ to }: { to: string }) {
 }
 
 function SignedInPage({ path, user }: { path: string; user: Me }) {
-  if (path === "/" || path === "/sign-in") {
-    // Admins start at their connections; there's nothing else to open yet.
-    if (user.role === "admin") return <Redirect to="/connections" />;
-    return (
-      <p className="text-sm text-muted-foreground">
-        There's nothing to explore yet. Connections an admin makes visible will be here.
-      </p>
-    );
-  }
+  // Everyone starts at the explorer.
+  if (path === "/" || path === "/sign-in") return <Redirect to="/explore" />;
+  if (path === "/explore") return <ExplorePage isAdmin={user.role === "admin"} />;
   if (path === "/profile") return <ProfilePage user={user} />;
   if (path === "/users") {
     if (user.role !== "admin") {

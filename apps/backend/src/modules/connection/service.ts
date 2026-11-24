@@ -1,17 +1,20 @@
 import type {
   Connection,
   createConnectionRequest,
+  ExplorableConnection,
   SslMode,
   testConnectionRequest,
   TestConnectionResult,
   updateConnectionRequest,
 } from "@pg_select1/shared";
-import { Client, type ClientConfig } from "pg";
+import { Client } from "pg";
 import type { z } from "zod";
 
+import type { SessionUser } from "../../auth";
 import { decryptSecret, encryptSecret } from "../../crypto";
 import { db } from "../../db";
 import { HttpError } from "../../endpoint";
+import { clientConfig, closeTarget, type PooledTarget, type Target } from "../../targets";
 
 const connectionFields = [
   "id",
@@ -39,16 +42,6 @@ interface ConnectionRow {
   visible: boolean;
   createdAt: Date;
   updatedAt: Date;
-}
-
-/** Where a database is and who to connect to it as, with the password in plain text. */
-export interface Target {
-  host: string;
-  port: number;
-  database: string;
-  username: string;
-  password: string | undefined;
-  sslMode: SslMode;
 }
 
 // How long a test waits for a database to answer, connecting and then querying.
@@ -84,29 +77,6 @@ async function ensureNameIsFree(name: string, exceptId?: string): Promise<void> 
 }
 
 /**
- * The `pg` settings to open a connection to a target with, as pg_select1 always does: with its
- * own `application_name`, so the target's `pg_stat_activity` shows who's asking.
- */
-export function clientConfig(target: Target): ClientConfig {
-  return {
-    host: target.host,
-    port: target.port,
-    database: target.database,
-    user: target.username,
-    password: target.password,
-    application_name: "pg_select1",
-    // `require` encrypts without checking who answers, like libpq's; `verify-full` checks the
-    // certificate against the system's CAs and the host name, which Node does by default.
-    ssl:
-      target.sslMode === "disable"
-        ? false
-        : target.sslMode === "require"
-          ? { rejectUnauthorized: false }
-          : { rejectUnauthorized: true, servername: target.host },
-  };
-}
-
-/**
  * Answers a connection's target with its password decrypted, in the API's memory only.
  *
  * @throws {Error} when the password was encrypted under another `PG_SELECT1_SECRET_KEY`.
@@ -122,10 +92,13 @@ function targetOf(row: ConnectionRow): Target {
   };
 }
 
-// What went wrong connecting, in words an admin can act on. Node reports a refused or unknown
-// address by its code, and an address with both IPv4 and IPv6 as an AggregateError without a
-// message; Postgres's own errors (a wrong password, no such database) say enough as they are.
-function describeConnectError(error: unknown, target: Target): string {
+/**
+ * Says what went wrong connecting to a target, in words an admin can act on, never with the
+ * password. Node reports a refused or unknown address by its code, and an address with both IPv4
+ * and IPv6 as an AggregateError without a message; Postgres's own errors (a wrong password, no
+ * such database) say enough as they are.
+ */
+export function describeConnectError(error: unknown, target: Target): string {
   const first = error instanceof AggregateError ? (error.errors[0] as unknown) : error;
   const code = first instanceof Error && "code" in first ? first.code : undefined;
   const address = `${target.host}:${target.port}`;
@@ -238,17 +211,51 @@ export async function updateConnection(
       ...(password === undefined ? {} : { encryptedPassword: encryptSecret(password) }),
     });
   if (!updated) throw new HttpError(404, "There's no such connection");
+  await closeTarget(id);
   return toConnection(updated);
 }
 
 /**
- * Deletes a connection and its encrypted password.
+ * Deletes a connection and its encrypted password, and closes its pool.
  *
  * @throws {HttpError} a 404 when there's no such connection.
  */
 export async function deleteConnection(id: string): Promise<void> {
   await findConnection(id);
   await db.orm.public.Connection.where({ id }).delete();
+  await closeTarget(id);
+}
+
+/**
+ * Answers the connections someone can explore, by name: every one for an admin, only the
+ * visible ones for anyone else.
+ */
+export async function listExplorableConnections(
+  user: SessionUser,
+): Promise<ExplorableConnection[]> {
+  const query = db.orm.public.Connection.select("id", "name").orderBy((c) => c.name.asc());
+  return user.role === "admin" ? query.all() : query.where({ visible: true }).all();
+}
+
+/**
+ * Answers a connection someone can explore, with its password decrypted to open its pool.
+ *
+ * @throws {HttpError} a 404 when there's no such connection, or it's hidden and `user` isn't an
+ *   admin, and a 500 when its password can't be decrypted.
+ */
+export async function explorableTarget(id: string, user: SessionUser): Promise<PooledTarget> {
+  const row = await findConnection(id);
+  if (!row.visible && user.role !== "admin") {
+    throw new HttpError(404, "There's no such connection");
+  }
+  try {
+    return { id: row.id, name: row.name, target: targetOf(row), updatedAt: row.updatedAt };
+  } catch {
+    throw new HttpError(
+      500,
+      `${row.name}'s password can't be decrypted, since PG_SELECT1_SECRET_KEY has changed. An admin can enter it again.`,
+    );
+  }
 }
 
 /**

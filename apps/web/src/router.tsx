@@ -1,6 +1,6 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
-// A small router on the History API: the path is the state, and `navigate` and the browser's
+// A small router on the History API: the path and its query are the state, and `navigate` and the browser's
 // back and forward buttons are the only ways it changes.
 
 const listeners = new Set<() => void>();
@@ -18,9 +18,22 @@ function getPath(): string {
   return window.location.pathname;
 }
 
+function getSearch(): string {
+  return window.location.search;
+}
+
 /** Answers the current path, re-rendering when it changes. */
 export function usePath(): string {
   return useSyncExternalStore(subscribe, getPath);
+}
+
+/**
+ * Answers the current query's parameters, re-rendering when they change, as when a page keeps
+ * what's chosen on it in its address.
+ */
+export function useSearchParams(): URLSearchParams {
+  const search = useSyncExternalStore(subscribe, getSearch);
+  return useMemo(() => new URLSearchParams(search), [search]);
 }
 
 /** Goes to a path in place of the current one, without adding to the history: back skips it. */

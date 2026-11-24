@@ -37,8 +37,8 @@ test("signs in and shows the app", async () => {
   await user.click(screen.getByRole("button", { name: "Sign in" }));
 
   expect(await screen.findByRole("button", { name: "Account menu" })).toBeDefined();
-  expect(await screen.findByRole("heading", { name: "Connections" })).toBeDefined();
-  expect(window.location.pathname).toBe("/connections");
+  expect(await screen.findByRole("heading", { name: "Explore" })).toBeDefined();
+  expect(window.location.pathname).toBe("/explore");
 });
 
 test("says so when the password is wrong", async () => {
@@ -135,10 +135,10 @@ test("a viewer sees no Users page", async () => {
   expect(screen.queryByRole("button", { name: "Admin" })).toBeNull();
 });
 
-test("someone who isn't an admin lands on a page saying there's nothing yet", async () => {
+test("someone who isn't an admin lands on the explorer too", async () => {
   server.use(http.get("/api/me", () => HttpResponse.json(viewer)));
   renderApp("/");
 
-  expect(await screen.findByText(/There's nothing to explore yet/)).toBeDefined();
-  expect(window.location.pathname).toBe("/");
+  expect(await screen.findByRole("heading", { name: "Explore" })).toBeDefined();
+  expect(window.location.pathname).toBe("/explore");
 });
