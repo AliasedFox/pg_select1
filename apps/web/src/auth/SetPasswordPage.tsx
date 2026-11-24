@@ -1,3 +1,4 @@
+import { MIN_PASSWORD_LENGTH } from "@pg_select1/shared";
 import { type SubmitEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -8,9 +9,6 @@ import { ApiError, describeError } from "@/lib/api";
 import { navigate } from "@/router";
 
 import { setPassword } from "./api";
-
-/** Better Auth's default, which the API enforces too. */
-const MIN_PASSWORD_LENGTH = 12;
 
 /**
  * Lets someone set their password from an invite or set-password link (`/set-password?token=`),

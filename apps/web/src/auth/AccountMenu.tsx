@@ -6,6 +6,7 @@ import {
   MoonIcon,
   PaletteIcon,
   SunIcon,
+  UserIcon,
 } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { useState } from "react";
@@ -33,7 +34,7 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: LucideIcon }[] = [
 
 /**
  * The signed-in user's menu, opened from their initial at the right of the header: who they are,
- * the theme and signing out. The theme shows as soon as it's picked and is kept on this device,
+ * their profile, the theme and signing out. The theme shows as soon as it's picked and is kept on this device,
  * not on the account.
  */
 export function AccountMenu({ user }: { user: Me }) {
@@ -63,6 +64,14 @@ export function AccountMenu({ user }: { user: Me }) {
           <div className="truncate text-xs text-muted-foreground">{user.email}</div>
           <div className="text-xs text-muted-foreground capitalize">{user.role}</div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() => {
+            navigate("/profile");
+          }}
+        >
+          <UserIcon aria-hidden="true" className="text-muted-foreground" /> Your profile
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <div className="flex items-center justify-between gap-2 py-1 pr-1 pl-2 text-sm">
           <span id="account-menu-theme" className="flex items-center gap-2">

@@ -239,3 +239,75 @@ describe("changing and deleting", () => {
     expect(notAnId.status).toBe(400);
   });
 });
+
+describe("one's own profile", () => {
+  test("anyone signed in changes their own name, and only that", async () => {
+    const viewer = await signedInAs("viewer");
+
+    const res = await request(
+      "/api/me",
+      json({ name: "  New Name  ", role: "admin", email: "x@example.com" }, viewer.cookie, "PATCH"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(me.parse(await res.json())).toEqual({
+      id: viewer.id,
+      email: viewer.email,
+      name: "New Name",
+      role: "viewer",
+    });
+    const meRes = await request("/api/me", { headers: { cookie: viewer.cookie } });
+    expect(me.parse(await meRes.json()).name).toBe("New Name");
+  });
+
+  test("a name can't be blank, and nobody signed out can change one", async () => {
+    const viewer = await signedInAs("viewer");
+
+    const blank = await request("/api/me", json({ name: "   " }, viewer.cookie, "PATCH"));
+    const signedOut = await request("/api/me", { method: "PATCH", body: '{"name":"X"}' });
+
+    expect(blank.status).toBe(400);
+    expect(signedOut.status).toBe(401);
+  });
+
+  test("changing one's password takes the current one, and signs out everywhere else", async () => {
+    const editor = await signedInAs("editor");
+    const elsewhere = await signIn(editor.email, editor.password);
+
+    const res = await request(
+      "/api/auth/change-password",
+      json(
+        {
+          currentPassword: editor.password,
+          newPassword: "a brand new password",
+          revokeOtherSessions: true,
+        },
+        editor.cookie,
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    const cookie = res.headers.getSetCookie().find((c) => c.includes("session_token"));
+    expect((await request("/api/me", { headers: { cookie: cookie!.split(";")[0]! } })).status).toBe(
+      200,
+    );
+    expect((await request("/api/me", { headers: { cookie: elsewhere! } })).status).toBe(401);
+    expect(await signIn(editor.email, editor.password)).toBeNull();
+    expect(await signIn(editor.email, "a brand new password")).not.toBeNull();
+  });
+
+  test("changing one's password is refused with the wrong current one", async () => {
+    const editor = await signedInAs("editor");
+
+    const res = await request(
+      "/api/auth/change-password",
+      json(
+        { currentPassword: "not my password", newPassword: "a brand new password" },
+        editor.cookie,
+      ),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await signIn(editor.email, editor.password)).not.toBeNull();
+  });
+});

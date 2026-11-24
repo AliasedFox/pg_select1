@@ -1,4 +1,4 @@
-import { type Me, me } from "@pg_select1/shared";
+import { type Me, me, type UpdateMeRequest } from "@pg_select1/shared";
 
 import { ApiError, callApi, sendApi } from "@/lib/api";
 
@@ -33,4 +33,23 @@ export async function signOut(): Promise<void> {
  */
 export async function setPassword(token: string, newPassword: string): Promise<void> {
   await sendApi("POST", "/api/auth/reset-password", { token, newPassword });
+}
+
+/** Changes the signed-in user's name, answering them as they are now. */
+export function updateMe(changes: UpdateMeRequest): Promise<Me> {
+  return callApi("PATCH", "/api/me", me, changes);
+}
+
+/**
+ * Changes the signed-in user's password, through Better Auth, and signs them out everywhere
+ * else. This browser stays signed in, on a new session cookie.
+ *
+ * @throws {ApiError} when the current password is wrong or the new one too short.
+ */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await sendApi("POST", "/api/auth/change-password", {
+    currentPassword,
+    newPassword,
+    revokeOtherSessions: true,
+  });
 }

@@ -2,6 +2,7 @@ import type { Me } from "@pg_select1/shared";
 import { type ReactNode, useEffect } from "react";
 
 import { AccountMenu } from "@/auth/AccountMenu";
+import { ProfilePage } from "@/auth/ProfilePage";
 import { useSession } from "@/auth/session";
 import { SessionProvider } from "@/auth/SessionProvider";
 import { SetPasswordPage } from "@/auth/SetPasswordPage";
@@ -95,6 +96,7 @@ function SignedInPage({ path, user }: { path: string; user: Me }) {
       </p>
     );
   }
+  if (path === "/profile") return <ProfilePage user={user} />;
   if (path === "/users") {
     if (user.role !== "admin") {
       return <p className="text-sm text-muted-foreground">Only admins can manage users.</p>;
