@@ -16,7 +16,7 @@ test("lists users with their role and whether they've accepted their invite", as
   expect(within(row!).getByText("viewer")).toBeDefined();
   expect(within(row!).getByText("invited")).toBeDefined();
   expect(screen.getByText("(you)")).toBeDefined();
-  expect(screen.getByRole("link", { name: "Users" }).getAttribute("aria-current")).toBe("page");
+  expect(screen.getByRole("button", { name: "Admin" }).getAttribute("aria-current")).toBe("page");
 });
 
 test("invites someone and shows the link to send them", async () => {

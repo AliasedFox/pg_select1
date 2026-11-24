@@ -16,9 +16,7 @@ test("lists connections by name with where they are and whether they're visible"
   expect(within(shop!).getByText("postgres@localhost:5432/shop")).toBeDefined();
   expect(within(shop!).getByText("visible")).toBeDefined();
   expect(within(billing!).getByText("hidden")).toBeDefined();
-  expect(screen.getByRole("link", { name: "Connections" }).getAttribute("aria-current")).toBe(
-    "page",
-  );
+  expect(screen.getByRole("button", { name: "Admin" }).getAttribute("aria-current")).toBe("page");
 });
 
 test("adds a connection from a pasted URL, hidden unless made visible", async () => {
@@ -169,7 +167,7 @@ test("isn't there for someone who isn't an admin", async () => {
   renderApp("/connections");
 
   expect(await screen.findByText("Only admins can manage connections.")).toBeDefined();
-  expect(screen.queryByRole("link", { name: "Connections" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Admin" })).toBeNull();
 });
 
 test("edits a connection in a dialog, which closes once it's saved", async () => {

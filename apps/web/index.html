@@ -3,8 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>pg_select1</title>
+    <script>
+      // The theme picked on this device, before the first paint, so a dark page doesn't flash
+      // white: as applyTheme() in src/lib/theme.ts, with the same storage key and colors.
+      try {
+        var theme = localStorage.getItem("pg_select1.theme");
+        if (
+          theme === "dark" ||
+          (theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)
+        ) {
+          document.documentElement.classList.add("dark");
+          document.querySelector('meta[name="theme-color"]').setAttribute("content", "#0a0a0a");
+        }
+      } catch (error) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
