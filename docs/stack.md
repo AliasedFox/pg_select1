@@ -140,7 +140,7 @@ No other accents: no blue links, no gold. shadcn's `accent` is the grey of hover
 
 ### Motion
 
-Nothing in the UI appears or changes at once: it fades in, quickly and without moving, and nothing fades out. The same pieces as gradedplaza's, and new UI reuses them rather than adding its own:
+Nothing in the UI appears or changes at once: it fades in, quickly and without moving, and nothing fades out. These pieces do it, and new UI reuses them rather than adding its own:
 
 | What changes                                                   | How                                                                                                                                                                                                                                                                 |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
