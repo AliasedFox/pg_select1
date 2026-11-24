@@ -36,7 +36,7 @@ export function SignInPage({ notice }: { notice?: string }) {
   }
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="mx-auto w-full max-w-sm">
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
         <CardDescription>No account? Ask an admin to invite you.</CardDescription>

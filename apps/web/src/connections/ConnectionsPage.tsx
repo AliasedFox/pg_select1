@@ -108,7 +108,7 @@ export function ConnectionsPage() {
   };
 
   return (
-    <div className="grid w-full max-w-4xl gap-4">
+    <div className="grid gap-4">
       <div>
         <h1 className="text-lg font-semibold">Connections</h1>
         <p className="text-sm text-muted-foreground">

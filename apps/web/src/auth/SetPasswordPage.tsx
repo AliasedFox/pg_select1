@@ -47,7 +47,7 @@ export function SetPasswordPage({ token }: { token: string | null }) {
   }
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="mx-auto w-full max-w-sm">
       <CardHeader>
         <CardTitle>Set your password</CardTitle>
         <CardDescription>At least {MIN_PASSWORD_LENGTH} characters.</CardDescription>

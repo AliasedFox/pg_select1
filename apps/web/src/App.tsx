@@ -1,14 +1,13 @@
 import type { Me } from "@pg_select1/shared";
 import { type MouseEvent, type ReactNode, useEffect } from "react";
 
-import { signOut } from "@/auth/api";
+import { AccountMenu } from "@/auth/AccountMenu";
 import { useSession } from "@/auth/session";
 import { SessionProvider } from "@/auth/SessionProvider";
 import { SetPasswordPage } from "@/auth/SetPasswordPage";
 import { SignInPage } from "@/auth/SignInPage";
-import { Button } from "@/components/ui/button";
 import { ConnectionsPage } from "@/connections/ConnectionsPage";
-import { cn } from "@/lib/utils";
+import { Nav } from "@/Nav";
 import { navigate, redirect, usePath } from "@/router";
 import { UsersPage } from "@/users/UsersPage";
 
@@ -25,6 +24,8 @@ function Shell() {
   const path = usePath();
   const { session } = useSession();
   const params = new URLSearchParams(window.location.search);
+  // Who the header shows as signed in: nobody on the set-password page, which anyone can open.
+  const user = session.kind === "signedIn" && path !== "/set-password" ? session.user : undefined;
 
   let page: ReactNode;
   if (path === "/set-password") {
@@ -48,16 +49,32 @@ function Shell() {
 
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="flex h-14 items-center gap-6 border-b px-6">
-        <span className="font-mono text-lg font-semibold tracking-tight">
-          select<span className="text-slate">1</span>
-        </span>
-        {session.kind === "signedIn" && path !== "/set-password" && (
-          <Nav path={path} user={session.user} />
-        )}
+      <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-screen-xl items-center gap-x-6 px-4 sm:px-6">
+          <a
+            href="/"
+            aria-label="pg_select1 home"
+            className="rounded-md font-mono text-lg font-semibold tracking-tight outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            onClick={(event: MouseEvent) => {
+              event.preventDefault();
+              navigate("/");
+            }}
+          >
+            select<span className="text-slate">1</span>
+          </a>
+          {user && <Nav path={path} user={user} />}
+          {user && (
+            <div className="ml-auto flex">
+              <AccountMenu user={user} />
+            </div>
+          )}
+        </div>
       </header>
       {/* Keyed so each page fades in, rather than swapping in at once. */}
-      <main key={path} className="flex flex-1 animate-fade-in items-start justify-center p-6">
+      <main
+        key={path}
+        className="mx-auto w-full max-w-screen-xl flex-1 animate-fade-in px-4 pt-6 pb-16 sm:px-6 sm:pt-10"
+      >
         {page}
       </main>
     </div>
@@ -95,55 +112,4 @@ function SignedInPage({ path, user }: { path: string; user: Me }) {
     return <ConnectionsPage />;
   }
   return <p className="text-sm text-muted-foreground">There's no page here.</p>;
-}
-
-function Nav({ path, user }: { path: string; user: Me }) {
-  const { refresh } = useSession();
-  const links =
-    user.role === "admin"
-      ? [
-          { href: "/connections", label: "Connections" },
-          { href: "/users", label: "Users" },
-        ]
-      : [];
-
-  async function onSignOut() {
-    await signOut();
-    navigate("/");
-    await refresh();
-  }
-
-  return (
-    <>
-      <nav className="flex gap-1 text-sm">
-        {links.map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            aria-current={path === link.href ? "page" : undefined}
-            className={cn(
-              "rounded-md px-2 py-1 transition-colors",
-              path === link.href
-                ? "bg-highlight text-highlight-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={(event: MouseEvent) => {
-              event.preventDefault();
-              navigate(link.href);
-            }}
-          >
-            {link.label}
-          </a>
-        ))}
-      </nav>
-      <div className="ml-auto flex items-center gap-3 text-sm">
-        <span className="text-muted-foreground">
-          {user.name} <span className="capitalize">· {user.role}</span>
-        </span>
-        <Button variant="outline" size="sm" onClick={() => void onSignOut()}>
-          Sign out
-        </Button>
-      </div>
-    </>
-  );
 }

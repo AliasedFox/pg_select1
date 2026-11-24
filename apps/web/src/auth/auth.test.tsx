@@ -13,7 +13,7 @@ test("asks to sign in when nobody is", async () => {
   renderApp("/");
 
   expect(await screen.findByText("No account? Ask an admin to invite you.")).toBeDefined();
-  expect(screen.queryByRole("link", { name: "Users" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Admin" })).toBeNull();
 });
 
 test("signs in and shows the app", async () => {
@@ -36,7 +36,7 @@ test("signs in and shows the app", async () => {
   await user.type(screen.getByLabelText("Password"), "a long password");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-  expect(await screen.findByText("Ada Admin")).toBeDefined();
+  expect(await screen.findByRole("button", { name: "Account menu" })).toBeDefined();
   expect(await screen.findByRole("heading", { name: "Connections" })).toBeDefined();
   expect(window.location.pathname).toBe("/connections");
 });
@@ -121,7 +121,8 @@ test("signs out", async () => {
   const user = userEvent.setup();
   renderApp("/");
 
-  await user.click(await screen.findByRole("button", { name: "Sign out" }));
+  await user.click(await screen.findByRole("button", { name: "Account menu" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
 
   expect(await screen.findByText("No account? Ask an admin to invite you.")).toBeDefined();
 });
@@ -131,7 +132,7 @@ test("a viewer sees no Users page", async () => {
   renderApp("/users");
 
   expect(await screen.findByText("Only admins can manage users.")).toBeDefined();
-  expect(screen.queryByRole("link", { name: "Users" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Admin" })).toBeNull();
 });
 
 test("someone who isn't an admin lands on a page saying there's nothing yet", async () => {

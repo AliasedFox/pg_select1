@@ -107,7 +107,7 @@ The web app is a single-page app:
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | **React 19**                                               | UI.                                                                                           |
 | **Vite 8**                                                 | Dev server and build, with `@vitejs/plugin-react` and `@tailwindcss/vite`.                    |
-| **Tailwind CSS v4**                                        | Styling, themed in `src/index.css`, light and dark.                                           |
+| **Tailwind CSS v4**                                        | Styling, themed in `src/index.css`, light and dark, picked in `src/lib/theme.ts`.             |
 | **shadcn/ui**                                              | Components, copied into `components/ui/` and kept close to stock, on **Radix UI** primitives. |
 | **CodeMirror 6** + `@codemirror/lang-sql`                  | The SQL editor, with autocomplete fed by the connection's schema.                             |
 | **TanStack Table** + **TanStack Virtual**                  | Result grids and table browsing, virtualized so large results scroll smoothly.                |

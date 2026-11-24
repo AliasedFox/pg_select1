@@ -87,7 +87,7 @@ export function UsersPage({ currentUserId }: { currentUserId: string }) {
   };
 
   return (
-    <div className="grid w-full max-w-4xl gap-4">
+    <div className="grid gap-4">
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold">Users</h1>
