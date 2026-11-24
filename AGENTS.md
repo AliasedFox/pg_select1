@@ -72,6 +72,13 @@ Ports: pg_select1's Postgres 5440, API 3100, web 5190, Storybook 6026, pgweb 809
 - Green (`success`) for what's fine, like an alert that's ok or resolved; red (`destructive`) for errors and triggered alerts.
 - No other accents: no blue links, no gold. `docs/stack.md` lists every color.
 
+## Motion
+
+- Every change in the UI is smooth: it fades in, quickly, opacity only, and nothing fades out, as in gradedplaza. Reuse what's there, never an animation library, view transitions or one-off keyframes. `docs/stack.md` has the details.
+- Pages fade in by themselves: `<main>` in `App.tsx` is keyed by the path, with `animate-fade-in`. Go to a page with `navigate()` from `src/router.tsx`.
+- Something popping up within a page, like a message or a test result: `animate-fade-in`. Not on what loads with the page, like its list, which would then fade twice.
+- Dialogs, menus and selects: shadcn/ui's own `animate-in` / `animate-out`. Hover, focus and current states: `transition-colors`.
+
 ## Agent skills
 
 Skills live in `.agents/skills/<name>/SKILL.md`, linked from `.claude/skills`, and subagents in `.agents/agents/<name>.md`, linked from `.claude/agents`. `create-pr` formats the code, fixes lint and runs `bun run check` before opening a PR, and, when asked for a review too ("create a PR and review"), has the `code-reviewer` agent review the PR and post its findings on it.

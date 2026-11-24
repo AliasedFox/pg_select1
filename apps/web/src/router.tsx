@@ -23,8 +23,15 @@ export function usePath(): string {
   return useSyncExternalStore(subscribe, getPath);
 }
 
-/** Goes to a path in the app without reloading the page. */
+/** Goes to a path in place of the current one, without adding to the history: back skips it. */
+export function redirect(path: string): void {
+  window.history.replaceState(null, "", path);
+  for (const listener of listeners) listener();
+}
+
+/** Goes to a path in the app without reloading the page. Going to the page already open does nothing. */
 export function navigate(path: string): void {
+  if (path === window.location.pathname + window.location.search) return;
   window.history.pushState(null, "", path);
   for (const listener of listeners) listener();
 }

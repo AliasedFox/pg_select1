@@ -23,9 +23,9 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'e86b303d034c2e126caf021ebc27676729521cd27defb8a6dbba454b5e2bc03f'>;
+  StorageHashBase<'1ce8739942c600bbc63a4f46402371d2a50ba7d0ea82c8b7409417fbf42ca995'>;
 export type ExecutionHash =
-  ExecutionHashBase<'3938124403ae34104bd8ccb2805d047bd2f7aa0bd28f6dcd0a88b4d34bfc9bf4'>;
+  ExecutionHashBase<'0b83d88fabbfe36ea600165eebff88fab10d74c175e07d920a98ebf0c884dbd3'>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
 
@@ -278,6 +278,12 @@ type ParameterizedOutputTypeFunctions = PgParameterizedOutputTypes;
 type FieldTypeOverrides = {
   readonly public: {
     readonly models: {
+      readonly Connection: {
+        readonly sslMode: {
+          readonly output: 'disable' | 'require' | 'verify-full';
+          readonly input: 'disable' | 'require' | 'verify-full';
+        };
+      };
       readonly User: {
         readonly role: {
           readonly output: 'admin' | 'editor' | 'viewer';
@@ -305,6 +311,12 @@ export type FieldInputTypes = FieldTypesFromDomain<
 >;
 type ColumnTypeOverrides = {
   readonly public: {
+    readonly connections: {
+      readonly ssl_mode: {
+        readonly output: 'disable' | 'require' | 'verify-full';
+        readonly input: 'disable' | 'require' | 'verify-full';
+      };
+    };
     readonly users: {
       readonly role: {
         readonly output: 'admin' | 'editor' | 'viewer';
@@ -346,6 +358,20 @@ export namespace Models {
     user: public_User;
     readonly [RelationKeys]?: 'user';
   };
+  export type public_Connection = {
+    createdAt: FieldOutputTypes['public']['Connection']['createdAt'];
+    database: FieldOutputTypes['public']['Connection']['database'];
+    encryptedPassword: FieldOutputTypes['public']['Connection']['encryptedPassword'];
+    host: FieldOutputTypes['public']['Connection']['host'];
+    id: FieldOutputTypes['public']['Connection']['id'];
+    name: FieldOutputTypes['public']['Connection']['name'];
+    port: FieldOutputTypes['public']['Connection']['port'];
+    sslMode: FieldOutputTypes['public']['Connection']['sslMode'];
+    updatedAt: FieldOutputTypes['public']['Connection']['updatedAt'];
+    username: FieldOutputTypes['public']['Connection']['username'];
+    visible: FieldOutputTypes['public']['Connection']['visible'];
+    readonly [RelationKeys]?: never;
+  };
   export type public_Session = {
     createdAt: FieldOutputTypes['public']['Session']['createdAt'];
     expiresAt: FieldOutputTypes['public']['Session']['expiresAt'];
@@ -383,6 +409,7 @@ export namespace Models {
 export declare const models: {
   public: {
     Account: Models.public_Account;
+    Connection: Models.public_Connection;
     Session: Models.public_Session;
     User: Models.public_User;
     Verification: Models.public_Verification;
@@ -516,6 +543,90 @@ type ContractBase = Omit<
                   };
                 },
               ];
+            };
+            readonly connections: {
+              columns: {
+                readonly created_at: {
+                  readonly dataType: 'pg/timestamptz';
+                  readonly codecId: 'pg/timestamptz-date@1';
+                  readonly nullable: false;
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly database: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly encrypted_password: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly host: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly id: {
+                  readonly dataType: 'pg/uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly name: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly port: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly ssl_mode: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'require'>;
+                  };
+                  readonly many: false;
+                };
+                readonly updated_at: {
+                  readonly dataType: 'pg/timestamptz';
+                  readonly codecId: 'pg/timestamptz-date@1';
+                  readonly nullable: false;
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly username: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly visible: {
+                  readonly dataType: 'pg/bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/bool@1', false>;
+                  };
+                  readonly many: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [{ readonly columns: readonly ['name'] }];
+              indexes: readonly [];
+              foreignKeys: readonly [];
             };
             readonly sessions: {
               columns: {
@@ -722,6 +833,10 @@ type ContractBase = Omit<
               readonly kind: 'valueSet';
               readonly values: readonly ['admin', 'editor', 'viewer'];
             };
+            readonly SslMode: {
+              readonly kind: 'valueSet';
+              readonly values: readonly ['disable', 'require', 'verify-full'];
+            };
           };
         };
       };
@@ -734,6 +849,10 @@ type ContractBase = Omit<
   readonly targetFamily: 'sql';
   readonly roots: {
     readonly accounts: { readonly namespace: 'public' & NamespaceId; readonly model: 'Account' };
+    readonly connections: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'Connection';
+    };
     readonly sessions: { readonly namespace: 'public' & NamespaceId; readonly model: 'Session' };
     readonly users: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
     readonly verifications: {
@@ -844,6 +963,80 @@ type ContractBase = Omit<
                 readonly scope: { readonly column: 'scope' };
                 readonly updatedAt: { readonly column: 'updated_at' };
                 readonly userId: { readonly column: 'user_id' };
+              };
+            };
+          };
+          readonly Connection: {
+            readonly fields: {
+              readonly createdAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-date@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly database: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly encryptedPassword: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly host: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly name: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly port: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly sslMode: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly updatedAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-date@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly username: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly visible: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+            };
+            readonly relations: Record<string, never>;
+            readonly storage: {
+              readonly table: 'connections';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly createdAt: { readonly column: 'created_at' };
+                readonly database: { readonly column: 'database' };
+                readonly encryptedPassword: { readonly column: 'encrypted_password' };
+                readonly host: { readonly column: 'host' };
+                readonly id: { readonly column: 'id' };
+                readonly name: { readonly column: 'name' };
+                readonly port: { readonly column: 'port' };
+                readonly sslMode: { readonly column: 'ssl_mode' };
+                readonly updatedAt: { readonly column: 'updated_at' };
+                readonly username: { readonly column: 'username' };
+                readonly visible: { readonly column: 'visible' };
               };
             };
           };
@@ -1042,12 +1235,25 @@ type ContractBase = Omit<
               { readonly name: 'viewer'; readonly value: 'viewer' },
             ];
           };
+          readonly SslMode: {
+            readonly codecId: 'pg/text@1';
+            readonly members: readonly [
+              { readonly name: 'disable'; readonly value: 'disable' },
+              { readonly name: 'require'; readonly value: 'require' },
+              { readonly name: 'verify-full'; readonly value: 'verify-full' },
+            ];
+          };
         };
         readonly enumMemberTypes?: {
           readonly Role: readonly [
             { readonly name: 'admin'; readonly value: 'admin' },
             { readonly name: 'editor'; readonly value: 'editor' },
             { readonly name: 'viewer'; readonly value: 'viewer' },
+          ];
+          readonly SslMode: readonly [
+            { readonly name: 'disable'; readonly value: 'disable' },
+            { readonly name: 'require'; readonly value: 'require' },
+            { readonly name: 'verify-full'; readonly value: 'verify-full' },
           ];
         };
       };
@@ -1119,6 +1325,43 @@ type ContractBase = Omit<
           };
           readonly ref: {
             readonly entry: 'accounts';
+            readonly field: 'updated_at';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: {
+            readonly id: 'timestampNow';
+            readonly kind: 'generator';
+            readonly params: { readonly precision: 3 };
+          };
+          readonly ref: {
+            readonly entry: 'connections';
+            readonly field: 'created_at';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: { readonly id: 'uuidv7'; readonly kind: 'generator' };
+          readonly ref: {
+            readonly entry: 'connections';
+            readonly field: 'id';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: {
+            readonly id: 'timestampNow';
+            readonly kind: 'generator';
+            readonly params: { readonly precision: 3 };
+          };
+          readonly onUpdate: {
+            readonly id: 'timestampNow';
+            readonly kind: 'generator';
+            readonly params: { readonly precision: 3 };
+          };
+          readonly ref: {
+            readonly entry: 'connections';
             readonly field: 'updated_at';
             readonly namespace: 'public';
           };

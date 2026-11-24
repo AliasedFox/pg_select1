@@ -21,8 +21,8 @@ export const errorResponse = z.object({ error: z.string() });
 export type ErrorResponse = z.infer<typeof errorResponse>;
 
 /**
- * What a user may do in pg_select1: an admin manages users and, later, connections. Editors and
- * viewers can do the same things until there are saved queries and alerts to edit.
+ * What a user may do in pg_select1: an admin manages users and connections. Editors and viewers
+ * can do the same things until there are saved queries and alerts to edit.
  */
 export const role = z.enum(["admin", "editor", "viewer"]);
 
@@ -98,3 +98,129 @@ export const inviteUserResponse = z.object({ user, link: setPasswordLink });
 
 /** The body of a `POST /api/users` response, as {@link inviteUserResponse} parses it. */
 export type InviteUserResponse = z.infer<typeof inviteUserResponse>;
+
+/**
+ * How pg_select1 uses TLS to reach a connection's database, like libpq's `sslmode`: not at all,
+ * encrypted without checking the server's certificate, or encrypted with the certificate checked
+ * against the host name.
+ */
+export const sslMode = z.enum(["disable", "require", "verify-full"]);
+
+/** One of the {@link sslMode}s. */
+export type SslMode = z.infer<typeof sslMode>;
+
+/** Every SSL mode, least strict first, for pickers. */
+export const sslModes: readonly SslMode[] = sslMode.options;
+
+/**
+ * A connection's name: the prefix of what pg_select1 creates for it in its own database when it's
+ * queried across connections, and of the schemas people write then (`docs/queries.md`). Hence
+ * Postgres's rules for names, minus `pg_`, which it reserves, and `__`, which separates a
+ * connection's name from a schema's.
+ */
+export const connectionName = z
+  .string()
+  .trim()
+  .min(1, "A connection needs a name")
+  .max(40, "Use at most 40 characters")
+  .regex(/^[a-z][a-z0-9_]*$/, "Use lowercase letters, digits and _, starting with a letter")
+  .refine((name) => !name.includes("__"), "Don't use __ in a name")
+  .refine((name) => !name.startsWith("pg_"), "Postgres reserves names that start with pg_");
+
+/**
+ * A connection as an admin sees it in `GET /api/connections`: where its database is and who it
+ * connects as, but never its password, only whether it has one.
+ */
+export const connection = z.object({
+  id: z.string(),
+  name: z.string(),
+  host: z.string(),
+  port: z.number().int(),
+  database: z.string(),
+  username: z.string(),
+  hasPassword: z.boolean(),
+  sslMode,
+  visible: z.boolean(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+/** A connection, as {@link connection} parses it. */
+export type Connection = z.infer<typeof connection>;
+
+/** What `GET /api/connections` answers: every connection, by name. */
+export const connectionList = z.object({ connections: z.array(connection) });
+
+// Where a database is and who to connect as: what a test needs, and a connection besides its name.
+const target = {
+  host: z.string().trim().min(1, "A connection needs a host").max(255),
+  port: z.number().int().min(1).max(65_535),
+  database: z.string().trim().min(1, "A connection needs a database").max(63),
+  username: z.string().trim().min(1, "A connection needs a user").max(63),
+  sslMode,
+};
+
+// A blank password is no password, so a form's empty field can be sent as it is.
+const password = z
+  .string()
+  .max(1000)
+  .optional()
+  .transform((value) => (value === "" ? undefined : value));
+
+/**
+ * The body of `POST /api/connections`. A connection is hidden unless `visible` says otherwise:
+ * only admins can use it until then.
+ */
+export const createConnectionRequest = z.object({
+  name: connectionName,
+  ...target,
+  password,
+  visible: z.boolean().default(false),
+});
+
+/** A new connection, as {@link createConnectionRequest} parses it. */
+export type CreateConnectionRequest = z.input<typeof createConnectionRequest>;
+
+/**
+ * The body of `PATCH /api/connections/:id`: the fields to change. A missing or blank `password`
+ * keeps the saved one.
+ */
+export const updateConnectionRequest = z.object({
+  name: connectionName.optional(),
+  host: target.host.optional(),
+  port: target.port.optional(),
+  database: target.database.optional(),
+  username: target.username.optional(),
+  sslMode: sslMode.optional(),
+  password,
+  visible: z.boolean().optional(),
+});
+
+/** A change to a connection, as {@link updateConnectionRequest} parses it. */
+export type UpdateConnectionRequest = z.input<typeof updateConnectionRequest>;
+
+/**
+ * The body of `POST /api/connections/test`: a database to try connecting to, as a form has it
+ * before it's saved. Without a `password`, `connectionId`'s saved one is used, so editing a
+ * connection can test it without typing the password again.
+ */
+export const testConnectionRequest = z.object({
+  ...target,
+  password,
+  connectionId: z.uuid().optional(),
+});
+
+/** A connection to test, as {@link testConnectionRequest} parses it. */
+export type TestConnectionRequest = z.input<typeof testConnectionRequest>;
+
+/**
+ * What testing a connection answers: the server's version and how long connecting and asking
+ * for it took, or why it failed.
+ */
+export const testConnectionResult = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), serverVersion: z.string(), latencyMs: z.number() }),
+  z.object({ ok: z.literal(false), error: z.string() }),
+]);
+
+/** The result of testing a connection, as {@link testConnectionResult} parses it. */
+export type TestConnectionResult = z.infer<typeof testConnectionResult>;

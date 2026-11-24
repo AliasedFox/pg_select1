@@ -1,0 +1,99 @@
+[
+  {
+    "id": "table.connections",
+    "label": "Create table \"connections\"",
+    "summary": "Creates table \"connections\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "connections"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"connections\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"connections\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "table \"connections\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"connections\"",
+        "sql": "CREATE TABLE \"public\".\"connections\" (\n  \"created_at\" timestamptz(3) NOT NULL,\n  \"database\" text NOT NULL,\n  \"encrypted_password\" text,\n  \"host\" text NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"name\" text NOT NULL,\n  \"port\" int4 NOT NULL,\n  \"ssl_mode\" text DEFAULT 'require' NOT NULL,\n  \"updated_at\" timestamptz(3) NOT NULL,\n  \"username\" text NOT NULL,\n  \"visible\" bool DEFAULT false NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"connections_ssl_mode_check_4d8cb273\" CHECK (\"ssl_mode\" IN ('disable', 'require', 'verify-full'))\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"connections\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3))) AS \"result\"",
+        "params": [
+          "\"public\".\"connections\"",
+          "r",
+          "p"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "table \"connections\""
+        }
+      }
+    ]
+  },
+  {
+    "id": "unique.connections.connections_name_key",
+    "label": "Add unique constraint on \"connections\" (name)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "connections_name_key",
+        "table": "connections"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"connections_name_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "connections_name_key",
+          "public",
+          "\"public\".\"connections\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "constraint \"connections_name_key\" on \"connections\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"connections_name_key\"",
+        "sql": "ALTER TABLE \"public\".\"connections\" ADD CONSTRAINT \"connections_name_key\" UNIQUE (\"name\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify unique constraint \"connections_name_key\" exists on (name)",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3) AND \"c\".\"contype\" = $4 AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"conkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"conrelid\" AND key_attribute.attnum = key_column.attnum) = ($5)::jsonb)) AS \"result\"",
+        "params": [
+          "connections_name_key",
+          "public",
+          "\"public\".\"connections\"",
+          "u",
+          "[\"name\"]"
+        ]
+      }
+    ]
+  }
+]

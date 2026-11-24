@@ -1,8 +1,8 @@
 import { defineContract, enumType, member } from "@prisma/orm-postgres/contract-builder";
 
 /**
- * What a user may do: an admin manages users (and, later, connections); editors and viewers
- * don't. Editor and viewer behave the same until there are saved queries and alerts to edit.
+ * What a user may do: an admin manages users and connections; editors and viewers don't.
+ * Editor and viewer behave the same until there are saved queries and alerts to edit.
  */
 const Role = enumType(
   "Role",
@@ -10,6 +10,15 @@ const Role = enumType(
   member("admin", "admin"),
   member("editor", "editor"),
   member("viewer", "viewer"),
+);
+
+/** How a connection uses TLS, named after libpq's `sslmode`s it behaves like. */
+const SslMode = enumType(
+  "SslMode",
+  { codecId: "pg/text@1" },
+  member("disable", "disable"),
+  member("require", "require"),
+  member("verify-full", "verify-full"),
 );
 
 /**
@@ -100,6 +109,28 @@ export const contract = defineContract(
       indexes: [constraints.index([cols.identifier])],
     }));
 
-    return { enums: { Role }, models: { User, Session, Account, Verification } };
+    // A target database people explore and alert on. Only admins see the credentials' fields,
+    // and the password never leaves the API: it's AES-GCM ciphertext (`src/crypto.ts`).
+    // Non-admins can use a connection only once an admin makes it visible.
+    const Connection = model("Connection", {
+      fields: {
+        id: Id,
+        name: field.column(type.String()).unique(),
+        host: field.column(type.String()),
+        port: field.column(type.Int()),
+        database: field.column(type.String()),
+        username: field.column(type.String()),
+        encryptedPassword: field.column(type.String()).optional(),
+        sslMode: field.namedType(SslMode).default("require"),
+        visible: field.column(type.Boolean()).default(false),
+        createdAt: CreatedAt,
+        updatedAt: UpdatedAt,
+      },
+    }).sql({ table: "connections" });
+
+    return {
+      enums: { Role, SslMode },
+      models: { User, Session, Account, Verification, Connection },
+    };
   },
 );

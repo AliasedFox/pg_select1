@@ -83,7 +83,7 @@ export function SetPasswordPage({ token }: { token: string | null }) {
               />
             </div>
             {error && (
-              <p role="alert" className="text-sm text-destructive">
+              <p role="alert" className="animate-fade-in text-sm text-destructive">
                 {error}
               </p>
             )}
@@ -92,7 +92,7 @@ export function SetPasswordPage({ token }: { token: string | null }) {
             </Button>
           </form>
         ) : (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="animate-fade-in text-sm text-destructive">
             This link is missing its token. Ask an admin for a new one.
           </p>
         )}

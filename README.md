@@ -88,7 +88,7 @@ a row cap. [docs/queries.md](docs/queries.md) has the details.
 
 ## Getting started
 
-There's nothing to use yet beyond signing in, managing users and a health page,
+There's nothing to use yet beyond signing in and managing users and connections,
 but the project runs. You need [Bun](https://bun.sh) 1.3 or later and Docker.
 
 ```sh
