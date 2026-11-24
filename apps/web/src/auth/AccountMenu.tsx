@@ -51,7 +51,7 @@ export function AccountMenu({ user }: { user: Me }) {
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         aria-label="Account menu"
-        className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="cursor-pointer rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <Avatar>
           <AvatarFallback className="font-semibold">{initial}</AvatarFallback>

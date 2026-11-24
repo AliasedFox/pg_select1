@@ -107,6 +107,16 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Keeps the scrollbar's room whether or not the page scrolls, so the page doesn't shift sideways
+     going between a short page and a long one. */
+  html {
+    scrollbar-gutter: stable;
+  }
+  /* A dialog's scroll lock makes up for the scrollbar it hides with a margin, which the room kept
+     above already does. */
+  html body[data-scroll-locked] {
+    margin-right: 0 !important;
+  }
   body {
     @apply bg-background font-sans text-foreground antialiased;
   }

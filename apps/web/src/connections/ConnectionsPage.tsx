@@ -2,6 +2,7 @@ import type { Connection, TestConnectionResult } from "@pg_select1/shared";
 import { MoreHorizontalIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Loading } from "@/components/Loading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -131,7 +132,7 @@ export function ConnectionsPage() {
           <TestResult result={tested.result} />
         </div>
       )}
-      {state.kind === "loading" && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {state.kind === "loading" && <Loading />}
       {state.kind === "failed" && (
         <p role="alert" className="animate-fade-in text-sm text-destructive">
           Couldn't load connections: {state.message}
