@@ -27,13 +27,13 @@ if (!files["/index.html"]) {
 
 const entries = Object.entries(files);
 const entry = [
-  'import { start } from "../src/api";',
+  'import { main } from "../src/cli";',
   ...entries.map(([, path], i) => {
     const from = relative(genDir, path);
     return `import f${i} from ${JSON.stringify(from)} with { type: "file" };`;
   }),
   "",
-  "await start({",
+  "await main(process.argv.slice(2), {",
   ...entries.map(([urlPath], i) => `  ${JSON.stringify(urlPath)}: f${i},`),
   "});",
   "",
