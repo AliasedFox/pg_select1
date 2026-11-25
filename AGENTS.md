@@ -49,6 +49,7 @@ Ports: pg_select1's Postgres 5440, API 3100, web 5190, Storybook 6026, pgweb 809
 - Run the Prisma CLI with `bun --bun prisma ...` (the `db:*` scripts do), since the contract is TypeScript, and with `DO_NOT_TRACK=1` to keep its telemetry off.
 - Backend tests start their own Postgres with Testcontainers (`apps/backend/test/setup.ts`), so Docker must be running. Tests of queries across connections put the target databases on a Docker network shared with pg_select1's, since postgres_fdw connects from inside its container. Drive the API through `request()` from `test/api.ts`.
 - Web tests render the whole app with `renderApp(path)` from `apps/web/test/render.tsx`, against the fake API in `test/fixtures.ts`, which Storybook uses too. Override a route with `server.use()` in a test and `msw.use()` in a story's `beforeEach`.
+- To see a component or page in a browser, open its story in Storybook: `http://localhost:6026/?path=/story/<id>`, e.g. `explore-explorepage--one-database`. It runs on the fake API, so there's no signing in, and its toolbar switches the theme and the platform (⌘ on a Mac, Ctrl on Windows). Don't open a story's `iframe.html` by itself or go through the app for this; add a story when there's none for what you need to see.
 
 ## Code comments
 
