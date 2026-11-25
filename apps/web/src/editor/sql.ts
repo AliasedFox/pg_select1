@@ -230,16 +230,19 @@ const highlightStyle = HighlightStyle.define([
   { tag: tags.invalid, color: "var(--destructive)" },
 ]);
 
+// Three lines and the content's padding: the editor's height when it's empty, growing from there.
+const minHeight = "calc(3 * 1.6em + 1rem)";
+
 const theme = EditorView.theme({
   "&": { backgroundColor: "transparent", color: "var(--foreground)", maxHeight: "40svh" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "1.6", overflow: "auto" },
-  ".cm-content": { minHeight: "10rem", padding: "0.5rem 0", caretColor: "var(--foreground)" },
+  ".cm-content": { minHeight, padding: "0.5rem 0", caretColor: "var(--foreground)" },
   ".cm-line": { padding: "0 0.75rem" },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--foreground)" },
   ".cm-placeholder": { color: "var(--muted-foreground)" },
   ".cm-gutters": {
-    minHeight: "10rem",
+    minHeight,
     backgroundColor: "transparent",
     color: "var(--muted-foreground)",
     border: "none",

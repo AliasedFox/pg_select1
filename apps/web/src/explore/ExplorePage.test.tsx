@@ -80,8 +80,8 @@ test("runs select * from a table ⌘ or Ctrl-clicked, in place of the SQL writte
   expect(customers.classList.contains("cursor-pointer")).toBe(false);
 
   expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
-  expect(sqlOf(sql)).toBe("select * from public.customers");
-  expect(asked).toEqual(["select * from public.customers"]);
+  expect(sqlOf(sql)).toBe('select * from "public"."customers"');
+  expect(asked).toEqual(['select * from "public"."customers"']);
   expect(screen.getByText("Ctrl-click to show all")).toBeDefined();
 });
 
@@ -117,6 +117,7 @@ test("writes a clicked table's name in the SQL where the cursor is, without runn
         tables: [
           { schema: "public", name: "customers", kind: "table" },
           { schema: "Sales", name: 'odd "name"', kind: "view" },
+          { schema: "user", name: "order", kind: "table" },
         ],
       }),
     ),
@@ -127,7 +128,7 @@ test("writes a clicked table's name in the SQL where the cursor is, without runn
   const tables = await screen.findByRole("navigation", { name: "Tables" });
   const sql = screen.getByRole("textbox", { name: "SQL" });
   await user.click(within(tables).getByRole("button", { name: "customers" }));
-  expect(sqlOf(sql)).toBe("public.customers");
+  expect(sqlOf(sql)).toBe('"public"."customers"');
 
   const editor = EditorView.findFromDOM(sql);
   editor?.dispatch({
@@ -135,10 +136,15 @@ test("writes a clicked table's name in the SQL where the cursor is, without runn
     selection: { anchor: 14 },
   });
   await user.click(within(tables).getByRole("button", { name: "customers" }));
-  expect(sqlOf(sql)).toBe("select * from public.customers limit 10");
+  expect(sqlOf(sql)).toBe('select * from "public"."customers" limit 10');
 
   await user.click(within(tables).getByRole("button", { name: 'odd "name"' }));
-  expect(sqlOf(sql)).toBe('select * from public.customers"Sales"."odd ""name""" limit 10');
+  expect(sqlOf(sql)).toBe('select * from "public"."customers""Sales"."odd ""name""" limit 10');
+
+  // A keyword like `user` works as a name too.
+  editor?.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: "" } });
+  await user.click(within(tables).getByRole("button", { name: "order" }));
+  expect(sqlOf(sql)).toBe('"user"."order"');
   expect(asked).toEqual([]);
 });
 
