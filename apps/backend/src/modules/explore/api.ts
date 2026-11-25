@@ -54,8 +54,8 @@ export const endpoints: Endpoint[] = [
     access: "user",
     handler: async (req, res, user) => {
       const { id } = parseRequest(connectionParams, req.params);
-      const { sql, runId } = parseRequest(runQueryRequest, req.body);
-      res.json(await runQuery(id, sql, user, runId));
+      const { sql, runId, offset } = parseRequest(runQueryRequest, req.body);
+      res.json(await runQuery(id, sql, user, runId, offset));
     },
   },
   {

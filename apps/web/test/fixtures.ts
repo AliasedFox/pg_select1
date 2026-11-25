@@ -105,7 +105,7 @@ export const customerRows: TableRows = {
     ["3", "alan@example.com", null, "2026-01-04 11:45:00+00"],
   ],
   truncated: false,
-  rowCap: 1000,
+  rowCap: 200,
 };
 
 /** What `POST /api/explore/connections/:id/query` answers for any query: the customers' rows. */

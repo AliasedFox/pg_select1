@@ -301,8 +301,15 @@ export type TableRows = z.infer<typeof tableRows>;
 export const MAX_SQL_LENGTH = 100_000;
 
 /**
- * What `POST /api/explore/connections/:id/query` takes: one SQL statement to run, and an id the
- * browser picks for this run, to cancel it by with `POST /api/explore/queries/:runId/cancel`.
+ * The most rows of a query the explorer reads, page by page. Each page runs the statement again
+ * and skips the rows before it, so pages far down would read ever more of the database's rows.
+ */
+export const MAX_QUERY_ROWS = 10_000;
+
+/**
+ * What `POST /api/explore/connections/:id/query` takes: one SQL statement to run, an id the
+ * browser picks for this run, to cancel it by with `POST /api/explore/queries/:runId/cancel`, and
+ * how many of its rows to skip, for a page past the first.
  */
 export const runQueryRequest = z.object({
   sql: z
@@ -311,6 +318,15 @@ export const runQueryRequest = z.object({
     .min(1, "Write a query")
     .max(MAX_SQL_LENGTH, `A query is at most ${MAX_SQL_LENGTH.toLocaleString("en")} characters`),
   runId: z.uuid({ message: "A run's id is a UUID" }).optional(),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .max(
+      MAX_QUERY_ROWS,
+      `The explorer reads at most ${MAX_QUERY_ROWS.toLocaleString("en")} rows of a query`,
+    )
+    .optional(),
 });
 
 /** A query to run, as {@link runQueryRequest} takes it. */

@@ -13,8 +13,8 @@ import { HttpError } from "../../endpoint";
 import { ConnectError, type PooledTarget, withTarget } from "../../targets";
 import { describeConnectError, explorableTarget } from "../connection/service";
 
-/** The most rows a table's page or a query shows; the rest aren't read. */
-export const ROW_CAP = 1000;
+/** The most rows a table's page or a query's page shows; the rest aren't read. */
+export const ROW_CAP = 200;
 
 /** How long a read of a target, or a query, may take before Postgres cancels it. */
 export const STATEMENT_TIMEOUT_MS = 30_000;
@@ -153,28 +153,39 @@ export async function readTable(
   });
 }
 
-// Reads up to `count` rows of a statement through a cursor, so a statement of millions of rows
-// sends only those, and answers them with the statement's columns. The extended protocol it uses
-// takes one statement, so SQL holding several is refused rather than run.
-function readCursor(
+// Reads up to `count` rows of a statement through a cursor, after skipping `skip` of them, so a
+// statement of millions of rows sends only those, and answers them with the statement's columns.
+// The rows skipped are read a page at a time and dropped. The extended protocol it uses takes one
+// statement, so SQL holding several is refused rather than run.
+async function readCursor(
   client: PoolClient,
   sql: string,
+  skip: number,
   count: number,
 ): Promise<{ rows: (string | null)[][]; fields: FieldDef[] }> {
   const cursor = client.query(
     new Cursor<(string | null)[]>(sql, [], { rowMode: "array", types: asText }),
   );
-  return new Promise((resolve, reject) => {
-    cursor.read(count, (error, rows, result) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      cursor.close().then(() => {
-        resolve({ rows, fields: result.fields });
-      }, reject);
+  const read = (n: number) =>
+    new Promise<{ rows: (string | null)[][]; fields: FieldDef[] }>((resolve, reject) => {
+      cursor.read(n, (error, rows, result) => {
+        if (error) reject(error);
+        else resolve({ rows, fields: result.fields });
+      });
     });
-  });
+  try {
+    let skipped = 0;
+    while (skipped < skip) {
+      const n = Math.min(ROW_CAP, skip - skipped);
+      const page = await read(n);
+      // The statement ended before the rows asked for: there are none.
+      if (page.rows.length < n) return { rows: [], fields: page.fields };
+      skipped += n;
+    }
+    return await read(count);
+  } finally {
+    await cursor.close();
+  }
 }
 
 // The queries running now that can be cancelled, by who runs them and the id of the run, so
@@ -196,7 +207,9 @@ export function cancelQuery(runId: string, user: SessionUser): void {
 /**
  * Runs one SQL statement on a connection's database, in a `READ ONLY` transaction that's rolled
  * back after, and answers the columns it returns, with their types, and up to {@link ROW_CAP} of
- * its rows, each value as Postgres prints it. Given a `runId`, the run can be cancelled with
+ * its rows after the first `offset`, each value as Postgres prints it. A page past the first runs
+ * the statement again, so its rows follow the last page's only when the statement orders them
+ * and the data hasn't changed. Given a `runId`, the run can be cancelled with
  * {@link cancelQuery} until it ends, which cancels the statement with `pg_cancel_backend`.
  *
  * @throws {HttpError} a 404 when `user` can't explore the connection, a 400 for SQL of several
@@ -209,6 +222,7 @@ export async function runQuery(
   sql: string,
   user: SessionUser,
   runId?: string,
+  offset = 0,
 ): Promise<QueryResult> {
   const connection = await explorableTarget(connectionId, user);
   const key = runId === undefined ? undefined : runKey(runId, user);
@@ -218,7 +232,7 @@ export async function runQuery(
   const stop = new AbortController();
   if (key !== undefined) running.set(key, stop);
   try {
-    return await runStatement(connection, sql, user, stop.signal);
+    return await runStatement(connection, sql, offset, user, stop.signal);
   } finally {
     if (key !== undefined) running.delete(key);
   }
@@ -228,6 +242,7 @@ export async function runQuery(
 function runStatement(
   connection: PooledTarget,
   sql: string,
+  offset: number,
   user: SessionUser,
   signal: AbortSignal,
 ): Promise<QueryResult> {
@@ -246,13 +261,17 @@ function runStatement(
       });
     };
     signal.addEventListener("abort", cancel, { once: true });
+    // A scan of a big table can start where another one running is, so the same statement would
+    // answer its rows in another order each time. Off, a page's rows follow the last page's more
+    // often for a statement that doesn't order them.
+    await client.query("SET LOCAL synchronize_seqscans = off");
 
     let read: Awaited<ReturnType<typeof readCursor>>;
     const started = performance.now();
     try {
       if (signal.aborted) throw new HttpError(499, "The query was cancelled");
       // One row past the cap says whether there are more, as for a table.
-      read = await readCursor(client, sql, ROW_CAP + 1);
+      read = await readCursor(client, sql, offset, ROW_CAP + 1);
     } catch (error) {
       if (signal.aborted) throw new HttpError(499, "The query was cancelled");
       if (error instanceof DatabaseError && error.message.includes("multiple commands")) {

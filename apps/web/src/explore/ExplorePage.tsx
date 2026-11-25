@@ -1,4 +1,4 @@
-import type { QueryResult, TargetTable } from "@pg_select1/shared";
+import { MAX_QUERY_ROWS, type QueryResult, type TargetTable } from "@pg_select1/shared";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import { Loading } from "@/components/Loading";
@@ -9,6 +9,7 @@ import { SqlEditor, type SqlEditorHandle } from "@/editor/SqlEditor";
 import { describeError } from "@/lib/api";
 import { useLoaded } from "@/lib/loaded";
 import { modifierKey } from "@/lib/platform";
+import { sqlIdentifier } from "@/lib/sql";
 import { cn } from "@/lib/utils";
 import { navigate, useSearchParams } from "@/router";
 
@@ -19,12 +20,17 @@ import { TableList } from "./TableList";
 type Answer = { kind: "done"; result: QueryResult } | { kind: "failed"; message: string };
 
 // What the last run to end answered, kept on screen while the next one runs, rather than
-// swapped for a spinner and back. `n` counts runs, so each answer fades in anew.
+// swapped for a spinner and back. `n` counts runs, so each answer fades in anew. `sql` is what
+// was run, which the pages after the first run again, whatever the editor holds by then.
 interface Outcome {
   answer: Answer;
   connectionId: string;
+  sql: string;
   n: number;
 }
+
+// Below the rows: nothing, the next page loading, or why it didn't.
+type Paging = { kind: "idle" } | { kind: "loading" } | { kind: "failed"; message: string };
 
 // Beside the Run button: nothing running, a run that's been going a while, or one cancelled.
 type Status = "idle" | "running" | "cancelled";
@@ -51,27 +57,27 @@ function cancelCurrent(current: RefObject<string | undefined>): void {
   if (id) cancelQuery(id).catch(() => undefined);
 }
 
-// An identifier quoted, so any name works as it is: capitals, spaces, quotes or a keyword like `user`.
-function sqlIdentifier(name: string): string {
-  return `"${name.replaceAll('"', '""')}"`;
-}
-
 // A table's name with its schema, which works whatever the connection's `search_path`.
 function sqlName({ schema, name }: TargetTable): string {
   return `${sqlIdentifier(schema)}.${sqlIdentifier(name)}`;
 }
 
-// How many rows a result has, and how long the database took.
-function describeResult({ columns, rows, truncated, rowCap, durationMs }: QueryResult): string {
+// How many rows a result has so far, and how long the database took for the first page.
+function describeResult({ columns, rows, truncated, durationMs }: QueryResult): string {
   const took = `in ${durationMs.toLocaleString()} ms`;
-  if (truncated) return `The first ${rowCap.toLocaleString()} rows ${took}; there are more.`;
+  const first = `The first ${rows.length.toLocaleString()} rows ${took}`;
+  if (truncated && rows.length >= MAX_QUERY_ROWS) {
+    return `${first}; there are more, which the explorer doesn't read. Narrow the query to see them.`;
+  }
+  if (truncated) return `${first}; scroll for more.`;
   if (columns.length === 0) return `The statement ran ${took} and returns no rows.`;
   return `${rows.length === 1 ? "1 row" : `${rows.length.toLocaleString()} rows`} ${took}`;
 }
 
 /**
  * The explorer: pick one of the databases the signed-in user can explore, write a SQL statement
- * in the {@link SqlEditor} and run it there, read-only, to see its rows, up to the API's row cap.
+ * in the {@link SqlEditor} and run it there, read-only, to see its rows, a page at a time as the
+ * person scrolls down, up to {@link MAX_QUERY_ROWS}.
  * The database's tables are listed beside it. Clicking one writes its name where the cursor is;
  * ⌘ or Ctrl-clicking it replaces the SQL with `select * from` it and runs that. While a query runs, the last result
  * stays on screen until the new one fades in over it. A run can be cancelled, and is when the
@@ -85,9 +91,12 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
   const [sql, setSql] = useState("");
   const [outcome, setOutcome] = useState<Outcome | undefined>(undefined);
   const [status, setStatus] = useState<Status>("idle");
+  const [paging, setPaging] = useState<Paging>({ kind: "idle" });
   const runs = useRef(0);
   // The run whose answer is still wanted, so a cancelled or replaced one's is dropped.
   const current = useRef<string | undefined>(undefined);
+  // The same for the next page's run.
+  const page = useRef<string | undefined>(undefined);
   const editor = useRef<SqlEditorHandle>(null);
 
   const list = connections.kind === "loaded" ? connections.value : [];
@@ -105,11 +114,14 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
 
   const stop = () => {
     cancelCurrent(current);
+    cancelCurrent(page);
+    setPaging({ kind: "idle" });
   };
   // Leaving the page cancels what's running.
   useEffect(
     () => () => {
       cancelCurrent(current);
+      cancelCurrent(page);
     },
     [],
   );
@@ -117,6 +129,9 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
   // Runs `text`, the SQL as written unless given.
   const start = (text = sql) => {
     if (!connectionId || !text.trim() || current.current) return;
+    // The next page of the last result won't be wanted once this one's in.
+    cancelCurrent(page);
+    setPaging({ kind: "idle" });
     const id = newRunId();
     current.current = id;
     setStatus("idle");
@@ -128,7 +143,7 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
       if (current.current !== id) return;
       current.current = undefined;
       runs.current += 1;
-      setOutcome({ answer, connectionId, n: runs.current });
+      setOutcome({ answer, connectionId, sql: text, n: runs.current });
       setStatus("idle");
     };
     runQuery(connectionId, text, id).then(
@@ -144,6 +159,46 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
   // What was run on another database than the one picked now, as after going back, isn't shown.
   const shown = outcome?.connectionId === connection?.id ? outcome : undefined;
   const answer = shown?.answer;
+
+  // Reads the page after the rows shown, if there's one to read and nothing's reading it yet,
+  // and adds its rows to theirs. One that failed is read again only when asked to.
+  const loadMore = (retry = false) => {
+    if (shown?.answer.kind !== "done" || page.current) return;
+    if (paging.kind === "failed" && !retry) return;
+    const { result } = shown.answer;
+    if (!result.truncated || result.rows.length >= MAX_QUERY_ROWS) return;
+    const id = newRunId();
+    page.current = id;
+    setPaging({ kind: "loading" });
+    const { n } = shown;
+    runQuery(shown.connectionId, shown.sql, id, result.rows.length).then(
+      (next) => {
+        if (page.current !== id) return;
+        page.current = undefined;
+        setPaging({ kind: "idle" });
+        setOutcome((last) =>
+          last?.n === n && last.answer.kind === "done"
+            ? {
+                ...last,
+                answer: {
+                  kind: "done",
+                  result: {
+                    ...last.answer.result,
+                    rows: [...last.answer.result.rows, ...next.rows],
+                    truncated: next.truncated,
+                  },
+                },
+              }
+            : last,
+        );
+      },
+      (error: unknown) => {
+        if (page.current !== id) return;
+        page.current = undefined;
+        setPaging({ kind: "failed", message: describeError(error) });
+      },
+    );
+  };
 
   return (
     <div className="grid gap-4">
@@ -286,7 +341,35 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
                 <div key={shown?.n} className="grid min-w-0 animate-fade-in gap-3">
                   <p className="text-sm text-muted-foreground">{describeResult(answer.result)}</p>
                   {answer.result.columns.length > 0 && (
-                    <RowsGrid data={answer.result} label="Result" />
+                    <RowsGrid
+                      data={answer.result}
+                      label="Result"
+                      onNearEnd={() => {
+                        loadMore();
+                      }}
+                    />
+                  )}
+                  {paging.kind === "loading" && (
+                    <p className="flex animate-fade-in items-center gap-2 text-xs text-muted-foreground">
+                      <Spinner className="size-3.5" /> Loading more rows…
+                    </p>
+                  )}
+                  {paging.kind === "failed" && (
+                    <div className="flex animate-fade-in flex-wrap items-center gap-3">
+                      <p role="alert" className="text-sm text-destructive">
+                        Couldn't load more rows: {paging.message}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          loadMore(true);
+                        }}
+                      >
+                        Try again
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
