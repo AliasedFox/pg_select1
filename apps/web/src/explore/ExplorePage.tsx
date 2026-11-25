@@ -51,10 +51,9 @@ function cancelCurrent(current: RefObject<string | undefined>): void {
   if (id) cancelQuery(id).catch(() => undefined);
 }
 
-// An identifier as SQL needs it: bare when Postgres would read it back the same, quoted otherwise,
-// as for capitals, spaces or quotes.
+// An identifier quoted, so any name works as it is: capitals, spaces, quotes or a keyword like `user`.
 function sqlIdentifier(name: string): string {
-  return /^[a-z_][a-z0-9_$]*$/.test(name) ? name : `"${name.replaceAll('"', '""')}"`;
+  return `"${name.replaceAll('"', '""')}"`;
 }
 
 // A table's name with its schema, which works whatever the connection's `search_path`.
