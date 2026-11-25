@@ -296,3 +296,31 @@ export const tableRows = z.object({
 
 /** A table's rows, as {@link tableRows} parses it. */
 export type TableRows = z.infer<typeof tableRows>;
+
+/** The longest SQL a query may be, in characters. */
+export const MAX_SQL_LENGTH = 100_000;
+
+/**
+ * What `POST /api/explore/connections/:id/query` takes: one SQL statement to run, and an id the
+ * browser picks for this run, to cancel it by with `POST /api/explore/queries/:runId/cancel`.
+ */
+export const runQueryRequest = z.object({
+  sql: z
+    .string({ message: "Write a query" })
+    .trim()
+    .min(1, "Write a query")
+    .max(MAX_SQL_LENGTH, `A query is at most ${MAX_SQL_LENGTH.toLocaleString("en")} characters`),
+  runId: z.uuid({ message: "A run's id is a UUID" }).optional(),
+});
+
+/** A query to run, as {@link runQueryRequest} takes it. */
+export type RunQueryRequest = z.input<typeof runQueryRequest>;
+
+/**
+ * What `POST /api/explore/connections/:id/query` answers: the columns the statement returns, with
+ * their types, and its rows as {@link tableRows} has them, with how long it took on the database.
+ */
+export const queryResult = tableRows.extend({ durationMs: z.number() });
+
+/** A query's result, as {@link queryResult} parses it. */
+export type QueryResult = z.infer<typeof queryResult>;

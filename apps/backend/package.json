@@ -23,6 +23,7 @@
     "express": "^5.3.0",
     "pg": "^8.23.1",
     "pg-boss": "^12.38.2",
+    "pg-cursor": "^2.22.1",
     "prisma": "8.0.0-rc.34",
     "zod": "^4.6.7"
   },
@@ -31,6 +32,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
+    "@types/pg-cursor": "^2.7.2",
     "testcontainers": "^12.2.1"
   }
 }

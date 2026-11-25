@@ -1,10 +1,11 @@
 import type { TableRows } from "@pg_select1/shared";
 import { http, HttpResponse } from "msw";
 
+import { RowsGrid } from "@/components/RowsGrid";
+
 import preview from "../../.storybook/preview";
 import { customerRows } from "../../test/fixtures";
 import { ExplorePage } from "./ExplorePage";
-import { RowsGrid } from "./RowsGrid";
 
 const meta = preview.meta({
   title: "Explore/ExplorePage",
