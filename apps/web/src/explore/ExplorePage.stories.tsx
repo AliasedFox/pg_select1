@@ -70,7 +70,7 @@ export const NoDatabasesForAViewer = meta.story({
   },
 });
 
-// A wide table with many rows, long values and NULLs, to scroll both ways.
+// A wide table with many rows, long values and NULLs, to scroll down the page and sideways.
 const manyRows: TableRows = {
   columns: [
     ...customerRows.columns,
@@ -92,5 +92,22 @@ const manyRows: TableRows = {
 };
 
 export const Rows = meta.story({
-  render: () => <RowsGrid data={manyRows} label="public.customers" />,
+  render: () => (
+    // Room for the app's header, which the grid's own stays below as the page scrolls.
+    <div className="pt-14">
+      <RowsGrid data={manyRows} label="public.customers" />
+    </div>
+  ),
+});
+
+// Any query answers a thousand rows, which run down the page past the list of tables.
+export const ManyRows = meta.story({
+  beforeEach({ msw }) {
+    msw.use(
+      oneDatabase,
+      http.post("/api/explore/connections/:id/query", () =>
+        HttpResponse.json({ ...manyRows, durationMs: 12 }),
+      ),
+    );
+  },
 });

@@ -74,10 +74,7 @@ export function TableList({
   }
 
   return (
-    <nav
-      aria-label="Tables"
-      className="grid max-h-[calc(100svh-12rem)] animate-fade-in content-start gap-3 overflow-y-auto"
-    >
+    <nav aria-label="Tables" className="grid animate-fade-in content-start gap-3">
       {[...schemas].map(([schema, inSchema]) => (
         <div key={schema}>
           <h3 className="px-2 pb-1 text-xs font-medium text-muted-foreground">{schema}</h3>
