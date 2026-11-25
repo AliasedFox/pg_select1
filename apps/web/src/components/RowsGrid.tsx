@@ -1,7 +1,26 @@
 import type { TableRows } from "@pg_select1/shared";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, CheckIcon, CopyIcon } from "lucide-react";
+import {
+  type CSSProperties,
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useCopy } from "@/lib/clipboard";
+import { sqlIdentifier } from "@/lib/sql";
 import { cn } from "@/lib/utils";
 
 // Every row is one line high, so the virtualizer knows where each is without measuring it.
@@ -15,6 +34,14 @@ const MAX_WIDTH_CH = 40;
 // Room for a cell's padding and border, in the same characters, with one to spare.
 const PADDING_CH = 4;
 
+// How close to the last row the window gets before the grid asks for more, in rows.
+const LOAD_AHEAD = 50;
+
+// How long the pointer rests on a value cut short before it's shown whole, and how much of it a
+// tooltip shows at most, so a big `jsonb` doesn't fill the screen.
+const TOOLTIP_DELAY_MS = 400;
+const TOOLTIP_CHARS = 2000;
+
 function columnWidths({ columns, rows }: TableRows): number[] {
   return columns.map((column, index) => {
     let longest = Math.max(column.name.length, column.type.length);
@@ -25,20 +52,158 @@ function columnWidths({ columns, rows }: TableRows): number[] {
   });
 }
 
+// Text in one line, cut short to fit its column, and shown whole in a tooltip when it doesn't fit
+// or has more lines than the one it shows.
+function Clipped({ text, className }: { text: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <Tooltip
+      delayDuration={TOOLTIP_DELAY_MS}
+      open={open}
+      onOpenChange={(next) => {
+        const span = ref.current;
+        setOpen(
+          next && span !== null && (span.scrollWidth > span.clientWidth || text.includes("\n")),
+        );
+      }}
+    >
+      <TooltipTrigger asChild>
+        <span ref={ref} className={cn("block truncate", className)}>
+          {text}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent
+        side="bottom"
+        align="start"
+        sideOffset={4}
+        className="max-h-64 max-w-md overflow-hidden font-mono text-wrap break-all whitespace-pre-wrap"
+      >
+        {text.length > TOOLTIP_CHARS ? `${text.slice(0, TOOLTIP_CHARS)}…` : text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// A button that shows over the right of its cell or header while it's hovered, fading in, and
+// goes at once. `group` is the cell's or the header's.
+const hoverButton =
+  "absolute top-1/2 right-1 flex h-6 -translate-y-1/2 items-center gap-1 rounded-sm border bg-background px-1 font-sans text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100";
+
+// Copies a cell's value, and says so for a moment after.
+function CopyValue({ value }: { value: string }) {
+  const { copied, copy } = useCopy();
+  return (
+    <button
+      type="button"
+      aria-label={copied ? "Copied" : "Copy"}
+      onClick={() => {
+        copy(value);
+      }}
+      className={cn(
+        hoverButton,
+        "group-hover/cell:opacity-100 group-hover/cell:transition-[color,opacity]",
+        copied && "opacity-100",
+      )}
+    >
+      {copied ? (
+        <>
+          <CheckIcon className="size-3.5 text-success" />
+          <span className="animate-fade-in">Copied</span>
+        </>
+      ) : (
+        <CopyIcon className="size-3.5" />
+      )}
+    </button>
+  );
+}
+
+// One value, or `NULL`, which stands out from text and has nothing to copy. Memoized, since the
+// rows in the window render again as the page scrolls, and their values don't change.
+const Cell = memo(function Cell({ value, line }: { value: string | null; line: boolean }) {
+  return (
+    <td className={cn("group/cell relative min-w-0 border-r px-3 leading-8", line && "border-b")}>
+      {value === null ? (
+        <span className="block text-muted-foreground/70">NULL</span>
+      ) : (
+        <>
+          <Clipped text={value} />
+          <CopyValue value={value} />
+        </>
+      )}
+    </td>
+  );
+});
+
+// Copies an `order by` on a column, ascending or descending, to paste into the SQL, and says so
+// for a moment after. It doesn't sort the rows here: there may be more than the grid has.
+function SortMenu({ column }: { column: string }) {
+  const { copied, copy } = useCopy();
+  const orderBy = (direction: "asc" | "desc") => `order by ${sqlIdentifier(column)} ${direction}`;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={copied ? "Copied" : `Sort by ${column}`}
+        className={cn(
+          hoverButton,
+          "group-hover/head:opacity-100 group-hover/head:transition-[color,opacity] data-[state=open]:opacity-100",
+          copied && "opacity-100",
+        )}
+      >
+        {copied ? (
+          <>
+            <CheckIcon className="size-3.5 text-success" />
+            <span className="animate-fade-in">Copied</span>
+          </>
+        ) : (
+          <ArrowUpDownIcon className="size-3.5" />
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Copy, to paste in the SQL
+        </DropdownMenuLabel>
+        <DropdownMenuItem
+          className="font-mono text-xs"
+          onSelect={() => {
+            copy(orderBy("asc"));
+          }}
+        >
+          <ArrowUpIcon />
+          {orderBy("asc")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="font-mono text-xs"
+          onSelect={() => {
+            copy(orderBy("desc"));
+          }}
+        >
+          <ArrowDownIcon />
+          {orderBy("desc")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /**
  * Shows a table's or a query's rows in a grid as long as they are, scrolled with the page, under
  * a header with each column's name and type that stays below the app's header. Only the rows in
- * the window are rendered, so a thousand scroll as smoothly as ten. A grid wider than the page
- * scrolls sideways by itself, its header along with it. A value too long for its column is cut
- * short, whole on hover; `NULL` stands out from text.
+ * the window are rendered, so thousands scroll as smoothly as ten, and `onNearEnd`, when given,
+ * is called whenever the window comes near the last row, to load more. A grid wider than the
+ * page scrolls sideways by itself, its header along with it. A value too long for its column is
+ * cut short, whole in a tooltip on hover, and each one can be copied from a button that shows
+ * on hover; `NULL` stands out from text. Each column's header copies an `order by` on it.
  */
 export function RowsGrid({
   data,
   label,
+  onNearEnd,
   className,
 }: {
   data: TableRows;
   label: string;
+  onNearEnd?: () => void;
   className?: string;
 }) {
   const headRef = useRef<HTMLTableSectionElement>(null);
@@ -77,6 +242,12 @@ export function RowsGrid({
     scrollMargin,
   });
 
+  // Each time the window moves or rows come, whether it's near the last of them.
+  const lastShown = virtualizer.getVirtualItems().at(-1)?.index ?? -1;
+  useEffect(() => {
+    if (onNearEnd && lastShown >= data.rows.length - LOAD_AHEAD) onNearEnd();
+  }, [onNearEnd, lastShown, data.rows.length]);
+
   // The header and the rows scroll sideways as one, whichever of them is scrolled.
   const follow = (from: HTMLElement | null, to: HTMLElement | null) => {
     if (from && to && to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft;
@@ -103,14 +274,11 @@ export function RowsGrid({
               // By position: a query's columns can share a name.
               key={index}
               scope="col"
-              className="min-w-0 border-r border-b px-3 py-1.5 text-left font-normal"
+              className="group/head relative min-w-0 border-r border-b px-3 py-1.5 text-left font-normal"
             >
-              <span className="block truncate font-medium text-foreground" title={column.name}>
-                {column.name}
-              </span>
-              <span className="block truncate text-muted-foreground" title={column.type}>
-                {column.type}
-              </span>
+              <Clipped text={column.name} className="font-medium text-foreground" />
+              <Clipped text={column.type} className="text-muted-foreground" />
+              <SortMenu column={column.name} />
             </th>
           ))}
           <th aria-hidden="true" className="border-b p-0" />
@@ -127,7 +295,7 @@ export function RowsGrid({
         {virtualizer.getVirtualItems().map((item) => {
           const row = data.rows[item.index] ?? [];
           // The last row's bottom is the grid's own border.
-          const line = item.index < data.rows.length - 1 && "border-b";
+          const line = item.index < data.rows.length - 1;
           return (
             <tr
               key={item.key}
@@ -141,15 +309,9 @@ export function RowsGrid({
               }}
             >
               {row.map((value, index) => (
-                <td
-                  key={index}
-                  className={cn("truncate border-r px-3 leading-8", line)}
-                  title={value ?? undefined}
-                >
-                  {value ?? <span className="text-muted-foreground/70">NULL</span>}
-                </td>
+                <Cell key={index} value={value} line={line} />
               ))}
-              <td aria-hidden="true" className={cn("p-0", line)} />
+              <td aria-hidden="true" className={cn("p-0", line && "border-b")} />
             </tr>
           );
         })}

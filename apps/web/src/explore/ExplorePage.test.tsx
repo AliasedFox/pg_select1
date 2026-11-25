@@ -159,17 +159,21 @@ test("runs with Ctrl or ⌘ and Enter", async () => {
 });
 
 test("says when there are more rows than it shows, or none", async () => {
+  // The rows come as a page with more, and the page after it fails, so it stays at the first.
   server.use(
-    http.post("/api/explore/connections/:id/query", () =>
-      HttpResponse.json({ ...queryRows, truncated: true }),
-    ),
+    http.post("/api/explore/connections/:id/query", async ({ request }) => {
+      const { offset } = runQueryRequest.parse(await request.json());
+      return offset
+        ? HttpResponse.json({ error: "The database didn't answer" }, { status: 502 })
+        : HttpResponse.json({ ...queryRows, truncated: true });
+    }),
   );
   const user = userEvent.setup();
   renderApp("/explore?connection=shop");
 
   await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
   await user.click(screen.getByRole("button", { name: "Run" }));
-  expect(await screen.findByText("The first 1,000 rows in 12 ms; there are more.")).toBeDefined();
+  expect(await screen.findByText("The first 3 rows in 12 ms; scroll for more.")).toBeDefined();
 
   server.use(
     http.post("/api/explore/connections/:id/query", () =>
@@ -179,6 +183,125 @@ test("says when there are more rows than it shows, or none", async () => {
   await user.click(screen.getByRole("button", { name: "Run" }));
   expect(await screen.findByText("The statement ran in 12 ms and returns no rows.")).toBeDefined();
   expect(screen.queryByRole("table", { name: "Result" })).toBeNull();
+});
+
+// A page of `count` rows of one column, `n`, numbered from `from`.
+function numbers(from: number, count: number, truncated: boolean) {
+  return {
+    columns: [{ name: "n", type: "integer" }],
+    rows: Array.from({ length: count }, (_, i) => [String(from + i)]),
+    truncated,
+    rowCap: 200,
+    durationMs: 12,
+  };
+}
+
+test("reads the next page of rows as the window comes near the last, from the SQL that was run", async () => {
+  const asked: { sql: string; offset?: number }[] = [];
+  server.use(
+    http.post("/api/explore/connections/:id/query", async ({ request }) => {
+      const { sql, offset } = runQueryRequest.parse(await request.json());
+      asked.push({ sql, offset });
+      if (!offset) return HttpResponse.json(numbers(1, 200, true));
+      return HttpResponse.json(numbers(offset + 1, 20, false));
+    }),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  const sql = await screen.findByRole("textbox", { name: "SQL" });
+  await user.type(sql, "select n from numbers");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  expect(await screen.findByText("The first 200 rows in 12 ms; scroll for more.")).toBeDefined();
+  expect(asked).toHaveLength(1);
+
+  // What the editor holds now isn't what the next page reads.
+  await user.type(sql, " where false");
+  window.scrollTo(0, 200 * 32);
+  window.dispatchEvent(new Event("scroll"));
+
+  expect(await screen.findByText("220 rows in 12 ms")).toBeDefined();
+  expect(asked).toEqual([
+    { sql: "select n from numbers", offset: undefined },
+    { sql: "select n from numbers", offset: 200 },
+  ]);
+});
+
+test("says when the next page of rows couldn't be read, and reads it again when asked", async () => {
+  let fail = true;
+  server.use(
+    http.post("/api/explore/connections/:id/query", async ({ request }) => {
+      const { offset } = runQueryRequest.parse(await request.json());
+      if (!offset) return HttpResponse.json(numbers(1, 3, true));
+      if (fail) return HttpResponse.json({ error: "Too slow" }, { status: 504 });
+      return HttpResponse.json(numbers(4, 2, false));
+    }),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+
+  expect((await screen.findByRole("alert")).textContent).toBe("Couldn't load more rows: Too slow");
+  fail = false;
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByText("5 rows in 12 ms")).toBeDefined();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+test("copies a value from its cell", async () => {
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  const grid = await screen.findByRole("table", { name: "Result" });
+  const alan = within(grid).getByText("alan@example.com").closest("td");
+  await user.click(within(alan!).getByRole("button", { name: "Copy" }));
+
+  expect(await navigator.clipboard.readText()).toBe("alan@example.com");
+  expect(within(alan!).getByRole("button", { name: "Copied" })).toBeDefined();
+  // NULL has nothing to copy.
+  const nameless = within(grid).getByText("NULL").closest("td");
+  expect(within(nameless!).queryByRole("button")).toBeNull();
+});
+
+test("copies an order by on a column, to paste in the SQL", async () => {
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  const grid = await screen.findByRole("table", { name: "Result" });
+  await user.click(within(grid).getByRole("button", { name: "Sort by created_at" }));
+  await user.click(await screen.findByRole("menuitem", { name: 'order by "created_at" desc' }));
+
+  expect(await navigator.clipboard.readText()).toBe('order by "created_at" desc');
+  expect(within(grid).getByRole("button", { name: "Copied" }).textContent).toBe("Copied");
+});
+
+test("shows a value whole in a tooltip when it doesn't fit in one line", async () => {
+  server.use(
+    http.post("/api/explore/connections/:id/query", () =>
+      HttpResponse.json({ ...queryRows, rows: [["1", "a@example.com", "two\nlines", null]] }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  const grid = await screen.findByRole("table", { name: "Result" });
+
+  await user.hover(within(grid).getByText("a@example.com"));
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  expect(screen.queryByRole("tooltip")).toBeNull();
+
+  await user.hover(within(grid).getByText(/two/));
+  expect((await screen.findByRole("tooltip", {}, { timeout: 2000 })).textContent).toBe(
+    "two\nlines",
+  );
 });
 
 test("says why a query failed", async () => {

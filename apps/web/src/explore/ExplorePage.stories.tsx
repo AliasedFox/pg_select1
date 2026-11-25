@@ -1,4 +1,4 @@
-import type { TableRows } from "@pg_select1/shared";
+import { runQueryRequest, type TableRows } from "@pg_select1/shared";
 import { delay, http, HttpResponse } from "msw";
 
 import { RowsGrid } from "@/components/RowsGrid";
@@ -70,6 +70,19 @@ export const NoDatabasesForAViewer = meta.story({
   },
 });
 
+// A customer's row of the wide table below, by its number from 1.
+function customer(n: number): (string | null)[] {
+  return [
+    String(n),
+    `customer${n}@example.com`,
+    n % 7 === 0 ? null : `Customer ${n}`,
+    "2026-01-02 09:00:00+00",
+    n % 3 === 0 ? "Prefers deliveries in the morning, and asks to ring the bell twice." : null,
+    "{vip,newsletter}",
+    '{"theme": "dark", "language": "en"}',
+  ];
+}
+
 // A wide table with many rows, long values and NULLs, to scroll down the page and sideways.
 const manyRows: TableRows = {
   columns: [
@@ -78,18 +91,13 @@ const manyRows: TableRows = {
     { name: "tags", type: "text[]" },
     { name: "settings", type: "jsonb" },
   ],
-  rows: Array.from({ length: 1000 }, (_, i) => [
-    String(i + 1),
-    `customer${i + 1}@example.com`,
-    i % 7 === 0 ? null : `Customer ${i + 1}`,
-    "2026-01-02 09:00:00+00",
-    i % 3 === 0 ? "Prefers deliveries in the morning, and asks to ring the bell twice." : null,
-    "{vip,newsletter}",
-    '{"theme": "dark", "language": "en"}',
-  ]),
+  rows: Array.from({ length: 1000 }, (_, i) => customer(i + 1)),
   truncated: true,
-  rowCap: 1000,
+  rowCap: 200,
 };
+
+// How many customers the query in ManyRows has, in pages of 200.
+const CUSTOMERS = 1000;
 
 export const Rows = meta.story({
   render: () => (
@@ -100,14 +108,23 @@ export const Rows = meta.story({
   ),
 });
 
-// Any query answers a thousand rows, which run down the page past the list of tables.
+// Any query answers a thousand rows, 200 at a time as the page scrolls down past the list of
+// tables, each page after a moment.
 export const ManyRows = meta.story({
   beforeEach({ msw }) {
     msw.use(
       oneDatabase,
-      http.post("/api/explore/connections/:id/query", () =>
-        HttpResponse.json({ ...manyRows, durationMs: 12 }),
-      ),
+      http.post("/api/explore/connections/:id/query", async ({ request }) => {
+        const { offset = 0 } = runQueryRequest.parse(await request.json());
+        if (offset > 0) await delay(500);
+        const count = Math.min(200, CUSTOMERS - offset);
+        return HttpResponse.json({
+          ...manyRows,
+          rows: Array.from({ length: count }, (_, i) => customer(offset + i + 1)),
+          truncated: offset + count < CUSTOMERS,
+          durationMs: 12,
+        });
+      }),
     );
   },
 });

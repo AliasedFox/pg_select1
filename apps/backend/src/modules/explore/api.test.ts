@@ -4,6 +4,7 @@ import {
   connection,
   errorResponse,
   explorableConnectionList,
+  MAX_QUERY_ROWS,
   queryResult,
   tableRows,
   targetTableList,
@@ -290,10 +291,10 @@ describe("rows", () => {
   });
 });
 
-function runQuery(id: string, sql: unknown, cookie: string, runId?: string) {
+function runQuery(id: string, sql: unknown, cookie: string, runId?: string, offset?: number) {
   return request(`/api/explore/connections/${id}/query`, {
     method: "POST",
-    body: JSON.stringify({ sql, runId }),
+    body: JSON.stringify({ sql, runId, offset }),
     headers: { cookie },
   });
 }
@@ -392,6 +393,45 @@ describe("queries", () => {
     const body = queryResult.parse(await res.json());
     expect(body.rows).toHaveLength(ROW_CAP);
     expect(body.truncated).toBe(true);
+  });
+
+  test("answers the page after the rows it's told to skip", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+    const sql = `select n from generate_series(1, ${ROW_CAP * 5 + 5}) as n order by n`;
+
+    const second = queryResult.parse(
+      await (await runQuery(visible.id, sql, viewer.cookie, undefined, ROW_CAP)).json(),
+    );
+    const last = queryResult.parse(
+      await (await runQuery(visible.id, sql, viewer.cookie, undefined, ROW_CAP * 5)).json(),
+    );
+    const past = queryResult.parse(
+      await (await runQuery(visible.id, sql, viewer.cookie, undefined, ROW_CAP * 10)).json(),
+    );
+
+    expect(second.rows).toHaveLength(ROW_CAP);
+    expect(second.rows[0]).toEqual([String(ROW_CAP + 1)]);
+    expect(second.truncated).toBe(true);
+    expect(last.rows).toEqual([1, 2, 3, 4, 5].map((n) => [String(ROW_CAP * 5 + n)]));
+    expect(last.truncated).toBe(false);
+    expect(past).toMatchObject({ columns: [{ name: "n", type: "integer" }], rows: [] });
+    expect(past.truncated).toBe(false);
+  });
+
+  test(`skips at most ${MAX_QUERY_ROWS.toLocaleString("en")} rows`, async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await runQuery(
+      visible.id,
+      "select 1",
+      viewer.cookie,
+      undefined,
+      MAX_QUERY_ROWS + 1,
+    );
+
+    expect(res.status).toBe(400);
   });
 
   test("runs in a read-only transaction, even as a role that could write", async () => {
