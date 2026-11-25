@@ -286,7 +286,7 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
                 <div key={shown?.n} className="grid min-w-0 animate-fade-in gap-3">
                   <p className="text-sm text-muted-foreground">{describeResult(answer.result)}</p>
                   {answer.result.columns.length > 0 && (
-                    <RowsGrid data={answer.result} label="Result" className="h-[60svh]" />
+                    <RowsGrid data={answer.result} label="Result" />
                   )}
                 </div>
               )}
