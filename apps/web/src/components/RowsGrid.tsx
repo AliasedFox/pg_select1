@@ -2,6 +2,8 @@ import type { TableRows } from "@pg_select1/shared";
 import { observeElementRect, useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef } from "react";
 
+import { cn } from "@/lib/utils";
+
 // Every row is one line high, so the virtualizer knows where each is without measuring it.
 const ROW_HEIGHT = 32;
 
@@ -27,11 +29,20 @@ function columnWidths({ columns, rows }: TableRows): number[] {
 }
 
 /**
- * Shows a table's rows in a grid that scrolls both ways under a header that stays put, with each
- * column's name and type. Only the rows in view are rendered, so a thousand scroll as smoothly as
- * ten. A value too long for its column is cut short, whole on hover; `NULL` stands out from text.
+ * Shows a table's or a query's rows in a grid that scrolls both ways under a header that stays
+ * put, with each column's name and type. Only the rows in view are rendered, so a thousand scroll
+ * as smoothly as ten. A value too long for its column is cut short, whole on hover; `NULL` stands
+ * out from text. It's most of the screen high, less what `className` takes off.
  */
-export function RowsGrid({ data, label }: { data: TableRows; label: string }) {
+export function RowsGrid({
+  data,
+  label,
+  className,
+}: {
+  data: TableRows;
+  label: string;
+  className?: string;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const widths = useMemo(() => columnWidths(data), [data]);
   const totalWidth = widths.reduce((sum, width) => sum + width, 0);
@@ -56,7 +67,7 @@ export function RowsGrid({ data, label }: { data: TableRows; label: string }) {
   return (
     <div
       ref={scrollRef}
-      className="h-[calc(100svh-12rem)] min-h-80 overflow-auto rounded-lg border"
+      className={cn("h-[calc(100svh-12rem)] min-h-80 overflow-auto rounded-lg border", className)}
     >
       <table
         aria-label={label}
@@ -67,16 +78,17 @@ export function RowsGrid({ data, label }: { data: TableRows; label: string }) {
       >
         <colgroup>
           {widths.map((width, index) => (
-            <col key={data.columns[index]?.name ?? index} style={{ width: `${width}ch` }} />
+            // By position: a query's columns can share a name.
+            <col key={index} style={{ width: `${width}ch` }} />
           ))}
           {/* What's left of the grid's width, if anything, past the last column. */}
           <col />
         </colgroup>
         <thead className="sticky top-0 z-10 bg-background">
           <tr aria-rowindex={1}>
-            {data.columns.map((column) => (
+            {data.columns.map((column, index) => (
               <th
-                key={column.name}
+                key={index}
                 scope="col"
                 className="border-r border-b px-3 py-1.5 text-left align-top font-normal"
               >

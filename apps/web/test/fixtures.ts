@@ -5,6 +5,7 @@ import {
   type TargetTable,
   inviteUserRequest,
   type Me,
+  type QueryResult,
   updateMeRequest,
   updateUserRequest,
   updateConnectionRequest,
@@ -107,6 +108,9 @@ export const customerRows: TableRows = {
   rowCap: 1000,
 };
 
+/** What `POST /api/explore/connections/:id/query` answers for any query: the customers' rows. */
+export const queryRows: QueryResult = { ...customerRows, durationMs: 12 };
+
 /** Answers `GET /api/me` as nobody signed in, for `server.use()` or `msw.use()`. */
 export const signedOut = http.get("/api/me", () =>
   HttpResponse.json({ error: "Sign in first" }, { status: 401 }),
@@ -147,6 +151,8 @@ export const handlers = [
   ),
   http.get("/api/explore/connections/:id/tables", () => HttpResponse.json({ tables })),
   http.get("/api/explore/connections/:id/rows", () => HttpResponse.json(customerRows)),
+  http.post("/api/explore/connections/:id/query", () => HttpResponse.json(queryRows)),
+  http.post("/api/explore/queries/:runId/cancel", () => new HttpResponse(null, { status: 204 })),
   http.get("/api/connections", () => HttpResponse.json({ connections })),
   http.post("/api/connections", async ({ request }) => {
     const { password, ...body } = createConnectionRequest.parse(await request.json());

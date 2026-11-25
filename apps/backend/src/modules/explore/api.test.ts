@@ -4,6 +4,7 @@ import {
   connection,
   errorResponse,
   explorableConnectionList,
+  queryResult,
   tableRows,
   targetTableList,
 } from "@pg_select1/shared";
@@ -286,5 +287,204 @@ describe("rows", () => {
     expect(errorResponse.parse(await res.json()).error).toBe(
       'password authentication failed for user "explore_reader"',
     );
+  });
+});
+
+function runQuery(id: string, sql: unknown, cookie: string, runId?: string) {
+  return request(`/api/explore/connections/${id}/query`, {
+    method: "POST",
+    body: JSON.stringify({ sql, runId }),
+    headers: { cookie },
+  });
+}
+
+function cancel(runId: string, cookie: string) {
+  return request(`/api/explore/queries/${runId}/cancel`, { method: "POST", headers: { cookie } });
+}
+
+// Whether a statement is running on the target now, as its pg_stat_activity shows.
+async function isRunning(query: string): Promise<boolean> {
+  const client = new Client({ connectionString: url.toString() });
+  await client.connect();
+  try {
+    const { rows } = await client.query(
+      "SELECT 1 FROM pg_stat_activity WHERE datname = 'explore_target' AND state = 'active' AND query = $1",
+      [query],
+    );
+    return rows.length > 0;
+  } finally {
+    await client.end();
+  }
+}
+
+async function eventually(check: () => Promise<boolean>): Promise<void> {
+  for (let tries = 0; tries < 50; tries += 1) {
+    if (await check()) return;
+    await Bun.sleep(100);
+  }
+  throw new Error("It didn't happen within 5 seconds");
+}
+
+describe("queries", () => {
+  test("answers a statement's columns with their types, and its rows as Postgres prints them", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await runQuery(
+      visible.id,
+      "select id, name, price, added_at, 1 + 1 as two, null::text as nothing from shop.products order by id",
+      viewer.cookie,
+    );
+
+    expect(res.status).toBe(200);
+    const body = queryResult.parse(await res.json());
+    expect(body.columns).toEqual([
+      { name: "id", type: "bigint" },
+      { name: "name", type: "character varying(80)" },
+      { name: "price", type: "numeric(10,2)" },
+      { name: "added_at", type: "timestamp with time zone" },
+      { name: "two", type: "integer" },
+      { name: "nothing", type: "text" },
+    ]);
+    expect(body.rows).toEqual([
+      ["1", "Kettle", "24.50", "2026-01-02 03:04:05+00", "2", null],
+      ["2", null, null, null, "2", null],
+    ]);
+    expect(body.truncated).toBe(false);
+    expect(body.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  test("columns of the same name are all there", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await runQuery(visible.id, "select 1, 'a'", viewer.cookie);
+
+    expect(queryResult.parse(await res.json())).toMatchObject({
+      columns: [
+        { name: "?column?", type: "integer" },
+        { name: "?column?", type: "text" },
+      ],
+      rows: [["1", "a"]],
+    });
+  });
+
+  test("a statement that returns no rows answers no columns", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await runQuery(visible.id, "set local work_mem = '8MB'", viewer.cookie);
+
+    expect(res.status).toBe(200);
+    expect(queryResult.parse(await res.json())).toMatchObject({ columns: [], rows: [] });
+  });
+
+  test(`stops at ${ROW_CAP} rows and says there are more`, async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await runQuery(
+      visible.id,
+      "select * from generate_series(1, 1000000)",
+      viewer.cookie,
+    );
+
+    const body = queryResult.parse(await res.json());
+    expect(body.rows).toHaveLength(ROW_CAP);
+    expect(body.truncated).toBe(true);
+  });
+
+  test("runs in a read-only transaction, even as a role that could write", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const insert = await runQuery(
+      visible.id,
+      "insert into public.writes values (1)",
+      viewer.cookie,
+    );
+    const sneaky = await runQuery(visible.id, "select * from public.sneaky", viewer.cookie);
+
+    expect(insert.status).toBe(502);
+    expect(errorResponse.parse(await insert.json()).error).toBe(
+      "cannot execute INSERT in a read-only transaction",
+    );
+    expect(errorResponse.parse(await sneaky.json()).error).toBe(
+      "cannot execute INSERT in a read-only transaction",
+    );
+  });
+
+  test("runs one statement at a time", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await runQuery(
+      visible.id,
+      "set transaction read write; insert into public.writes values (1)",
+      viewer.cookie,
+    );
+
+    expect(res.status).toBe(400);
+    expect(errorResponse.parse(await res.json()).error).toBe("Run one statement at a time");
+  });
+
+  test("says what's wrong with the SQL", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const typo = await runQuery(visible.id, "selec 1", viewer.cookie);
+    const empty = await runQuery(visible.id, "  \n ", viewer.cookie);
+    const comment = await runQuery(visible.id, "-- nothing", viewer.cookie);
+
+    expect(typo.status).toBe(502);
+    expect(errorResponse.parse(await typo.json()).error).toBe('syntax error at or near "selec"');
+    expect(empty.status).toBe(400);
+    expect(errorResponse.parse(await empty.json()).error).toBe("sql: Write a query");
+    expect(comment.status).toBe(200);
+    expect(queryResult.parse(await comment.json())).toMatchObject({ columns: [], rows: [] });
+  });
+
+  test("a hidden connection answers 404 to anyone but an admin", async () => {
+    const hidden = await addConnection(false);
+    const viewer = await signedInAs("viewer");
+    const admin = await signedInAs("admin");
+
+    expect((await runQuery(hidden.id, "select 1", viewer.cookie)).status).toBe(404);
+    expect((await runQuery(hidden.id, "select 1", admin.cookie)).status).toBe(200);
+  });
+
+  test("cancels a running query on the database", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+    const sql = "select pg_sleep(20) as slept";
+    const runId = crypto.randomUUID();
+
+    const run = runQuery(visible.id, sql, viewer.cookie, runId);
+    await eventually(() => isRunning(sql));
+    const again = await runQuery(visible.id, "select 1", viewer.cookie, runId);
+    const cancelled = await cancel(runId, viewer.cookie);
+    const res = await run;
+
+    expect(again.status).toBe(409);
+    expect(cancelled.status).toBe(204);
+    expect(res.status).toBe(499);
+    expect(errorResponse.parse(await res.json()).error).toBe("The query was cancelled");
+    expect(await isRunning(sql)).toBe(false);
+    // The connection's pool still answers after, and the id can be used again.
+    expect((await runQuery(visible.id, "select 1", viewer.cookie, runId)).status).toBe(200);
+  });
+
+  test("nobody cancels someone else's query", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+    const other = await signedInAs("viewer");
+    const sql = "select pg_sleep(0.5) as napped";
+    const runId = crypto.randomUUID();
+
+    const run = runQuery(visible.id, sql, viewer.cookie, runId);
+    await eventually(() => isRunning(sql));
+    expect((await cancel(runId, other.cookie)).status).toBe(204);
+
+    expect((await run).status).toBe(200);
   });
 });

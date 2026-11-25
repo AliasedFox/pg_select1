@@ -10,6 +10,7 @@ import { SignInPage } from "@/auth/SignInPage";
 import { Brand } from "@/Brand";
 import { Loading } from "@/components/Loading";
 import { ConnectionsPage } from "@/connections/ConnectionsPage";
+import { QueryPage } from "@/editor/QueryPage";
 import { ExplorePage } from "@/explore/ExplorePage";
 import { Footer } from "@/Footer";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,9 @@ export function App() {
     </SessionProvider>
   );
 }
+
+// The pages that use the whole width of the window.
+const fullWidth = new Set(["/explore", "/query"]);
 
 function Shell() {
   const path = usePath();
@@ -73,8 +77,9 @@ function Shell() {
         key={path}
         className={cn(
           "mx-auto w-full flex-1 animate-fade-in px-4 pt-6 pb-16 sm:px-6 sm:pt-10",
-          // The explorer's tables use the whole width; other pages keep to the header's.
-          path !== "/explore" && "max-w-screen-xl",
+          // The explorer's and the query page's rows use the whole width; other pages keep to
+          // the header's.
+          !fullWidth.has(path) && "max-w-screen-xl",
         )}
       >
         {page}
@@ -96,6 +101,7 @@ function SignedInPage({ path, user }: { path: string; user: Me }) {
   // Everyone starts at the explorer.
   if (path === "/" || path === "/sign-in") return <Redirect to="/explore" />;
   if (path === "/explore") return <ExplorePage isAdmin={user.role === "admin"} />;
+  if (path === "/query") return <QueryPage isAdmin={user.role === "admin"} />;
   if (path === "/profile") return <ProfilePage user={user} />;
   if (path === "/users") {
     if (user.role !== "admin") {
