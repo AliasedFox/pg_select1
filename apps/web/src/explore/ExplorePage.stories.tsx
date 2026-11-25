@@ -1,5 +1,5 @@
 import type { TableRows } from "@pg_select1/shared";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 
 import { RowsGrid } from "@/components/RowsGrid";
 
@@ -22,6 +22,27 @@ export const OneDatabase = meta.story({
         HttpResponse.json({
           connections: [{ id: "0199a1b2-0000-7000-8000-0000000000c2", name: "shop" }],
         }),
+      ),
+    );
+  },
+});
+
+export const SlowQuery = meta.story({
+  beforeEach({ msw }) {
+    msw.use(
+      http.post("/api/explore/connections/:id/query", async () => {
+        await delay("infinite");
+        return HttpResponse.json({});
+      }),
+    );
+  },
+});
+
+export const FailingQuery = meta.story({
+  beforeEach({ msw }) {
+    msw.use(
+      http.post("/api/explore/connections/:id/query", () =>
+        HttpResponse.json({ error: 'syntax error at or near "selec"' }, { status: 502 }),
       ),
     );
   },
