@@ -18,15 +18,15 @@ test("goes to the admins' pages from the footer", async () => {
   expect(window.location.pathname).toBe("/users");
 });
 
-test("goes to the query page from the footer, admin or not", async () => {
+test("goes to the explorer from the footer, admin or not", async () => {
   server.use(http.get("/api/me", () => HttpResponse.json(viewer)));
   const user = userEvent.setup();
-  renderApp("/explore");
+  renderApp("/profile");
 
   const footer = await screen.findByRole("navigation", { name: "Footer" });
-  await user.click(within(footer).getByRole("link", { name: "Query" }));
-  expect(await screen.findByRole("heading", { name: "Query" })).toBeDefined();
-  expect(window.location.pathname).toBe("/query");
+  await user.click(within(footer).getByRole("link", { name: "Explore" }));
+  expect(await screen.findByRole("heading", { name: "Explore" })).toBeDefined();
+  expect(window.location.pathname).toBe("/explore");
 });
 
 test("goes to one's profile from the footer, admin or not", async () => {

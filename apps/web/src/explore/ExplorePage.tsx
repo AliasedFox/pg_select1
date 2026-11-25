@@ -1,39 +1,99 @@
-import type { TargetTable } from "@pg_select1/shared";
-import { useMemo } from "react";
+import type { QueryResult, TargetTable } from "@pg_select1/shared";
+import { type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import { Loading } from "@/components/Loading";
 import { RowsGrid } from "@/components/RowsGrid";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import { describeError } from "@/lib/api";
 import { useLoaded } from "@/lib/loaded";
+import { cn } from "@/lib/utils";
 import { navigate, useSearchParams } from "@/router";
 
-import { fetchExplorableConnections, fetchRows, fetchTables } from "./api";
+import { cancelQuery, fetchExplorableConnections, fetchTables, runQuery } from "./api";
 import { DatabaseSelect, NoDatabases } from "./DatabaseSelect";
 import { TableList } from "./TableList";
 
-// The explorer's address for a connection and, within it, a table.
-function explorePath(connection: string, table?: TargetTable): string {
-  const query = new URLSearchParams({ connection });
-  if (table) {
-    query.set("schema", table.schema);
-    query.set("table", table.name);
-  }
-  return `/explore?${query}`;
+type Answer = { kind: "done"; result: QueryResult } | { kind: "failed"; message: string };
+
+// What the last run to end answered, kept on screen while the next one runs, rather than
+// swapped for a spinner and back. `n` counts runs, so each answer fades in anew.
+interface Outcome {
+  answer: Answer;
+  connectionId: string;
+  n: number;
+}
+
+// Beside the Run button: nothing running, a run that's been going a while, or one cancelled.
+type Status = "idle" | "running" | "cancelled";
+
+// How long a run goes before it says it's running and offers to cancel, so a quick one doesn't
+// flash a Cancel button and a spinner.
+const SLOW_MS = 300;
+
+// A random UUID to cancel a run by. `crypto.randomUUID` needs a secure context, and pg_select1
+// may be served over plain HTTP on a local network.
+function newRunId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+// Cancels the run that's still wanted, if any, and forgets it.
+function cancelCurrent(current: RefObject<string | undefined>): void {
+  const id = current.current;
+  current.current = undefined;
+  // Nothing to tell anyone if it fails: the query still ends at the API's statement timeout.
+  if (id) cancelQuery(id).catch(() => undefined);
+}
+
+// An identifier as SQL needs it: bare when Postgres would read it back the same, quoted otherwise,
+// as for capitals, spaces or quotes.
+function sqlIdentifier(name: string): string {
+  return /^[a-z_][a-z0-9_$]*$/.test(name) ? name : `"${name.replaceAll('"', '""')}"`;
+}
+
+// A table's name with its schema, which works whatever the connection's `search_path`.
+function sqlName({ schema, name }: TargetTable): string {
+  return `${sqlIdentifier(schema)}.${sqlIdentifier(name)}`;
+}
+
+const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
+
+// How many rows a result has, and how long the database took.
+function describeResult({ columns, rows, truncated, rowCap, durationMs }: QueryResult): string {
+  const took = `in ${durationMs.toLocaleString()} ms`;
+  if (truncated) return `The first ${rowCap.toLocaleString()} rows ${took}; there are more.`;
+  if (columns.length === 0) return `The statement ran ${took} and returns no rows.`;
+  return `${rows.length === 1 ? "1 row" : `${rows.length.toLocaleString()} rows`} ${took}`;
 }
 
 /**
- * The explorer: pick one of the databases the signed-in user can explore, then one of its tables,
- * and see the table's rows, up to the API's row cap. What's picked is kept in the address, so a
- * reload or a link opens the same table, and back goes to the one before.
+ * The explorer: pick one of the databases the signed-in user can explore, write a SQL statement
+ * and run it there, read-only, to see its rows, up to the API's row cap. The database's tables
+ * are listed beside it. Picking one with no SQL written runs `select * from` it; with SQL
+ * written, it writes the table's name where the cursor is. While a query runs, the last result
+ * stays on screen until the new one fades in over it. A run can be cancelled, and is when the
+ * person picks another database or leaves the page. The database is kept in the address, so a
+ * reload or a link opens the same one.
  */
 export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
   const params = useSearchParams();
   const connections = useLoaded(fetchExplorableConnections);
   const chosenName = params.get("connection");
-  const schema = params.get("schema");
-  const table = params.get("table");
+  const [sql, setSql] = useState("");
+  const [outcome, setOutcome] = useState<Outcome | undefined>(undefined);
+  const [status, setStatus] = useState<Status>("idle");
+  const runs = useRef(0);
+  // The run whose answer is still wanted, so a cancelled or replaced one's is dropped.
+  const current = useRef<string | undefined>(undefined);
+  const editor = useRef<HTMLTextAreaElement>(null);
 
   const list = connections.kind === "loaded" ? connections.value : [];
-  // With only one database to explore, it's picked already.
+  // With only one database, it's picked already.
   const connection =
     list.find((c) => c.name === chosenName) ??
     (chosenName === null && list.length === 1 ? list[0] : undefined);
@@ -44,11 +104,67 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
     [connectionId],
   );
   const tables = useLoaded(loadTables);
-  const loadRows = useMemo(
-    () => (connectionId && schema && table ? () => fetchRows(connectionId, schema, table) : null),
-    [connectionId, schema, table],
+
+  // Writes text in place of what's selected in the SQL, or where the cursor is, and puts the
+  // cursor after it, back in the SQL.
+  const insert = (text: string) => {
+    const from = editor.current?.selectionStart ?? sql.length;
+    const to = editor.current?.selectionEnd ?? sql.length;
+    setSql(sql.slice(0, from) + text + sql.slice(to));
+    requestAnimationFrame(() => {
+      editor.current?.focus();
+      editor.current?.setSelectionRange(from + text.length, from + text.length);
+    });
+  };
+
+  const stop = () => {
+    cancelCurrent(current);
+  };
+  // Leaving the page cancels what's running.
+  useEffect(
+    () => () => {
+      cancelCurrent(current);
+    },
+    [],
   );
-  const rows = useLoaded(loadRows);
+
+  // Runs `text`, the SQL as written unless given.
+  const start = (text = sql) => {
+    if (!connectionId || !text.trim() || current.current) return;
+    const id = newRunId();
+    current.current = id;
+    setStatus("idle");
+    const slow = setTimeout(() => {
+      if (current.current === id) setStatus("running");
+    }, SLOW_MS);
+    const settle = (answer: Answer) => {
+      clearTimeout(slow);
+      if (current.current !== id) return;
+      current.current = undefined;
+      runs.current += 1;
+      setOutcome({ answer, connectionId, n: runs.current });
+      setStatus("idle");
+    };
+    runQuery(connectionId, text, id).then(
+      (result) => {
+        settle({ kind: "done", result });
+      },
+      (error: unknown) => {
+        settle({ kind: "failed", message: describeError(error) });
+      },
+    );
+  };
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      start();
+    }
+  };
+
+  // What was run on another database than the one picked now, as after going back, isn't shown.
+  const shown = outcome?.connectionId === connection?.id ? outcome : undefined;
+  const answer = shown?.answer;
 
   return (
     <div className="grid gap-4">
@@ -70,7 +186,10 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
               connections={list}
               value={connection?.name}
               onChange={(name) => {
-                navigate(explorePath(name));
+                stop();
+                setOutcome(undefined);
+                setStatus("idle");
+                navigate(`/explore?${new URLSearchParams({ connection: name })}`);
               }}
             />
 
@@ -84,50 +203,117 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
               <TableList
                 connection={connection.name}
                 tables={tables.value}
-                current={schema && table ? { schema, name: table } : undefined}
-                href={(t) => explorePath(connection.name, t)}
                 onPick={(t) => {
-                  navigate(explorePath(connection.name, t));
+                  if (sql.trim()) {
+                    insert(sqlName(t));
+                    return;
+                  }
+                  const text = `select * from ${sqlName(t)}`;
+                  setSql(text);
+                  // What's still running was for other SQL, which isn't there any more.
+                  stop();
+                  start(text);
                 }}
               />
             )}
           </aside>
 
-          <section aria-label="Rows" className="grid min-w-0 content-start gap-3">
+          <div className="grid min-w-0 content-start gap-4">
             {chosenName !== null && !connection && (
               <p className="text-sm text-muted-foreground">
                 There's no database called {chosenName} to explore.
               </p>
             )}
-            {connection && !(schema && table) && (
-              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                Choose a table to see its rows.
+            <form
+              className="grid gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                start();
+              }}
+            >
+              <Textarea
+                ref={editor}
+                aria-label="SQL"
+                value={sql}
+                onChange={(event) => {
+                  setSql(event.target.value);
+                }}
+                onKeyDown={onKeyDown}
+                placeholder="select * from …, or choose a table"
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                className="max-h-[40svh] min-h-40 font-mono md:text-xs"
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                {status === "running" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      stop();
+                      setStatus("cancelled");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={!connection || !sql.trim()}>
+                    Run
+                  </Button>
+                )}
+                {/* Starts over: no SQL, so picking a table runs `select * from` it again, and
+                    no result, with what's running cancelled. */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!sql && !shown && status === "idle"}
+                  onClick={() => {
+                    stop();
+                    setSql("");
+                    setOutcome(undefined);
+                    setStatus("idle");
+                    editor.current?.focus();
+                  }}
+                >
+                  Clear
+                </Button>
+                {/* Keyed by what it says, so each change fades in; the hint as the page opens
+                    fades in with the page. */}
+                <span
+                  key={status}
+                  className={cn(
+                    "flex items-center gap-2 text-xs text-muted-foreground",
+                    (status !== "idle" || outcome) && "animate-fade-in",
+                  )}
+                >
+                  {status === "running" && (
+                    <>
+                      <Spinner className="size-3.5" /> Running…
+                    </>
+                  )}
+                  {status === "cancelled" && "The query was cancelled."}
+                  {status === "idle" && `${isMac ? "⌘" : "Ctrl"} Enter runs it, read-only`}
+                </span>
               </div>
-            )}
-            {schema && table && rows.kind === "loading" && <Loading />}
-            {schema && table && rows.kind === "failed" && (
-              <p role="alert" className="animate-fade-in text-sm text-destructive">
-                Couldn't read {schema}.{table}: {rows.message}
-              </p>
-            )}
-            {schema && table && rows.kind === "loaded" && (
-              <div className="grid min-w-0 animate-fade-in gap-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <h2 className="font-mono font-semibold">
-                    {schema}.{table}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {rows.value.truncated
-                      ? `The first ${rows.value.rowCap.toLocaleString()} rows; there are more.`
-                      : rows.value.rows.length === 1
-                        ? "1 row"
-                        : `${rows.value.rows.length.toLocaleString()} rows`}
-                  </p>
+            </form>
+
+            <section aria-label="Result" className="grid min-w-0 content-start gap-3">
+              {answer?.kind === "failed" && (
+                <p key={shown?.n} role="alert" className="animate-fade-in text-sm text-destructive">
+                  Couldn't run the query: {answer.message}
+                </p>
+              )}
+              {answer?.kind === "done" && (
+                <div key={shown?.n} className="grid min-w-0 animate-fade-in gap-3">
+                  <p className="text-sm text-muted-foreground">{describeResult(answer.result)}</p>
+                  {answer.result.columns.length > 0 && (
+                    <RowsGrid data={answer.result} label="Result" className="h-[60svh]" />
+                  )}
                 </div>
-                <RowsGrid data={rows.value} label={`${schema}.${table}`} />
-              </div>
-            )}
-          </section>
+              )}
+            </section>
+          </div>
         </div>
       )}
     </div>

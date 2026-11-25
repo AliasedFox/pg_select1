@@ -91,7 +91,7 @@ export const tables: TargetTable[] = [
   { schema: "reporting", name: "open_orders", kind: "view" },
 ];
 
-/** The rows `GET /api/explore/connections/:id/rows` answers for any table. */
+/** A table's rows: the customers'. */
 export const customerRows: TableRows = {
   columns: [
     { name: "id", type: "bigint" },
@@ -150,7 +150,6 @@ export const handlers = [
     HttpResponse.json({ connections: connections.map(({ id, name }) => ({ id, name })) }),
   ),
   http.get("/api/explore/connections/:id/tables", () => HttpResponse.json({ tables })),
-  http.get("/api/explore/connections/:id/rows", () => HttpResponse.json(customerRows)),
   http.post("/api/explore/connections/:id/query", () => HttpResponse.json(queryRows)),
   http.post("/api/explore/queries/:runId/cancel", () => new HttpResponse(null, { status: 204 })),
   http.get("/api/connections", () => HttpResponse.json({ connections })),
