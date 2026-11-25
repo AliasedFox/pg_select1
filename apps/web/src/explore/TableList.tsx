@@ -1,6 +1,8 @@
 import type { TableKind, TargetTable } from "@pg_select1/shared";
 import { EyeIcon, LayersIcon, type LucideIcon, Table2Icon } from "lucide-react";
-import type { MouseEvent } from "react";
+import { type MouseEvent, useEffect, useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 const kindIcons: Record<TableKind, LucideIcon> = {
   table: Table2Icon,
@@ -13,10 +15,34 @@ const kindIcons: Record<TableKind, LucideIcon> = {
 const itemClass =
   "relative flex w-full items-center gap-2 rounded-md px-2 py-1 text-left font-mono text-sm text-muted-foreground transition-colors outline-none before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-transparent before:transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-muted aria-[current=page]:text-foreground aria-[current=page]:before:bg-highlight";
 
+// Whether ⌘ or Ctrl is held, so the tables can show they'd open on a click. Let go of when the
+// window loses focus too, as when ⌘ Tab leaves it, since the key's release goes elsewhere.
+function useModifierHeld(): boolean {
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    const follow = (event: KeyboardEvent) => {
+      setHeld(event.metaKey || event.ctrlKey);
+    };
+    const release = () => {
+      setHeld(false);
+    };
+    window.addEventListener("keydown", follow);
+    window.addEventListener("keyup", follow);
+    window.addEventListener("blur", release);
+    return () => {
+      window.removeEventListener("keydown", follow);
+      window.removeEventListener("keyup", follow);
+      window.removeEventListener("blur", release);
+    };
+  }, []);
+  return held;
+}
+
 /**
  * A connection's tables, under each schema's name, each with an icon for its kind. Picking one
- * calls `onPick`; with `href`, each is a link there too, so it can be opened in a new tab, and
- * otherwise a button. `current` is marked as the page shown.
+ * calls `onPick`, with `open` when it's clicked with ⌘ or Ctrl held; with `href`, each is a link
+ * there too, and otherwise a button. While ⌘ or Ctrl is held, they take the pointer. `current` is
+ * marked as the page shown.
  */
 export function TableList({
   connection,
@@ -29,8 +55,9 @@ export function TableList({
   tables: TargetTable[];
   current?: { schema: string; name: string };
   href?: (table: TargetTable) => string;
-  onPick: (table: TargetTable) => void;
+  onPick: (table: TargetTable, open: boolean) => void;
 }) {
+  const held = useModifierHeld();
   if (tables.length === 0) {
     return (
       <p className="animate-fade-in text-sm text-muted-foreground">
@@ -72,10 +99,10 @@ export function TableList({
                       href={href(t)}
                       title={title}
                       aria-current={isCurrent ? "page" : undefined}
-                      className={itemClass}
+                      className={cn(itemClass, held && "cursor-pointer")}
                       onClick={(event: MouseEvent) => {
                         event.preventDefault();
-                        onPick(t);
+                        onPick(t, event.metaKey || event.ctrlKey);
                       }}
                     >
                       {content}
@@ -84,9 +111,9 @@ export function TableList({
                     <button
                       type="button"
                       title={title}
-                      className={itemClass}
-                      onClick={() => {
-                        onPick(t);
+                      className={cn(itemClass, held && "cursor-pointer")}
+                      onClick={(event) => {
+                        onPick(t, event.metaKey || event.ctrlKey);
                       }}
                     >
                       {content}

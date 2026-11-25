@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 
+import { EditorView } from "@codemirror/view";
 import { runQueryRequest } from "@pg_select1/shared";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,6 +11,11 @@ import { renderApp } from "../../test/render";
 import { server } from "../../test/server";
 
 const shop = connections.find((c) => c.name === "shop");
+
+// The SQL in the editor, which is CodeMirror's, so there's no textarea to read the value of.
+function sqlOf(editor: HTMLElement): string {
+  return EditorView.findFromDOM(editor)?.state.doc.toString() ?? "";
+}
 
 test("picks a database, runs a query on it and shows its rows", async () => {
   const asked: { id: string; body: unknown }[] = [];
@@ -49,7 +55,7 @@ test("picks a database, runs a query on it and shows its rows", async () => {
   expect(within(alan!).getByText("NULL")).toBeDefined();
 });
 
-test("runs select * from a table picked with no SQL written", async () => {
+test("runs select * from a table ⌘ or Ctrl-clicked, in place of the SQL written", async () => {
   const asked: string[] = [];
   server.use(
     http.post("/api/explore/connections/:id/query", async ({ request }) => {
@@ -62,37 +68,44 @@ test("runs select * from a table picked with no SQL written", async () => {
 
   const tables = await screen.findByRole("navigation", { name: "Tables" });
   expect(within(tables).getByText("reporting")).toBeDefined();
-  await user.click(within(tables).getByRole("button", { name: "customers" }));
+  const sql = screen.getByRole("textbox", { name: "SQL" });
+  await user.type(sql, "select 1");
+  const customers = within(tables).getByRole("button", { name: "customers" });
+  expect(customers.classList.contains("cursor-pointer")).toBe(false);
+  await user.keyboard("{Control>}");
+  // Holding it shows a click would open the table.
+  expect(customers.classList.contains("cursor-pointer")).toBe(true);
+  await user.click(customers);
+  await user.keyboard("{/Control}");
+  expect(customers.classList.contains("cursor-pointer")).toBe(false);
 
   expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
-  expect(screen.getByRole<HTMLTextAreaElement>("textbox", { name: "SQL" }).value).toBe(
-    "select * from public.customers",
-  );
+  expect(sqlOf(sql)).toBe("select * from public.customers");
   expect(asked).toEqual(["select * from public.customers"]);
+  expect(screen.getByText("Ctrl-click to show all")).toBeDefined();
 });
 
-test("clears the SQL and the result, so picking a table runs select * from it again", async () => {
+test("clears the SQL and the result", async () => {
   const user = userEvent.setup();
   renderApp("/explore?connection=shop");
 
   const tables = await screen.findByRole("navigation", { name: "Tables" });
-  const sql = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "SQL" });
+  const sql = screen.getByRole("textbox", { name: "SQL" });
   expect(screen.getByRole("button", { name: "Clear" })).toHaveProperty("disabled", true);
+  await user.keyboard("{Control>}");
   await user.click(within(tables).getByRole("button", { name: "customers" }));
+  await user.keyboard("{/Control}");
   expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
 
   await user.click(screen.getByRole("button", { name: "Clear" }));
-  expect(sql.value).toBe("");
+  expect(sqlOf(sql)).toBe("");
   expect(document.activeElement).toBe(sql);
   expect(screen.queryByRole("table", { name: "Result" })).toBeNull();
   expect(screen.queryByText("3 rows in 12 ms")).toBeNull();
   expect(screen.getByRole("button", { name: "Clear" })).toHaveProperty("disabled", true);
-  await user.click(within(tables).getByRole("button", { name: "orders" }));
-  expect(sql.value).toBe("select * from public.orders");
-  expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
 });
 
-test("writes a table's name in the SQL where the cursor is, once some is written", async () => {
+test("writes a clicked table's name in the SQL where the cursor is, without running it", async () => {
   const asked: string[] = [];
   server.use(
     http.post("/api/explore/connections/:id/query", async ({ request }) => {
@@ -112,14 +125,20 @@ test("writes a table's name in the SQL where the cursor is, once some is written
   renderApp("/explore?connection=shop");
 
   const tables = await screen.findByRole("navigation", { name: "Tables" });
-  const sql = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "SQL" });
-  await user.type(sql, "select * from  limit 10");
-  sql.setSelectionRange(14, 14);
+  const sql = screen.getByRole("textbox", { name: "SQL" });
   await user.click(within(tables).getByRole("button", { name: "customers" }));
-  expect(sql.value).toBe("select * from public.customers limit 10");
+  expect(sqlOf(sql)).toBe("public.customers");
+
+  const editor = EditorView.findFromDOM(sql);
+  editor?.dispatch({
+    changes: { from: 0, to: editor.state.doc.length, insert: "select * from  limit 10" },
+    selection: { anchor: 14 },
+  });
+  await user.click(within(tables).getByRole("button", { name: "customers" }));
+  expect(sqlOf(sql)).toBe("select * from public.customers limit 10");
 
   await user.click(within(tables).getByRole("button", { name: 'odd "name"' }));
-  expect(sql.value).toBe('select * from public.customers"Sales"."odd ""name""" limit 10');
+  expect(sqlOf(sql)).toBe('select * from public.customers"Sales"."odd ""name""" limit 10');
   expect(asked).toEqual([]);
 });
 

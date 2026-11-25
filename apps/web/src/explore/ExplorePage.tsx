@@ -1,13 +1,14 @@
 import type { QueryResult, TargetTable } from "@pg_select1/shared";
-import { type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import { Loading } from "@/components/Loading";
 import { RowsGrid } from "@/components/RowsGrid";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
+import { SqlEditor, type SqlEditorHandle } from "@/editor/SqlEditor";
 import { describeError } from "@/lib/api";
 import { useLoaded } from "@/lib/loaded";
+import { modifierKey } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { navigate, useSearchParams } from "@/router";
 
@@ -61,8 +62,6 @@ function sqlName({ schema, name }: TargetTable): string {
   return `${sqlIdentifier(schema)}.${sqlIdentifier(name)}`;
 }
 
-const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
-
 // How many rows a result has, and how long the database took.
 function describeResult({ columns, rows, truncated, rowCap, durationMs }: QueryResult): string {
   const took = `in ${durationMs.toLocaleString()} ms`;
@@ -73,9 +72,9 @@ function describeResult({ columns, rows, truncated, rowCap, durationMs }: QueryR
 
 /**
  * The explorer: pick one of the databases the signed-in user can explore, write a SQL statement
- * and run it there, read-only, to see its rows, up to the API's row cap. The database's tables
- * are listed beside it. Picking one with no SQL written runs `select * from` it; with SQL
- * written, it writes the table's name where the cursor is. While a query runs, the last result
+ * in the {@link SqlEditor} and run it there, read-only, to see its rows, up to the API's row cap.
+ * The database's tables are listed beside it. Clicking one writes its name where the cursor is;
+ * ⌘ or Ctrl-clicking it replaces the SQL with `select * from` it and runs that. While a query runs, the last result
  * stays on screen until the new one fades in over it. A run can be cancelled, and is when the
  * person picks another database or leaves the page. The database is kept in the address, so a
  * reload or a link opens the same one.
@@ -90,7 +89,7 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
   const runs = useRef(0);
   // The run whose answer is still wanted, so a cancelled or replaced one's is dropped.
   const current = useRef<string | undefined>(undefined);
-  const editor = useRef<HTMLTextAreaElement>(null);
+  const editor = useRef<SqlEditorHandle>(null);
 
   const list = connections.kind === "loaded" ? connections.value : [];
   // With only one database, it's picked already.
@@ -104,18 +103,6 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
     [connectionId],
   );
   const tables = useLoaded(loadTables);
-
-  // Writes text in place of what's selected in the SQL, or where the cursor is, and puts the
-  // cursor after it, back in the SQL.
-  const insert = (text: string) => {
-    const from = editor.current?.selectionStart ?? sql.length;
-    const to = editor.current?.selectionEnd ?? sql.length;
-    setSql(sql.slice(0, from) + text + sql.slice(to));
-    requestAnimationFrame(() => {
-      editor.current?.focus();
-      editor.current?.setSelectionRange(from + text.length, from + text.length);
-    });
-  };
 
   const stop = () => {
     cancelCurrent(current);
@@ -153,13 +140,6 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
         settle({ kind: "failed", message: describeError(error) });
       },
     );
-  };
-
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      start();
-    }
   };
 
   // What was run on another database than the one picked now, as after going back, isn't shown.
@@ -203,9 +183,9 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
               <TableList
                 connection={connection.name}
                 tables={tables.value}
-                onPick={(t) => {
-                  if (sql.trim()) {
-                    insert(sqlName(t));
+                onPick={(t, open) => {
+                  if (!open) {
+                    editor.current?.insert(sqlName(t));
                     return;
                   }
                   const text = `select * from ${sqlName(t)}`;
@@ -215,6 +195,11 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
                   start(text);
                 }}
               />
+            )}
+            {tables.kind === "loaded" && tables.value.length > 0 && (
+              <p className="px-2 text-xs text-muted-foreground">
+                {modifierKey()}-click to show all
+              </p>
             )}
           </aside>
 
@@ -231,19 +216,14 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
                 start();
               }}
             >
-              <Textarea
+              <SqlEditor
                 ref={editor}
-                aria-label="SQL"
+                label="SQL"
                 value={sql}
-                onChange={(event) => {
-                  setSql(event.target.value);
-                }}
-                onKeyDown={onKeyDown}
+                onChange={setSql}
+                onRun={start}
+                tables={tables.kind === "loaded" ? tables.value : undefined}
                 placeholder="select * from …, or choose a table"
-                spellCheck={false}
-                autoCapitalize="off"
-                autoCorrect="off"
-                className="max-h-[40svh] min-h-40 font-mono md:text-xs"
               />
               <div className="flex flex-wrap items-center gap-3">
                 {status === "running" ? (
@@ -262,8 +242,7 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
                     Run
                   </Button>
                 )}
-                {/* Starts over: no SQL, so picking a table runs `select * from` it again, and
-                    no result, with what's running cancelled. */}
+                {/* Starts over: no SQL and no result, with what's running cancelled. */}
                 <Button
                   type="button"
                   variant="outline"
@@ -293,7 +272,7 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
                     </>
                   )}
                   {status === "cancelled" && "The query was cancelled."}
-                  {status === "idle" && `${isMac ? "⌘" : "Ctrl"} Enter runs it, read-only`}
+                  {status === "idle" && `${modifierKey()} Enter runs it, read-only`}
                 </span>
               </div>
             </form>

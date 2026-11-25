@@ -15,15 +15,24 @@ const meta = preview.meta({
 
 export const Default = meta.story();
 
+// Only shop to explore, so it's picked already and its tables are listed.
+const oneDatabase = http.get("/api/explore/connections", () =>
+  HttpResponse.json({
+    connections: [{ id: "0199a1b2-0000-7000-8000-0000000000c2", name: "shop" }],
+  }),
+);
+
 export const OneDatabase = meta.story({
   beforeEach({ msw }) {
-    msw.use(
-      http.get("/api/explore/connections", () =>
-        HttpResponse.json({
-          connections: [{ id: "0199a1b2-0000-7000-8000-0000000000c2", name: "shop" }],
-        }),
-      ),
-    );
+    msw.use(oneDatabase);
+  },
+});
+
+// The hints name Ctrl rather than ⌘, as on Windows and Linux.
+export const OnWindows = meta.story({
+  globals: { platform: "windows" },
+  beforeEach({ msw }) {
+    msw.use(oneDatabase);
   },
 });
 
