@@ -1,6 +1,9 @@
 import {
   type Connection,
   createConnectionRequest,
+  createSavedQueryRequest,
+  type SavedQuery,
+  updateSavedQueryRequest,
   type TableRows,
   type TargetTable,
   inviteUserRequest,
@@ -111,6 +114,49 @@ export const customerRows: TableRows = {
 /** What `POST /api/explore/connections/:id/query` answers for any query: the customers' rows. */
 export const queryRows: QueryResult = { ...customerRows, durationMs: 12 };
 
+/**
+ * The saved queries `GET /api/saved-queries` answers by default, by name: a global one on shop,
+ * the admin's own personal one, and an editor's global one whose database was deleted.
+ */
+export const savedQueries: SavedQuery[] = [
+  {
+    id: "0199a1b2-0000-7000-8000-0000000000a1",
+    name: "Daily signups",
+    description: "New customers per day, oldest first",
+    sql: "select date_trunc('day', created_at) as day, count(*)\nfrom customers\ngroup by 1\norder by 1",
+    scope: "global",
+    connections: [{ id: "0199a1b2-0000-7000-8000-0000000000c2", name: "shop" }],
+    owner: { id: admin.id, name: admin.name },
+    canEdit: true,
+    createdAt: "2026-01-05T09:00:00.000Z",
+    updatedAt: "2026-01-06T09:00:00.000Z",
+  },
+  {
+    id: "0199a1b2-0000-7000-8000-0000000000a2",
+    name: "Open orders",
+    description: null,
+    sql: "select * from reporting.open_orders",
+    scope: "personal",
+    connections: [{ id: "0199a1b2-0000-7000-8000-0000000000c2", name: "shop" }],
+    owner: { id: admin.id, name: admin.name },
+    canEdit: true,
+    createdAt: "2026-01-05T10:00:00.000Z",
+    updatedAt: "2026-01-05T10:00:00.000Z",
+  },
+  {
+    id: "0199a1b2-0000-7000-8000-0000000000a3",
+    name: "Unpaid invoices",
+    description: "Invoices sent more than 30 days ago that nobody has paid",
+    sql: "select * from invoices where paid_at is null and sent_at < now() - interval '30 days'",
+    scope: "global",
+    connections: [],
+    owner: { id: "0199a1b2-0000-7000-8000-000000000002", name: "Eddie Editor" },
+    canEdit: true,
+    createdAt: "2026-01-04T09:00:00.000Z",
+    updatedAt: "2026-01-04T09:00:00.000Z",
+  },
+];
+
 /** Answers `GET /api/me` as nobody signed in, for `server.use()` or `msw.use()`. */
 export const signedOut = http.get("/api/me", () =>
   HttpResponse.json({ error: "Sign in first" }, { status: 401 }),
@@ -152,6 +198,48 @@ export const handlers = [
   http.get("/api/explore/connections/:id/tables", () => HttpResponse.json({ tables })),
   http.post("/api/explore/connections/:id/query", () => HttpResponse.json(queryRows)),
   http.post("/api/explore/queries/:runId/cancel", () => new HttpResponse(null, { status: 204 })),
+  http.get("/api/saved-queries", () => HttpResponse.json({ savedQueries })),
+  http.get("/api/saved-queries/:id", ({ params }) => {
+    const found = savedQueries.find((q) => q.id === params.id);
+    if (!found) return HttpResponse.json({ error: "There's no such saved query" }, { status: 404 });
+    return HttpResponse.json(found);
+  }),
+  http.post("/api/saved-queries", async ({ request }) => {
+    const { connectionIds, description, ...body } = createSavedQueryRequest.parse(
+      await request.json(),
+    );
+    const created: SavedQuery = {
+      id: "0199a1b2-0000-7000-8000-0000000000a9",
+      ...body,
+      description: description ?? null,
+      connections: connections
+        .filter((c) => connectionIds.includes(c.id))
+        .map(({ id, name }) => ({ id, name })),
+      owner: { id: admin.id, name: admin.name },
+      canEdit: true,
+      createdAt: "2026-01-07T09:00:00.000Z",
+      updatedAt: "2026-01-07T09:00:00.000Z",
+    };
+    return HttpResponse.json(created, { status: 201 });
+  }),
+  http.patch("/api/saved-queries/:id", async ({ params, request }) => {
+    const existing = savedQueries.find((q) => q.id === params.id);
+    if (!existing) {
+      return HttpResponse.json({ error: "There's no such saved query" }, { status: 404 });
+    }
+    const { connectionIds, ...changes } = updateSavedQueryRequest.parse(await request.json());
+    return HttpResponse.json({
+      ...existing,
+      ...Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined)),
+      ...(connectionIds && {
+        connections: connections
+          .filter((c) => connectionIds.includes(c.id))
+          .map(({ id, name }) => ({ id, name })),
+      }),
+      updatedAt: "2026-01-07T09:00:00.000Z",
+    });
+  }),
+  http.delete("/api/saved-queries/:id", () => new HttpResponse(null, { status: 204 })),
   http.get("/api/connections", () => HttpResponse.json({ connections })),
   http.post("/api/connections", async ({ request }) => {
     const { password, ...body } = createConnectionRequest.parse(await request.json());

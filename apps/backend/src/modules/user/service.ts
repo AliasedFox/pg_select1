@@ -160,6 +160,8 @@ export async function deleteUser(id: string, actingUserId: string): Promise<void
 
   await db.transaction(async (tx) => {
     await tx.orm.public.Verification.where({ value: id }).deleteAll();
+    // Their personal queries go with them; their global ones stay, with no owner.
+    await tx.orm.public.SavedQuery.where({ ownerId: id, scope: "personal" }).deleteAll();
     // Sessions and accounts go with it, by their foreign keys' `ON DELETE CASCADE`.
     await tx.orm.public.User.where({ id }).delete();
   });

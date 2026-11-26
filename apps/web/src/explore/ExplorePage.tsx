@@ -1,4 +1,11 @@
-import { MAX_QUERY_ROWS, type QueryResult, type TargetTable } from "@pg_select1/shared";
+import {
+  MAX_QUERY_ROWS,
+  type Me,
+  type QueryResult,
+  type SavedQuery,
+  type TargetTable,
+} from "@pg_select1/shared";
+import { PlayIcon, SaveIcon, SquareIcon, EraserIcon } from "lucide-react";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import { Loading } from "@/components/Loading";
@@ -11,6 +18,8 @@ import { useLoaded } from "@/lib/loaded";
 import { modifierKey } from "@/lib/platform";
 import { sqlIdentifier } from "@/lib/sql";
 import { cn } from "@/lib/utils";
+import { fetchSavedQuery, updateSavedQuery } from "@/queries/api";
+import { SaveQueryDialog, ScopeBadge } from "@/queries/SavedQueryDialogs";
 import { navigate, useSearchParams } from "@/router";
 
 import { cancelQuery, fetchExplorableConnections, fetchTables, runQuery } from "./api";
@@ -34,6 +43,14 @@ type Paging = { kind: "idle" } | { kind: "loading" } | { kind: "failed"; message
 
 // Beside the Run button: nothing running, a run that's been going a while, or one cancelled.
 type Status = "idle" | "running" | "cancelled";
+
+// Beside the Save button: nothing, saving the open query's changes, saved, or why not. `n`
+// counts saves, so each "Saved" fades in anew.
+type Saving =
+  | { kind: "idle" }
+  | { kind: "saving" }
+  | { kind: "saved"; n: number }
+  | { kind: "failed"; message: string };
 
 // How long a run goes before it says it's running and offers to cancel, so a quick one doesn't
 // flash a Cancel button and a spinner.
@@ -62,6 +79,14 @@ function sqlName({ schema, name }: TargetTable): string {
   return `${sqlIdentifier(schema)}.${sqlIdentifier(name)}`;
 }
 
+// The explorer's address on a database, with a saved query open or not.
+function explorePath(connection: string | undefined, queryId: string | null): string {
+  const params = new URLSearchParams(connection ? { connection } : {});
+  if (queryId) params.set("query", queryId);
+  const search = params.toString();
+  return search ? `/explore?${search}` : "/explore";
+}
+
 // How many rows a result has so far, and how long the database took for the first page.
 function describeResult({ columns, rows, truncated, durationMs }: QueryResult): string {
   const took = `in ${durationMs.toLocaleString()} ms`;
@@ -75,7 +100,8 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
 }
 
 /**
- * The explorer: pick one of the databases the signed-in user can explore, write a SQL statement
+ * The explorer: pick one of the databases the signed-in user can explore (the first, until
+ * another is picked), write a SQL statement
  * in the {@link SqlEditor} and run it there, read-only, to see its rows, a page at a time as the
  * person scrolls down, up to {@link MAX_QUERY_ROWS}.
  * The database's tables are listed beside it. Clicking one writes its name where the cursor is;
@@ -83,11 +109,23 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * stays on screen until the new one fades in over it. A run can be cancelled, and is when the
  * person picks another database or leaves the page. The database is kept in the address, so a
  * reload or a link opens the same one.
+ *
+ * The SQL can be saved as a query, on the database picked, and a saved query opened from the
+ * address (`?query=<id>`), with its SQL in the editor and its database picked, and run at once
+ * on it. Changes to a saved query `user` can change are saved over it; any other is saved as a
+ * new one.
  */
-export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
+export function ExplorePage({ user }: { user: Me }) {
+  const isAdmin = user.role === "admin";
   const params = useSearchParams();
   const connections = useLoaded(fetchExplorableConnections);
-  const chosenName = params.get("connection");
+  const queryId = params.get("query");
+  const [opened, setOpened] = useState<SavedQuery | undefined>(undefined);
+  const [openError, setOpenError] = useState<{ id: string; message: string } | null>(null);
+  // The saved query in the address, once it's loaded.
+  const savedQuery = opened?.id === queryId ? opened : undefined;
+  // The database in the address, else the open saved query's.
+  const chosenName = params.get("connection") ?? savedQuery?.connections[0]?.name ?? null;
   const [sql, setSql] = useState("");
   const [outcome, setOutcome] = useState<Outcome | undefined>(undefined);
   const [status, setStatus] = useState<Status>("idle");
@@ -98,12 +136,21 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
   // The same for the next page's run.
   const page = useRef<string | undefined>(undefined);
   const editor = useRef<SqlEditorHandle>(null);
+  // The saved query asked for last, so it's loaded once, not again after it's saved.
+  const asked = useRef<string | undefined>(undefined);
+  const [saving, setSaving] = useState<Saving>({ kind: "idle" });
+  const [saveDialog, setSaveDialog] = useState(false);
+  const saves = useRef(0);
+  // The saved query just opened, to run once its database is picked.
+  const runOnOpen = useRef<string | undefined>(undefined);
 
   const list = connections.kind === "loaded" ? connections.value : [];
-  // With only one database, it's picked already.
+  // With none in the address, the first database is picked, once a saved query being opened has
+  // said whether it has one of its own, so its tables aren't loaded for nothing.
+  const opening = queryId !== null && !savedQuery && openError?.id !== queryId;
   const connection =
     list.find((c) => c.name === chosenName) ??
-    (chosenName === null && list.length === 1 ? list[0] : undefined);
+    (chosenName === null && !opening ? list[0] : undefined);
   const connectionId = connection?.id;
 
   const loadTables = useMemo(
@@ -111,6 +158,30 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
     [connectionId],
   );
   const tables = useLoaded(loadTables);
+
+  // Opens the saved query in the address: its SQL goes in the editor.
+  useEffect(() => {
+    if (!queryId || asked.current === queryId) return undefined;
+    asked.current = queryId;
+    let done = false;
+    fetchSavedQuery(queryId).then(
+      (query) => {
+        done = true;
+        if (asked.current !== query.id) return;
+        setOpened(query);
+        setSql(query.sql);
+        runOnOpen.current = query.id;
+      },
+      (error: unknown) => {
+        done = true;
+        if (asked.current === queryId) setOpenError({ id: queryId, message: describeError(error) });
+      },
+    );
+    return () => {
+      // Asked again if the page's still there, as when React runs effects twice in development.
+      if (!done) asked.current = undefined;
+    };
+  }, [queryId]);
 
   const stop = () => {
     cancelCurrent(current);
@@ -155,6 +226,39 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
       },
     );
   };
+
+  // Saves the SQL and database over the open saved query.
+  const saveChanges = () => {
+    if (!savedQuery || !connectionId) return;
+    setSaving({ kind: "saving" });
+    updateSavedQuery(savedQuery.id, { sql, connectionIds: [connectionId] }).then(
+      (saved) => {
+        setOpened(saved);
+        saves.current += 1;
+        setSaving({ kind: "saved", n: saves.current });
+      },
+      (error: unknown) => {
+        setSaving({ kind: "failed", message: describeError(error) });
+      },
+    );
+  };
+  const unsaved =
+    !savedQuery || sql.trim() !== savedQuery.sql || savedQuery.connections[0]?.id !== connectionId;
+
+  // The latest `start`, for the effect below, which runs once rather than on every render.
+  const startLatest = useRef(start);
+  useEffect(() => {
+    startLatest.current = start;
+  });
+  // Runs the saved query just opened, once its database is picked; it isn't when it has none
+  // the person can explore.
+  useEffect(() => {
+    if (!savedQuery || runOnOpen.current !== savedQuery.id) return;
+    // Only on its own database, not on the first one, picked when its own is gone.
+    if (!connectionId || savedQuery.connections[0]?.id !== connectionId) return;
+    runOnOpen.current = undefined;
+    startLatest.current(savedQuery.sql);
+  }, [savedQuery, connectionId]);
 
   // What was run on another database than the one picked now, as after going back, isn't shown.
   const shown = outcome?.connectionId === connection?.id ? outcome : undefined;
@@ -221,9 +325,11 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
               value={connection?.name}
               onChange={(name) => {
                 stop();
+                // A saved query opened without its database isn't run on the one picked instead.
+                runOnOpen.current = undefined;
                 setOutcome(undefined);
                 setStatus("idle");
-                navigate(`/explore?${new URLSearchParams({ connection: name })}`);
+                navigate(explorePath(name, queryId));
               }}
             />
 
@@ -258,6 +364,22 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
           </aside>
 
           <div className="grid min-w-0 content-start gap-4">
+            {openError?.id === queryId && (
+              <p role="alert" className="animate-fade-in text-sm text-destructive">
+                Couldn't open the saved query: {openError.message}
+              </p>
+            )}
+            {savedQuery && (
+              <div className="flex animate-fade-in flex-wrap items-center gap-2">
+                <h2 className="text-sm font-medium">{savedQuery.name}</h2>
+                <ScopeBadge scope={savedQuery.scope} />
+                {!savedQuery.canEdit && (
+                  <span className="text-xs text-muted-foreground">
+                    Only its owner or an editor can change it; save it as yours instead.
+                  </span>
+                )}
+              </div>
+            )}
             {chosenName !== null && !connection && (
               <p className="text-sm text-muted-foreground">
                 There's no database called {chosenName} to explore.
@@ -289,27 +411,57 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
                       setStatus("cancelled");
                     }}
                   >
+                    <SquareIcon aria-hidden="true" />
                     Cancel
                   </Button>
                 ) : (
                   <Button type="submit" disabled={!connection || !sql.trim()}>
+                    <PlayIcon aria-hidden="true" />
                     Run
                   </Button>
                 )}
-                {/* Starts over: no SQL and no result, with what's running cancelled. */}
+                {/* Starts over: no SQL, no result and no saved query open, with what's running
+                    cancelled. */}
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={!sql && !shown && status === "idle"}
+                  disabled={!sql && !shown && status === "idle" && !queryId}
                   onClick={() => {
                     stop();
                     setSql("");
                     setOutcome(undefined);
                     setStatus("idle");
+                    setSaving({ kind: "idle" });
+                    runOnOpen.current = undefined;
+                    if (queryId) navigate(explorePath(connection?.name, null));
                     editor.current?.focus();
                   }}
                 >
+                  <EraserIcon aria-hidden="true" />
                   Clear
+                </Button>
+                {/* Over the saved query open, when `user` can change it; else as a new one. */}
+                {savedQuery?.canEdit ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!unsaved || !connection || !sql.trim() || saving.kind === "saving"}
+                    onClick={saveChanges}
+                  >
+                    <SaveIcon aria-hidden="true" />
+                    Save
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!connection || !sql.trim()}
+                  onClick={() => {
+                    setSaveDialog(true);
+                  }}
+                >
+                  {!savedQuery && <SaveIcon aria-hidden="true" />}
+                  {savedQuery ? "Save as…" : "Save…"}
                 </Button>
                 {/* Keyed by what it says, so each change fades in; the hint as the page opens
                     fades in with the page. */}
@@ -328,8 +480,38 @@ export function ExplorePage({ isAdmin }: { isAdmin: boolean }) {
                   {status === "cancelled" && "The query was cancelled."}
                   {status === "idle" && `${modifierKey()} Enter runs it, read-only`}
                 </span>
+                {saving.kind === "saving" && (
+                  <span className="text-xs text-muted-foreground">Saving…</span>
+                )}
+                {saving.kind === "saved" && !unsaved && (
+                  <span key={saving.n} className="animate-fade-in text-xs text-muted-foreground">
+                    Saved.
+                  </span>
+                )}
+                {saving.kind === "failed" && (
+                  <span role="alert" className="animate-fade-in text-xs text-destructive">
+                    Couldn't save: {saving.message}
+                  </span>
+                )}
               </div>
             </form>
+            {saveDialog && connection && (
+              <SaveQueryDialog
+                user={user}
+                sql={sql}
+                connectionId={connection.id}
+                initialName={savedQuery ? `${savedQuery.name} copy` : ""}
+                onOpenChange={setSaveDialog}
+                onSaved={(saved) => {
+                  // It's open already, so there's nothing to load.
+                  asked.current = saved.id;
+                  setOpened(saved);
+                  saves.current += 1;
+                  setSaving({ kind: "saved", n: saves.current });
+                  navigate(explorePath(connection.name, saved.id));
+                }}
+              />
+            )}
 
             <section aria-label="Result" className="grid min-w-0 content-start gap-3">
               {answer?.kind === "failed" && (

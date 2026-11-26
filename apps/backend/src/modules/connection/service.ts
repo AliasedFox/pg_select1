@@ -238,6 +238,29 @@ export async function listExplorableConnections(
 }
 
 /**
+ * Answers the connections `ids` name, in the same order, by id and name, checking that `user`
+ * can explore each one.
+ *
+ * @throws {HttpError} a 404 when one names no connection, or a hidden one and `user` isn't an
+ *   admin.
+ */
+export async function findExplorableConnections(
+  ids: readonly string[],
+  user: SessionUser,
+): Promise<ExplorableConnection[]> {
+  const rows = await db.orm.public.Connection.select("id", "name", "visible")
+    .where((c) => c.id.in([...ids]))
+    .all();
+  return ids.map((id) => {
+    const row = rows.find((r) => r.id === id);
+    if (!row || (!row.visible && user.role !== "admin")) {
+      throw new HttpError(404, "There's no such connection");
+    }
+    return { id: row.id, name: row.name };
+  });
+}
+
+/**
  * Answers a connection someone can explore, with its password decrypted to open its pool.
  *
  * @throws {HttpError} a 404 when there's no such connection, or it's hidden and `user` isn't an

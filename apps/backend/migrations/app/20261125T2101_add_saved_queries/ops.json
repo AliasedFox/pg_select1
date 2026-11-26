@@ -1,0 +1,400 @@
+[
+  {
+    "id": "table.saved_queries",
+    "label": "Create table \"saved_queries\"",
+    "summary": "Creates table \"saved_queries\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"saved_queries\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"saved_queries\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "table \"saved_queries\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"saved_queries\"",
+        "sql": "CREATE TABLE \"public\".\"saved_queries\" (\n  \"created_at\" timestamptz(3) NOT NULL,\n  \"description\" text,\n  \"id\" uuid NOT NULL,\n  \"name\" text NOT NULL,\n  \"owner_id\" uuid,\n  \"scope\" text DEFAULT 'personal' NOT NULL,\n  \"sql\" text NOT NULL,\n  \"updated_at\" timestamptz(3) NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"saved_queries_scope_check_2736efd0\" CHECK (\"scope\" IN ('personal', 'global'))\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"saved_queries\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3))) AS \"result\"",
+        "params": [
+          "\"public\".\"saved_queries\"",
+          "r",
+          "p"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "table \"saved_queries\""
+        }
+      }
+    ]
+  },
+  {
+    "id": "table.saved_query_connections",
+    "label": "Create table \"saved_query_connections\"",
+    "summary": "Creates table \"saved_query_connections\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "saved_query_connections"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"saved_query_connections\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"saved_query_connections\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "table \"saved_query_connections\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"saved_query_connections\"",
+        "sql": "CREATE TABLE \"public\".\"saved_query_connections\" (\n  \"connection_id\" uuid NOT NULL,\n  \"position\" int4 NOT NULL,\n  \"saved_query_id\" uuid NOT NULL,\n  PRIMARY KEY (\"saved_query_id\", \"connection_id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"saved_query_connections\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3))) AS \"result\"",
+        "params": [
+          "\"public\".\"saved_query_connections\"",
+          "r",
+          "p"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "table \"saved_query_connections\""
+        }
+      }
+    ]
+  },
+  {
+    "id": "index.saved_queries.saved_queries_owner_id_idx_ade9f347",
+    "label": "Create index \"saved_queries_owner_id_idx_ade9f347\" on \"saved_queries\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "saved_queries_owner_id_idx_ade9f347",
+        "table": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"saved_queries_owner_id_idx_ade9f347\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"saved_queries_owner_id_idx_ade9f347\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "index \"saved_queries_owner_id_idx_ade9f347\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"saved_queries_owner_id_idx_ade9f347\"",
+        "sql": "CREATE INDEX \"saved_queries_owner_id_idx_ade9f347\" ON \"public\".\"saved_queries\" (\"owner_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"saved_queries_owner_id_idx_ade9f347\" exists on \"saved_queries\" with the planned definition",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" INNER JOIN \"pg_index\" AS \"i\" ON \"i\".\"indexrelid\" = \"c\".\"oid\" INNER JOIN \"pg_am\" AS \"m\" ON \"m\".\"oid\" = \"c\".\"relam\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3) AND \"i\".\"indrelid\" = to_regclass($4) AND NOT (\"i\".\"indisunique\") AND \"m\".\"amname\" = $5 AND (\"i\".\"indexprs\" IS NULL AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"i\".\"indkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"i\".\"indrelid\" AND key_attribute.attnum = key_column.attnum) = ($6)::jsonb) AND \"i\".\"indpred\" IS NULL)) AS \"result\"",
+        "params": [
+          "\"public\".\"saved_queries_owner_id_idx_ade9f347\"",
+          "i",
+          "I",
+          "\"public\".\"saved_queries\"",
+          "btree",
+          "[\"owner_id\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.saved_query_connections.saved_query_connections_connection_id_idx_6326007a",
+    "label": "Create index \"saved_query_connections_connection_id_idx_6326007a\" on \"saved_query_connections\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "saved_query_connections_connection_id_idx_6326007a",
+        "table": "saved_query_connections"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"saved_query_connections_connection_id_idx_6326007a\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"saved_query_connections_connection_id_idx_6326007a\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "index \"saved_query_connections_connection_id_idx_6326007a\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"saved_query_connections_connection_id_idx_6326007a\"",
+        "sql": "CREATE INDEX \"saved_query_connections_connection_id_idx_6326007a\" ON \"public\".\"saved_query_connections\" (\"connection_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"saved_query_connections_connection_id_idx_6326007a\" exists on \"saved_query_connections\" with the planned definition",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" INNER JOIN \"pg_index\" AS \"i\" ON \"i\".\"indexrelid\" = \"c\".\"oid\" INNER JOIN \"pg_am\" AS \"m\" ON \"m\".\"oid\" = \"c\".\"relam\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3) AND \"i\".\"indrelid\" = to_regclass($4) AND NOT (\"i\".\"indisunique\") AND \"m\".\"amname\" = $5 AND (\"i\".\"indexprs\" IS NULL AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"i\".\"indkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"i\".\"indrelid\" AND key_attribute.attnum = key_column.attnum) = ($6)::jsonb) AND \"i\".\"indpred\" IS NULL)) AS \"result\"",
+        "params": [
+          "\"public\".\"saved_query_connections_connection_id_idx_6326007a\"",
+          "i",
+          "I",
+          "\"public\".\"saved_query_connections\"",
+          "btree",
+          "[\"connection_id\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.saved_query_connections.saved_query_connections_saved_query_id_idx_05dd5900",
+    "label": "Create index \"saved_query_connections_saved_query_id_idx_05dd5900\" on \"saved_query_connections\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "saved_query_connections_saved_query_id_idx_05dd5900",
+        "table": "saved_query_connections"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"saved_query_connections_saved_query_id_idx_05dd5900\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"saved_query_connections_saved_query_id_idx_05dd5900\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "index \"saved_query_connections_saved_query_id_idx_05dd5900\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"saved_query_connections_saved_query_id_idx_05dd5900\"",
+        "sql": "CREATE INDEX \"saved_query_connections_saved_query_id_idx_05dd5900\" ON \"public\".\"saved_query_connections\" (\"saved_query_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"saved_query_connections_saved_query_id_idx_05dd5900\" exists on \"saved_query_connections\" with the planned definition",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" INNER JOIN \"pg_index\" AS \"i\" ON \"i\".\"indexrelid\" = \"c\".\"oid\" INNER JOIN \"pg_am\" AS \"m\" ON \"m\".\"oid\" = \"c\".\"relam\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3) AND \"i\".\"indrelid\" = to_regclass($4) AND NOT (\"i\".\"indisunique\") AND \"m\".\"amname\" = $5 AND (\"i\".\"indexprs\" IS NULL AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"i\".\"indkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"i\".\"indrelid\" AND key_attribute.attnum = key_column.attnum) = ($6)::jsonb) AND \"i\".\"indpred\" IS NULL)) AS \"result\"",
+        "params": [
+          "\"public\".\"saved_query_connections_saved_query_id_idx_05dd5900\"",
+          "i",
+          "I",
+          "\"public\".\"saved_query_connections\"",
+          "btree",
+          "[\"saved_query_id\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.saved_queries.saved_queries_owner_id_fkey",
+    "label": "Add foreign key \"saved_queries_owner_id_fkey\" on \"saved_queries\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "saved_queries_owner_id_fkey",
+        "table": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"saved_queries_owner_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "saved_queries_owner_id_fkey",
+          "public",
+          "\"public\".\"saved_queries\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "FK \"saved_queries_owner_id_fkey\" on \"saved_queries\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"saved_queries_owner_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"saved_queries\"\nADD CONSTRAINT \"saved_queries_owner_id_fkey\"\nFOREIGN KEY (\"owner_id\")\nREFERENCES \"public\".\"users\" (\"id\")\nON DELETE SET NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"saved_queries_owner_id_fkey\" exists with the planned columns, referenced table and actions",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3) AND \"c\".\"contype\" = $4 AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"conkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"conrelid\" AND key_attribute.attnum = key_column.attnum) = ($5)::jsonb AND \"c\".\"confrelid\" = to_regclass($6) AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"confkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"confrelid\" AND key_attribute.attnum = key_column.attnum) = ($7)::jsonb AND \"c\".\"confdeltype\" = $8 AND \"c\".\"confupdtype\" = $9)) AS \"result\"",
+        "params": [
+          "saved_queries_owner_id_fkey",
+          "public",
+          "\"public\".\"saved_queries\"",
+          "f",
+          "[\"owner_id\"]",
+          "\"public\".\"users\"",
+          "[\"id\"]",
+          "n",
+          "a"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.saved_query_connections.saved_query_connections_saved_query_id_fkey",
+    "label": "Add foreign key \"saved_query_connections_saved_query_id_fkey\" on \"saved_query_connections\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "saved_query_connections_saved_query_id_fkey",
+        "table": "saved_query_connections"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"saved_query_connections_saved_query_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "saved_query_connections_saved_query_id_fkey",
+          "public",
+          "\"public\".\"saved_query_connections\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "FK \"saved_query_connections_saved_query_id_fkey\" on \"saved_query_connections\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"saved_query_connections_saved_query_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"saved_query_connections\"\nADD CONSTRAINT \"saved_query_connections_saved_query_id_fkey\"\nFOREIGN KEY (\"saved_query_id\")\nREFERENCES \"public\".\"saved_queries\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"saved_query_connections_saved_query_id_fkey\" exists with the planned columns, referenced table and actions",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3) AND \"c\".\"contype\" = $4 AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"conkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"conrelid\" AND key_attribute.attnum = key_column.attnum) = ($5)::jsonb AND \"c\".\"confrelid\" = to_regclass($6) AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"confkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"confrelid\" AND key_attribute.attnum = key_column.attnum) = ($7)::jsonb AND \"c\".\"confdeltype\" = $8 AND \"c\".\"confupdtype\" = $9)) AS \"result\"",
+        "params": [
+          "saved_query_connections_saved_query_id_fkey",
+          "public",
+          "\"public\".\"saved_query_connections\"",
+          "f",
+          "[\"saved_query_id\"]",
+          "\"public\".\"saved_queries\"",
+          "[\"id\"]",
+          "c",
+          "a"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.saved_query_connections.saved_query_connections_connection_id_fkey",
+    "label": "Add foreign key \"saved_query_connections_connection_id_fkey\" on \"saved_query_connections\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "saved_query_connections_connection_id_fkey",
+        "table": "saved_query_connections"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"saved_query_connections_connection_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "saved_query_connections_connection_id_fkey",
+          "public",
+          "\"public\".\"saved_query_connections\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "FK \"saved_query_connections_connection_id_fkey\" on \"saved_query_connections\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"saved_query_connections_connection_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"saved_query_connections\"\nADD CONSTRAINT \"saved_query_connections_connection_id_fkey\"\nFOREIGN KEY (\"connection_id\")\nREFERENCES \"public\".\"connections\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"saved_query_connections_connection_id_fkey\" exists with the planned columns, referenced table and actions",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3) AND \"c\".\"contype\" = $4 AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"conkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"conrelid\" AND key_attribute.attnum = key_column.attnum) = ($5)::jsonb AND \"c\".\"confrelid\" = to_regclass($6) AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"confkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"confrelid\" AND key_attribute.attnum = key_column.attnum) = ($7)::jsonb AND \"c\".\"confdeltype\" = $8 AND \"c\".\"confupdtype\" = $9)) AS \"result\"",
+        "params": [
+          "saved_query_connections_connection_id_fkey",
+          "public",
+          "\"public\".\"saved_query_connections\"",
+          "f",
+          "[\"connection_id\"]",
+          "\"public\".\"connections\"",
+          "[\"id\"]",
+          "c",
+          "a"
+        ]
+      }
+    ]
+  }
+]

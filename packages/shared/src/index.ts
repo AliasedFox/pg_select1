@@ -21,8 +21,8 @@ export const errorResponse = z.object({ error: z.string() });
 export type ErrorResponse = z.infer<typeof errorResponse>;
 
 /**
- * What a user may do in pg_select1: an admin manages users and connections. Editors and viewers
- * can do the same things until there are saved queries and alerts to edit.
+ * What a user may do in pg_select1: an admin manages users and connections, an editor also
+ * shares saved queries with everyone, and a viewer saves queries only for themselves.
  */
 export const role = z.enum(["admin", "editor", "viewer"]);
 
@@ -300,6 +300,13 @@ export type TableRows = z.infer<typeof tableRows>;
 /** The longest SQL a query may be, in characters. */
 export const MAX_SQL_LENGTH = 100_000;
 
+// One SQL statement, as a query to run or save has it.
+const querySql = z
+  .string({ message: "Write a query" })
+  .trim()
+  .min(1, "Write a query")
+  .max(MAX_SQL_LENGTH, `A query is at most ${MAX_SQL_LENGTH.toLocaleString("en")} characters`);
+
 /**
  * The most rows of a query the explorer reads, page by page. Each page runs the statement again
  * and skips the rows before it, so pages far down would read ever more of the database's rows.
@@ -312,11 +319,7 @@ export const MAX_QUERY_ROWS = 10_000;
  * how many of its rows to skip, for a page past the first.
  */
 export const runQueryRequest = z.object({
-  sql: z
-    .string({ message: "Write a query" })
-    .trim()
-    .min(1, "Write a query")
-    .max(MAX_SQL_LENGTH, `A query is at most ${MAX_SQL_LENGTH.toLocaleString("en")} characters`),
+  sql: querySql,
   runId: z.uuid({ message: "A run's id is a UUID" }).optional(),
   offset: z
     .number()
@@ -340,3 +343,82 @@ export const queryResult = tableRows.extend({ durationMs: z.number() });
 
 /** A query's result, as {@link queryResult} parses it. */
 export type QueryResult = z.infer<typeof queryResult>;
+
+/**
+ * Who sees a saved query: only the user who saved it (`personal`), or everyone signed in
+ * (`global`). Only editors and admins share queries with everyone.
+ */
+export const queryScope = z.enum(["personal", "global"]);
+
+/** One of the {@link queryScope}s. */
+export type QueryScope = z.infer<typeof queryScope>;
+
+/**
+ * A saved query as `GET /api/saved-queries` answers it: its SQL, the connections it runs on,
+ * first one first, and who sees it. `connections` holds only those the caller can explore, so
+ * it's empty when they were deleted or hidden. `owner` is who saved it, `null` once they've been
+ * deleted, and `canEdit` whether the caller can change or delete it.
+ */
+export const savedQuery = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  sql: z.string(),
+  scope: queryScope,
+  connections: z.array(explorableConnection),
+  owner: z.object({ id: z.string(), name: z.string() }).nullable(),
+  canEdit: z.boolean(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+/** A saved query, as {@link savedQuery} parses it. */
+export type SavedQuery = z.infer<typeof savedQuery>;
+
+/** What `GET /api/saved-queries` answers: the saved queries the caller sees, by name. */
+export const savedQueryList = z.object({ savedQueries: z.array(savedQuery) });
+
+const savedQueryName = z.string().trim().min(1, "Give the query a name").max(200);
+
+// A blank description is none, so a form's empty field can be sent as it is.
+const savedQueryDescription = z
+  .string()
+  .trim()
+  .max(2000, "Use at most 2,000 characters")
+  .nullable()
+  .optional()
+  .transform((value) => (value === "" ? null : value));
+
+// The connections a saved query runs on. Queries across connections aren't built yet, so it's
+// one for now.
+const savedQueryConnectionIds = z
+  .array(z.uuid({ message: "There's no such connection" }))
+  .min(1, "Pick a database")
+  .max(1, "A query runs on one database for now");
+
+/** The body of `POST /api/saved-queries`: a query to save, personal unless `scope` says global. */
+export const createSavedQueryRequest = z.object({
+  name: savedQueryName,
+  description: savedQueryDescription,
+  sql: querySql,
+  scope: queryScope.default("personal"),
+  connectionIds: savedQueryConnectionIds,
+});
+
+/** A query to save, as {@link createSavedQueryRequest} takes it. */
+export type CreateSavedQueryRequest = z.input<typeof createSavedQueryRequest>;
+
+/**
+ * The body of `PATCH /api/saved-queries/:id`: the fields to change. A blank or `null`
+ * `description` removes it.
+ */
+export const updateSavedQueryRequest = z.object({
+  name: savedQueryName.optional(),
+  description: savedQueryDescription,
+  sql: querySql.optional(),
+  scope: queryScope.optional(),
+  connectionIds: savedQueryConnectionIds.optional(),
+});
+
+/** A change to a saved query, as {@link updateSavedQueryRequest} takes it. */
+export type UpdateSavedQueryRequest = z.input<typeof updateSavedQueryRequest>;
