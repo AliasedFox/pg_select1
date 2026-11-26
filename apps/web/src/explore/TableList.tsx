@@ -1,8 +1,10 @@
 import type { TableKind, TargetTable } from "@pg_select1/shared";
 import { EyeIcon, LayersIcon, type LucideIcon, Table2Icon } from "lucide-react";
-import { type MouseEvent, useEffect, useState } from "react";
+import type { MouseEvent } from "react";
 
-import { cn } from "@/lib/utils";
+import { Clipped } from "@/components/Clipped";
+import { CopyButton } from "@/components/CopyButton";
+import { sqlTableName } from "@/lib/sql";
 
 const kindIcons: Record<TableKind, LucideIcon> = {
   table: Table2Icon,
@@ -13,51 +15,27 @@ const kindIcons: Record<TableKind, LucideIcon> = {
 };
 
 const itemClass =
-  "relative flex w-full items-center gap-2 rounded-md px-2 py-1 text-left font-mono text-sm text-muted-foreground transition-colors outline-none before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-transparent before:transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-muted aria-[current=page]:text-foreground aria-[current=page]:before:bg-highlight";
-
-// Whether ⌘ or Ctrl is held, so the tables can show they'd open on a click. Let go of when the
-// window loses focus too, as when ⌘ Tab leaves it, since the key's release goes elsewhere.
-function useModifierHeld(): boolean {
-  const [held, setHeld] = useState(false);
-  useEffect(() => {
-    const follow = (event: KeyboardEvent) => {
-      setHeld(event.metaKey || event.ctrlKey);
-    };
-    const release = () => {
-      setHeld(false);
-    };
-    window.addEventListener("keydown", follow);
-    window.addEventListener("keyup", follow);
-    window.addEventListener("blur", release);
-    return () => {
-      window.removeEventListener("keydown", follow);
-      window.removeEventListener("keyup", follow);
-      window.removeEventListener("blur", release);
-    };
-  }, []);
-  return held;
-}
+  "relative flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left font-mono text-sm text-muted-foreground transition-colors outline-none before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-transparent before:transition-colors group-hover/table:bg-muted group-hover/table:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-muted aria-[current=page]:text-foreground aria-[current=page]:before:bg-highlight";
 
 /**
- * A connection's tables, under each schema's name, each with an icon for its kind. Picking one
- * calls `onPick`, with `open` when it's clicked with ⌘ or Ctrl held; with `href`, each is a link
- * there too, and otherwise a button. While ⌘ or Ctrl is held, they take the pointer. `current` is
- * marked as the page shown.
+ * A connection's tables, under each schema's name, each with an icon for its kind. Clicking one
+ * calls `onOpen`; with `href`, each is a link there too, and otherwise a button. A name too long
+ * to fit is shown whole in a tooltip, and hovering one shows a button that copies its name with
+ * its schema, quoted for SQL. `current` is marked as the page shown.
  */
 export function TableList({
   connection,
   tables,
   current,
   href,
-  onPick,
+  onOpen,
 }: {
   connection: string;
   tables: TargetTable[];
   current?: { schema: string; name: string };
   href?: (table: TargetTable) => string;
-  onPick: (table: TargetTable, open: boolean) => void;
+  onOpen: (table: TargetTable) => void;
 }) {
-  const held = useModifierHeld();
   if (tables.length === 0) {
     return (
       <p className="animate-fade-in text-sm text-muted-foreground">
@@ -74,7 +52,7 @@ export function TableList({
   }
 
   return (
-    <nav aria-label="Tables" className="grid animate-fade-in content-start gap-3">
+    <nav aria-label="Tables" className="grid animate-fade-in grid-cols-1 content-start gap-3">
       {[...schemas].map(([schema, inSchema]) => (
         <div key={schema}>
           <h3 className="px-2 pb-1 text-xs font-medium text-muted-foreground">{schema}</h3>
@@ -84,22 +62,22 @@ export function TableList({
               const content = (
                 <>
                   <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-                  <span className="truncate">{t.name}</span>
+                  <Clipped text={t.name} className="min-w-0" />
                 </>
               );
               const title = t.kind === "table" ? undefined : t.kind;
               const isCurrent = current?.schema === t.schema && current.name === t.name;
               return (
-                <li key={t.name}>
+                <li key={t.name} className="group/table relative">
                   {href ? (
                     <a
                       href={href(t)}
                       title={title}
                       aria-current={isCurrent ? "page" : undefined}
-                      className={cn(itemClass, held && "cursor-pointer")}
+                      className={itemClass}
                       onClick={(event: MouseEvent) => {
                         event.preventDefault();
-                        onPick(t, event.metaKey || event.ctrlKey);
+                        onOpen(t);
                       }}
                     >
                       {content}
@@ -108,14 +86,19 @@ export function TableList({
                     <button
                       type="button"
                       title={title}
-                      className={cn(itemClass, held && "cursor-pointer")}
-                      onClick={(event) => {
-                        onPick(t, event.metaKey || event.ctrlKey);
+                      className={itemClass}
+                      onClick={() => {
+                        onOpen(t);
                       }}
                     >
                       {content}
                     </button>
                   )}
+                  <CopyButton
+                    value={sqlTableName(t)}
+                    label={`Copy ${t.name}`}
+                    className="group-hover/table:opacity-100 group-hover/table:transition-[color,opacity]"
+                  />
                 </li>
               );
             })}

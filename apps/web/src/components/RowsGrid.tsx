@@ -1,6 +1,6 @@
 import type { TableRows } from "@pg_select1/shared";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, CheckIcon, CopyIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, CheckIcon } from "lucide-react";
 import {
   type CSSProperties,
   memo,
@@ -11,6 +11,8 @@ import {
   useState,
 } from "react";
 
+import { Clipped } from "@/components/Clipped";
+import { CopyButton, hoverButton } from "@/components/CopyButton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +20,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCopy } from "@/lib/clipboard";
 import { sqlIdentifier } from "@/lib/sql";
 import { cn } from "@/lib/utils";
@@ -37,11 +38,6 @@ const PADDING_CH = 4;
 // How close to the last row the window gets before the grid asks for more, in rows.
 const LOAD_AHEAD = 50;
 
-// How long the pointer rests on a value cut short before it's shown whole, and how much of it a
-// tooltip shows at most, so a big `jsonb` doesn't fill the screen.
-const TOOLTIP_DELAY_MS = 400;
-const TOOLTIP_CHARS = 2000;
-
 function columnWidths({ columns, rows }: TableRows): number[] {
   return columns.map((column, index) => {
     let longest = Math.max(column.name.length, column.type.length);
@@ -50,72 +46,6 @@ function columnWidths({ columns, rows }: TableRows): number[] {
     }
     return Math.min(MAX_WIDTH_CH, Math.max(MIN_WIDTH_CH, longest)) + PADDING_CH;
   });
-}
-
-// Text in one line, cut short to fit its column, and shown whole in a tooltip when it doesn't fit
-// or has more lines than the one it shows.
-function Clipped({ text, className }: { text: string; className?: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [open, setOpen] = useState(false);
-  return (
-    <Tooltip
-      delayDuration={TOOLTIP_DELAY_MS}
-      open={open}
-      onOpenChange={(next) => {
-        const span = ref.current;
-        setOpen(
-          next && span !== null && (span.scrollWidth > span.clientWidth || text.includes("\n")),
-        );
-      }}
-    >
-      <TooltipTrigger asChild>
-        <span ref={ref} className={cn("block truncate", className)}>
-          {text}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent
-        side="bottom"
-        align="start"
-        sideOffset={4}
-        className="max-h-64 max-w-md overflow-hidden font-mono text-wrap break-all whitespace-pre-wrap"
-      >
-        {text.length > TOOLTIP_CHARS ? `${text.slice(0, TOOLTIP_CHARS)}…` : text}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-// A button that shows over the right of its cell or header while it's hovered, fading in, and
-// goes at once. `group` is the cell's or the header's.
-const hoverButton =
-  "absolute top-1/2 right-1 flex h-6 -translate-y-1/2 items-center gap-1 rounded-sm border bg-background px-1 font-sans text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100";
-
-// Copies a cell's value, and says so for a moment after.
-function CopyValue({ value }: { value: string }) {
-  const { copied, copy } = useCopy();
-  return (
-    <button
-      type="button"
-      aria-label={copied ? "Copied" : "Copy"}
-      onClick={() => {
-        copy(value);
-      }}
-      className={cn(
-        hoverButton,
-        "group-hover/cell:opacity-100 group-hover/cell:transition-[color,opacity]",
-        copied && "opacity-100",
-      )}
-    >
-      {copied ? (
-        <>
-          <CheckIcon className="size-3.5 text-success" />
-          <span className="animate-fade-in">Copied</span>
-        </>
-      ) : (
-        <CopyIcon className="size-3.5" />
-      )}
-    </button>
-  );
 }
 
 // One value, or `NULL`, which stands out from text and has nothing to copy. Memoized, since the
@@ -128,7 +58,10 @@ const Cell = memo(function Cell({ value, line }: { value: string | null; line: b
       ) : (
         <>
           <Clipped text={value} />
-          <CopyValue value={value} />
+          <CopyButton
+            value={value}
+            className="group-hover/cell:opacity-100 group-hover/cell:transition-[color,opacity]"
+          />
         </>
       )}
     </td>
