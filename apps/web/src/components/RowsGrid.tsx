@@ -223,6 +223,7 @@ export function RowsGrid({
 }) {
   const headRef = useRef<HTMLTableSectionElement>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const barRef = useRef<HTMLTableSectionElement>(null);
   const widths = useMemo(() => columnWidths(data), [data]);
   const totalWidth = widths.reduce((sum, width) => sum + width, 0);
   // The columns, then what's left of the grid's width, if anything, past the last one. At least
@@ -263,23 +264,27 @@ export function RowsGrid({
     if (onNearEnd && lastShown >= data.rows.length - LOAD_AHEAD) onNearEnd();
   }, [onNearEnd, lastShown, data.rows.length]);
 
-  // The header and the rows scroll sideways as one, whichever of them is scrolled.
-  const follow = (from: HTMLElement | null, to: HTMLElement | null) => {
-    if (from && to && to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft;
+  // The header, the rows and the scrollbar scroll sideways as one, whichever of them is scrolled.
+  const follow = (from: HTMLElement | null) => {
+    if (!from) return;
+    for (const to of [headRef.current, bodyRef.current, barRef.current]) {
+      if (to && to !== from && to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft;
+    }
   };
 
   // A table laid out as blocks and grids rather than as a table, so its header and its rows can
-  // each scroll sideways while the page scrolls them down.
+  // each scroll sideways while the page scrolls them down. No wider than its container, even as a
+  // grid or flex item, so they scroll rather than it running past the container's edge.
   return (
     <table
       aria-label={label}
       aria-rowcount={data.rows.length + 1}
-      className={cn("block rounded-lg border font-mono text-xs", className)}
+      className={cn("block min-w-0 rounded-lg border font-mono text-xs", className)}
     >
       <thead
         ref={headRef}
         onScroll={() => {
-          follow(headRef.current, bodyRef.current);
+          follow(headRef.current);
         }}
         className="sticky top-14 z-10 block [scrollbar-width:none] overflow-x-auto rounded-t-lg bg-background"
       >
@@ -316,9 +321,9 @@ export function RowsGrid({
       <tbody
         ref={bodyRef}
         onScroll={() => {
-          follow(bodyRef.current, headRef.current);
+          follow(bodyRef.current);
         }}
-        className="relative block overflow-x-auto"
+        className="relative block [scrollbar-width:none] overflow-x-auto"
         style={{ height: virtualizer.getTotalSize() }}
       >
         {virtualizer.getVirtualItems().map((item) => {
@@ -345,6 +350,21 @@ export function RowsGrid({
           );
         })}
       </tbody>
+      {/* The grid's scrollbar, at the bottom of the window while the grid runs past it, rather
+          than at the bottom of the rows, out of reach until the last of them. Styled, so it shows
+          all the time even where scrollbars only show while scrolling, like a Mac with a
+          trackpad, in Chrome and Safari. Nothing shows when the grid isn't wider than the page. */}
+      <tfoot
+        ref={barRef}
+        aria-hidden="true"
+        onScroll={() => {
+          follow(barRef.current);
+        }}
+        className="sticky bottom-0 z-10 block overflow-x-auto rounded-b-lg bg-background [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-solid [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 [&::-webkit-scrollbar-thumb]:bg-clip-padding [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/70"
+      >
+        {/* A pixel high, since a row of none wouldn't overflow. */}
+        <tr className="block h-px" style={{ width }} />
+      </tfoot>
     </table>
   );
 }
