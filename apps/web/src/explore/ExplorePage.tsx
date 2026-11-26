@@ -507,6 +507,7 @@ export function ExplorePage({ user }: { user: Me }) {
                     <RowsGrid
                       data={answer.result}
                       label="Result"
+                      sql={sql}
                       onNearEnd={() => {
                         loadMore();
                       }}
