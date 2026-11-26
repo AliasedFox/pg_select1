@@ -92,9 +92,11 @@ function emptyGrid(widths: number[]): CSSProperties {
 // half of what scrolling cost.
 const Cell = memo(function Cell({ value, line }: { value: string | null; line: boolean }) {
   const [hovered, setHovered] = useState(false);
+  // A line short of the row's height, so the cell and its bottom border fit in the row, the
+  // border on the grid's line behind it rather than a pixel below, where both would show.
   return (
     <td
-      className={cn("group/cell relative min-w-0 border-r px-3 leading-8", line && "border-b")}
+      className={cn("group/cell relative min-w-0 border-r px-3 leading-[31px]", line && "border-b")}
       onPointerEnter={
         hovered
           ? undefined
