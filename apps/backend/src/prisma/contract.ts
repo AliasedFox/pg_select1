@@ -1,8 +1,8 @@
 import { defineContract, enumType, member } from "@prisma/orm-postgres/contract-builder";
 
 /**
- * What a user may do: an admin manages users and connections; editors and viewers don't.
- * Editor and viewer behave the same until there are saved queries and alerts to edit.
+ * What a user may do: an admin manages users and connections, an editor also shares saved
+ * queries with everyone, and a viewer saves queries only for themselves.
  */
 const Role = enumType(
   "Role",
@@ -19,6 +19,14 @@ const SslMode = enumType(
   member("disable", "disable"),
   member("require", "require"),
   member("verify-full", "verify-full"),
+);
+
+/** Who sees a saved query: only the user who saved it, or everyone signed in. */
+const QueryScope = enumType(
+  "QueryScope",
+  { codecId: "pg/text@1" },
+  member("personal", "personal"),
+  member("global", "global"),
 );
 
 /**
@@ -128,9 +136,66 @@ export const contract = defineContract(
       },
     }).sql({ table: "connections" });
 
+    // A query someone saved to run again. A personal one goes with its owner; a global one stays
+    // when its owner is deleted, with no owner (`src/modules/user/service.ts` deletes the
+    // personal ones first).
+    const SavedQuery = model("SavedQuery", {
+      fields: {
+        id: Id,
+        name: field.column(type.String()),
+        description: field.column(type.String()).optional(),
+        sql: field.column(type.String()),
+        scope: field.namedType(QueryScope).default("personal"),
+        ownerId: field.column(type.Uuid()).optional(),
+        createdAt: CreatedAt,
+        updatedAt: UpdatedAt,
+      },
+      relations: {
+        owner: rel
+          .belongsTo(User, { from: "ownerId", to: "id" })
+          .sql({ fk: { onDelete: "setNull" } }),
+      },
+    }).sql(({ cols, constraints }) => ({
+      table: "saved_queries",
+      indexes: [constraints.index([cols.ownerId])],
+    }));
+
+    // The connections a saved query runs on, first one first (`docs/queries.md`). Deleting a
+    // connection takes it out of its saved queries, which can then be run on another.
+    const SavedQueryConnection = model("SavedQueryConnection", {
+      fields: {
+        savedQueryId: field.column(type.Uuid()),
+        connectionId: field.column(type.Uuid()),
+        position: field.column(type.Int()),
+      },
+      relations: {
+        savedQuery: rel
+          .belongsTo(SavedQuery, { from: "savedQueryId", to: "id" })
+          .sql({ fk: { onDelete: "cascade" } }),
+        connection: rel
+          .belongsTo(Connection, { from: "connectionId", to: "id" })
+          .sql({ fk: { onDelete: "cascade" } }),
+      },
+    })
+      .attributes(({ fields, constraints }) => ({
+        id: constraints.id([fields.savedQueryId, fields.connectionId]),
+      }))
+      .sql(({ cols, constraints }) => ({
+        table: "saved_query_connections",
+        indexes: [constraints.index([cols.connectionId])],
+      }));
+
     return {
-      enums: { Role, SslMode },
-      models: { User, Session, Account, Verification, Connection },
+      enums: { Role, SslMode, QueryScope },
+      models: {
+        User,
+        Session,
+        Account,
+        Verification,
+        Connection,
+        SavedQuery,
+        SavedQueryConnection,
+      },
     };
   },
 );

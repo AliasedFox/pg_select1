@@ -14,6 +14,7 @@ import { ExplorePage } from "@/explore/ExplorePage";
 import { Footer } from "@/Footer";
 import { cn } from "@/lib/utils";
 import { Nav } from "@/Nav";
+import { SavedQueriesPage } from "@/queries/SavedQueriesPage";
 import { redirect, usePath } from "@/router";
 import { UsersPage } from "@/users/UsersPage";
 
@@ -98,7 +99,8 @@ function Redirect({ to }: { to: string }) {
 function SignedInPage({ path, user }: { path: string; user: Me }) {
   // Everyone starts at the explorer.
   if (path === "/" || path === "/sign-in") return <Redirect to="/explore" />;
-  if (path === "/explore") return <ExplorePage isAdmin={user.role === "admin"} />;
+  if (path === "/explore") return <ExplorePage user={user} />;
+  if (path === "/queries") return <SavedQueriesPage user={user} />;
   // The query page was merged into the explorer: its links open it, on the same database.
   if (path === "/query") return <Redirect to={`/explore${window.location.search}`} />;
   if (path === "/profile") return <ProfilePage user={user} />;

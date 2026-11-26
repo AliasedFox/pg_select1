@@ -23,9 +23,9 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'1ce8739942c600bbc63a4f46402371d2a50ba7d0ea82c8b7409417fbf42ca995'>;
+  StorageHashBase<'5c0d7a010aa3297dd2f93fc676650b8c92918322a45711cd35e2a56896e4e2a5'>;
 export type ExecutionHash =
-  ExecutionHashBase<'0b83d88fabbfe36ea600165eebff88fab10d74c175e07d920a98ebf0c884dbd3'>;
+  ExecutionHashBase<'9ee8be841ee004bfeb02f725de5fa01e8845c5986d3486592bcb292abd9c3177'>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
 
@@ -284,6 +284,12 @@ type FieldTypeOverrides = {
           readonly input: 'disable' | 'require' | 'verify-full';
         };
       };
+      readonly SavedQuery: {
+        readonly scope: {
+          readonly output: 'personal' | 'global';
+          readonly input: 'personal' | 'global';
+        };
+      };
       readonly User: {
         readonly role: {
           readonly output: 'admin' | 'editor' | 'viewer';
@@ -315,6 +321,12 @@ type ColumnTypeOverrides = {
       readonly ssl_mode: {
         readonly output: 'disable' | 'require' | 'verify-full';
         readonly input: 'disable' | 'require' | 'verify-full';
+      };
+    };
+    readonly saved_queries: {
+      readonly scope: {
+        readonly output: 'personal' | 'global';
+        readonly input: 'personal' | 'global';
       };
     };
     readonly users: {
@@ -372,6 +384,26 @@ export namespace Models {
     visible: FieldOutputTypes['public']['Connection']['visible'];
     readonly [RelationKeys]?: never;
   };
+  export type public_SavedQuery = {
+    createdAt: FieldOutputTypes['public']['SavedQuery']['createdAt'];
+    description: FieldOutputTypes['public']['SavedQuery']['description'];
+    id: FieldOutputTypes['public']['SavedQuery']['id'];
+    name: FieldOutputTypes['public']['SavedQuery']['name'];
+    ownerId: FieldOutputTypes['public']['SavedQuery']['ownerId'];
+    scope: FieldOutputTypes['public']['SavedQuery']['scope'];
+    sql: FieldOutputTypes['public']['SavedQuery']['sql'];
+    updatedAt: FieldOutputTypes['public']['SavedQuery']['updatedAt'];
+    owner: public_User | null;
+    readonly [RelationKeys]?: 'owner';
+  };
+  export type public_SavedQueryConnection = {
+    connectionId: FieldOutputTypes['public']['SavedQueryConnection']['connectionId'];
+    position: FieldOutputTypes['public']['SavedQueryConnection']['position'];
+    savedQueryId: FieldOutputTypes['public']['SavedQueryConnection']['savedQueryId'];
+    connection: public_Connection;
+    savedQuery: public_SavedQuery;
+    readonly [RelationKeys]?: 'connection' | 'savedQuery';
+  };
   export type public_Session = {
     createdAt: FieldOutputTypes['public']['Session']['createdAt'];
     expiresAt: FieldOutputTypes['public']['Session']['expiresAt'];
@@ -410,6 +442,8 @@ export declare const models: {
   public: {
     Account: Models.public_Account;
     Connection: Models.public_Connection;
+    SavedQuery: Models.public_SavedQuery;
+    SavedQueryConnection: Models.public_SavedQueryConnection;
     Session: Models.public_Session;
     User: Models.public_User;
     Verification: Models.public_Verification;
@@ -628,6 +662,152 @@ type ContractBase = Omit<
               indexes: readonly [];
               foreignKeys: readonly [];
             };
+            readonly saved_queries: {
+              columns: {
+                readonly created_at: {
+                  readonly dataType: 'pg/timestamptz';
+                  readonly codecId: 'pg/timestamptz-date@1';
+                  readonly nullable: false;
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly description: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly id: {
+                  readonly dataType: 'pg/uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly name: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly owner_id: {
+                  readonly dataType: 'pg/uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly scope: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'personal'>;
+                  };
+                  readonly many: false;
+                };
+                readonly sql: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly updated_at: {
+                  readonly dataType: 'pg/timestamptz';
+                  readonly codecId: 'pg/timestamptz-date@1';
+                  readonly nullable: false;
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'saved_queries_owner_id_idx_ade9f347';
+                  readonly prefix: 'saved_queries_owner_id_idx';
+                  readonly columns: readonly ['owner_id'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'saved_queries';
+                    readonly columns: readonly ['owner_id'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'users';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+              ];
+            };
+            readonly saved_query_connections: {
+              columns: {
+                readonly connection_id: {
+                  readonly dataType: 'pg/uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly position: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly saved_query_id: {
+                  readonly dataType: 'pg/uuid';
+                  readonly codecId: 'pg/uuid@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['saved_query_id', 'connection_id'] };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'saved_query_connections_connection_id_idx_6326007a';
+                  readonly prefix: 'saved_query_connections_connection_id_idx';
+                  readonly columns: readonly ['connection_id'];
+                  readonly unique: false;
+                },
+                {
+                  readonly name: 'saved_query_connections_saved_query_id_idx_05dd5900';
+                  readonly prefix: 'saved_query_connections_saved_query_id_idx';
+                  readonly columns: readonly ['saved_query_id'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'saved_query_connections';
+                    readonly columns: readonly ['saved_query_id'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'saved_queries';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'saved_query_connections';
+                    readonly columns: readonly ['connection_id'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'connections';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+              ];
+            };
             readonly sessions: {
               columns: {
                 readonly created_at: {
@@ -829,6 +1009,10 @@ type ContractBase = Omit<
             };
           };
           readonly valueSet: {
+            readonly QueryScope: {
+              readonly kind: 'valueSet';
+              readonly values: readonly ['personal', 'global'];
+            };
             readonly Role: {
               readonly kind: 'valueSet';
               readonly values: readonly ['admin', 'editor', 'viewer'];
@@ -852,6 +1036,14 @@ type ContractBase = Omit<
     readonly connections: {
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'Connection';
+    };
+    readonly saved_queries: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'SavedQuery';
+    };
+    readonly saved_query_connections: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'SavedQueryConnection';
     };
     readonly sessions: { readonly namespace: 'public' & NamespaceId; readonly model: 'Session' };
     readonly users: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
@@ -1037,6 +1229,126 @@ type ContractBase = Omit<
                 readonly updatedAt: { readonly column: 'updated_at' };
                 readonly username: { readonly column: 'username' };
                 readonly visible: { readonly column: 'visible' };
+              };
+            };
+          };
+          readonly SavedQuery: {
+            readonly fields: {
+              readonly createdAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-date@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly description: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly name: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly ownerId: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly scope: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly sql: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly updatedAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-date@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+            };
+            readonly relations: {
+              readonly owner: {
+                readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
+                readonly cardinality: 'N:1';
+                readonly nullable: true;
+                readonly on: {
+                  readonly localFields: readonly ['ownerId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'saved_queries';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly createdAt: { readonly column: 'created_at' };
+                readonly description: { readonly column: 'description' };
+                readonly id: { readonly column: 'id' };
+                readonly name: { readonly column: 'name' };
+                readonly ownerId: { readonly column: 'owner_id' };
+                readonly scope: { readonly column: 'scope' };
+                readonly sql: { readonly column: 'sql' };
+                readonly updatedAt: { readonly column: 'updated_at' };
+              };
+            };
+          };
+          readonly SavedQueryConnection: {
+            readonly fields: {
+              readonly connectionId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly position: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly savedQueryId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+            };
+            readonly relations: {
+              readonly connection: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'Connection';
+                };
+                readonly cardinality: 'N:1';
+                readonly nullable: false;
+                readonly on: {
+                  readonly localFields: readonly ['connectionId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+              readonly savedQuery: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'SavedQuery';
+                };
+                readonly cardinality: 'N:1';
+                readonly nullable: false;
+                readonly on: {
+                  readonly localFields: readonly ['savedQueryId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'saved_query_connections';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly connectionId: { readonly column: 'connection_id' };
+                readonly position: { readonly column: 'position' };
+                readonly savedQueryId: { readonly column: 'saved_query_id' };
               };
             };
           };
@@ -1227,6 +1539,13 @@ type ContractBase = Omit<
           };
         };
         readonly enum: {
+          readonly QueryScope: {
+            readonly codecId: 'pg/text@1';
+            readonly members: readonly [
+              { readonly name: 'personal'; readonly value: 'personal' },
+              { readonly name: 'global'; readonly value: 'global' },
+            ];
+          };
           readonly Role: {
             readonly codecId: 'pg/text@1';
             readonly members: readonly [
@@ -1245,6 +1564,10 @@ type ContractBase = Omit<
           };
         };
         readonly enumMemberTypes?: {
+          readonly QueryScope: readonly [
+            { readonly name: 'personal'; readonly value: 'personal' },
+            { readonly name: 'global'; readonly value: 'global' },
+          ];
           readonly Role: readonly [
             { readonly name: 'admin'; readonly value: 'admin' },
             { readonly name: 'editor'; readonly value: 'editor' },
@@ -1362,6 +1685,43 @@ type ContractBase = Omit<
           };
           readonly ref: {
             readonly entry: 'connections';
+            readonly field: 'updated_at';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: {
+            readonly id: 'timestampNow';
+            readonly kind: 'generator';
+            readonly params: { readonly precision: 3 };
+          };
+          readonly ref: {
+            readonly entry: 'saved_queries';
+            readonly field: 'created_at';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: { readonly id: 'uuidv7'; readonly kind: 'generator' };
+          readonly ref: {
+            readonly entry: 'saved_queries';
+            readonly field: 'id';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: {
+            readonly id: 'timestampNow';
+            readonly kind: 'generator';
+            readonly params: { readonly precision: 3 };
+          };
+          readonly onUpdate: {
+            readonly id: 'timestampNow';
+            readonly kind: 'generator';
+            readonly params: { readonly precision: 3 };
+          };
+          readonly ref: {
+            readonly entry: 'saved_queries';
             readonly field: 'updated_at';
             readonly namespace: 'public';
           };

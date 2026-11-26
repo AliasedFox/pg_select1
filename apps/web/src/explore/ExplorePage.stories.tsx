@@ -4,13 +4,13 @@ import { delay, http, HttpResponse } from "msw";
 import { RowsGrid } from "@/components/RowsGrid";
 
 import preview from "../../.storybook/preview";
-import { customerRows } from "../../test/fixtures";
+import { admin, customerRows, savedQueries, viewer } from "../../test/fixtures";
 import { ExplorePage } from "./ExplorePage";
 
 const meta = preview.meta({
   title: "Explore/ExplorePage",
   component: ExplorePage,
-  args: { isAdmin: true },
+  args: { user: admin },
 });
 
 export const Default = meta.story();
@@ -57,6 +57,37 @@ export const FailingQuery = meta.story({
   },
 });
 
+// Opens a saved query from the address, as its link from the saved queries does, and puts the
+// address back after.
+function withAddress(search: Record<string, string>) {
+  return () => {
+    const before = window.location.href;
+    const url = new URL(before);
+    for (const [key, value] of Object.entries(search)) url.searchParams.set(key, value);
+    window.history.replaceState(null, "", url);
+    return () => {
+      window.history.replaceState(null, "", before);
+    };
+  };
+}
+
+export const SavedQueryOpen = meta.story({
+  beforeEach: withAddress({ connection: "shop", query: savedQueries[0]?.id ?? "" }),
+});
+
+// Someone else's global query, for a viewer: it can only be saved as their own.
+export const SavedQueryReadOnly = meta.story({
+  args: { user: viewer },
+  beforeEach(context) {
+    context.msw.use(
+      http.get("/api/saved-queries/:id", () =>
+        HttpResponse.json({ ...savedQueries[0], canEdit: false }),
+      ),
+    );
+    return withAddress({ connection: "shop", query: savedQueries[0]?.id ?? "" })();
+  },
+});
+
 export const NoDatabases = meta.story({
   beforeEach({ msw }) {
     msw.use(http.get("/api/explore/connections", () => HttpResponse.json({ connections: [] })));
@@ -64,7 +95,7 @@ export const NoDatabases = meta.story({
 });
 
 export const NoDatabasesForAViewer = meta.story({
-  args: { isAdmin: false },
+  args: { user: viewer },
   beforeEach({ msw }) {
     msw.use(http.get("/api/explore/connections", () => HttpResponse.json({ connections: [] })));
   },

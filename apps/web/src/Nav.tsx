@@ -18,7 +18,10 @@ interface NavMenuItem {
 }
 
 // The pages everyone sees.
-const MAIN_PAGES = [{ path: "/explore", label: "Explore" }];
+const MAIN_PAGES = [
+  { path: "/explore", label: "Explore" },
+  { path: "/queries", label: "Queries" },
+];
 
 // The pages only admins see.
 const ADMIN_MENU: NavMenuItem[] = [
@@ -41,7 +44,10 @@ const ADMIN_MENU: NavMenuItem[] = [
 const navItemClass =
   "relative flex h-full items-center gap-1 px-1 text-sm font-medium text-muted-foreground transition-colors outline-none after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-transparent after:transition-colors hover:text-foreground focus-visible:text-foreground aria-[current=page]:text-foreground aria-[current=page]:after:bg-highlight data-[state=open]:text-foreground";
 
-/** The header's main navigation: the explorer for everyone, and the Admin menu for admins. */
+/**
+ * The header's main navigation: the explorer and saved queries for everyone, and the Admin menu
+ * for admins.
+ */
 export function Nav({ path, user }: { path: string; user: Me }) {
   return (
     <nav aria-label="Main" className="flex h-full items-center gap-5">

@@ -1,12 +1,16 @@
 import { expect, test } from "bun:test";
 
 import { EditorView } from "@codemirror/view";
-import { runQueryRequest } from "@pg_select1/shared";
-import { screen, within } from "@testing-library/react";
+import {
+  createSavedQueryRequest,
+  runQueryRequest,
+  updateSavedQueryRequest,
+} from "@pg_select1/shared";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 
-import { connections, queryRows, viewer } from "../../test/fixtures";
+import { connections, queryRows, savedQueries, viewer } from "../../test/fixtures";
 import { renderApp } from "../../test/render";
 import { server } from "../../test/server";
 
@@ -424,4 +428,191 @@ test("is in the header for everyone", async () => {
   expect(within(nav).getByRole("link", { name: "Explore" }).getAttribute("aria-current")).toBe(
     "page",
   );
+});
+
+test("saves the SQL as a personal query on the database picked, and keeps it open", async () => {
+  let sent: unknown;
+  server.use(
+    http.post("/api/saved-queries", async ({ request }) => {
+      const body = createSavedQueryRequest.parse(await request.json());
+      sent = body;
+      return HttpResponse.json(
+        {
+          ...savedQueries[1],
+          id: "0199a1b2-0000-7000-8000-0000000000a9",
+          name: body.name,
+          sql: body.sql,
+          scope: body.scope,
+        },
+        { status: 201 },
+      );
+    }),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Save…" }));
+  const form = within(await screen.findByRole("form", { name: "Save query" }));
+  await user.type(form.getByLabelText("Name"), "One");
+  await user.click(form.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByRole("heading", { name: "One" })).toBeDefined();
+  expect(window.location.search).toBe(
+    "?connection=shop&query=0199a1b2-0000-7000-8000-0000000000a9",
+  );
+  expect(sent).toEqual({
+    name: "One",
+    description: null,
+    sql: "select 1",
+    scope: "personal",
+    connectionIds: [shop?.id],
+  });
+  expect(screen.getByText("Saved.")).toBeDefined();
+  // Nothing has changed since.
+  expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
+});
+
+test("a viewer can't share a query with everyone", async () => {
+  server.use(http.get("/api/me", () => HttpResponse.json(viewer)));
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Save…" }));
+
+  const form = within(await screen.findByRole("form", { name: "Save query" }));
+  expect(form.getByRole("switch", { name: "Share with everyone" })).toHaveProperty(
+    "disabled",
+    true,
+  );
+  expect(form.getByText(/Only editors and admins can share/)).toBeDefined();
+});
+
+test("saves changes over the saved query open, or as a new one", async () => {
+  const daily = savedQueries[0]!;
+  let sent: unknown;
+  server.use(
+    http.patch("/api/saved-queries/:id", async ({ request }) => {
+      const changes = updateSavedQueryRequest.parse(await request.json());
+      sent = changes;
+      return HttpResponse.json({ ...daily, sql: changes.sql });
+    }),
+  );
+  const user = userEvent.setup();
+  renderApp(`/explore?query=${daily.id}`);
+
+  const editor = await screen.findByRole("textbox", { name: "SQL" });
+  await waitFor(() => {
+    expect(sqlOf(editor)).toBe(daily.sql);
+  });
+  const save = screen.getByRole("button", { name: "Save" });
+  expect(save).toHaveProperty("disabled", true);
+  expect(screen.getByRole("button", { name: "Save as…" })).toBeDefined();
+  // Typing goes in where the cursor is, at the start.
+  await user.type(editor, "explain ");
+  await user.click(save);
+
+  expect(await screen.findByText("Saved.")).toBeDefined();
+  expect(sent).toEqual({ sql: `explain ${daily.sql}`, connectionIds: [shop?.id] });
+});
+
+test("a saved query its user can't change is saved as a new one only", async () => {
+  const daily = { ...savedQueries[0]!, canEdit: false };
+  server.use(http.get("/api/saved-queries/:id", () => HttpResponse.json(daily)));
+  renderApp(`/explore?query=${daily.id}`);
+
+  expect(await screen.findByText(/save it as yours instead/)).toBeDefined();
+  expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Save as…" })).toBeDefined();
+});
+
+test("Clear closes the saved query open", async () => {
+  const daily = savedQueries[0]!;
+  const user = userEvent.setup();
+  renderApp(`/explore?connection=shop&query=${daily.id}`);
+
+  await screen.findByRole("heading", { name: "Daily signups" });
+  await user.click(screen.getByRole("button", { name: "Clear" }));
+
+  expect(window.location.search).toBe("?connection=shop");
+  expect(screen.queryByRole("heading", { name: "Daily signups" })).toBeNull();
+  expect(sqlOf(screen.getByRole("textbox", { name: "SQL" }))).toBe("");
+});
+
+test("says so when the saved query asked for isn't there", async () => {
+  renderApp("/explore?connection=shop&query=0199a1b2-0000-7000-8000-0000000000ff");
+
+  expect(await screen.findByText(/Couldn't open the saved query: There's no such/)).toBeDefined();
+});
+
+test("runs a saved query as it opens, once, on its database", async () => {
+  const daily = savedQueries[0]!;
+  const asked: { id: string; sql: string }[] = [];
+  server.use(
+    http.post("/api/explore/connections/:id/query", async ({ params, request }) => {
+      asked.push({ id: String(params.id), sql: runQueryRequest.parse(await request.json()).sql });
+      return HttpResponse.json(queryRows);
+    }),
+  );
+  renderApp(`/explore?query=${daily.id}`);
+
+  expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
+  expect(asked).toEqual([{ id: shop?.id ?? "", sql: daily.sql }]);
+});
+
+test("doesn't run a saved query whose database is gone on the one picked instead", async () => {
+  const unpaid = savedQueries[2]!;
+  let runs = 0;
+  server.use(
+    http.post("/api/explore/connections/:id/query", () => {
+      runs += 1;
+      return HttpResponse.json(queryRows);
+    }),
+  );
+  const user = userEvent.setup();
+  renderApp(`/explore?query=${unpaid.id}`);
+
+  await screen.findByRole("heading", { name: "Unpaid invoices" });
+  await user.click(screen.getByRole("combobox", { name: "Database" }));
+  await user.click(await screen.findByRole("option", { name: "shop" }));
+
+  expect(window.location.search).toBe(`?connection=shop&query=${unpaid.id}`);
+  expect(screen.getByRole("button", { name: "Run" })).toHaveProperty("disabled", false);
+  expect(runs).toBe(0);
+});
+
+test("picks the first database, by name, when none is in the address", async () => {
+  const asked: string[] = [];
+  server.use(
+    http.get("/api/explore/connections/:id/tables", ({ params }) => {
+      asked.push(String(params.id));
+      return HttpResponse.json({ tables: [] });
+    }),
+  );
+  renderApp("/explore");
+
+  const select = await screen.findByRole("combobox", { name: "Database" });
+  await waitFor(() => {
+    expect(select.textContent).toContain("billing");
+  });
+  expect(asked).toEqual([connections.find((c) => c.name === "billing")?.id ?? ""]);
+  expect(window.location.search).toBe("");
+});
+
+test("waits for a saved query to say its database before picking the first", async () => {
+  const daily = savedQueries[0]!;
+  const asked: string[] = [];
+  server.use(
+    http.get("/api/explore/connections/:id/tables", ({ params }) => {
+      asked.push(String(params.id));
+      return HttpResponse.json({ tables: [] });
+    }),
+  );
+  renderApp(`/explore?query=${daily.id}`);
+
+  await screen.findByRole("heading", { name: "Daily signups" });
+  await waitFor(() => {
+    expect(asked).toEqual([shop?.id ?? ""]);
+  });
 });
