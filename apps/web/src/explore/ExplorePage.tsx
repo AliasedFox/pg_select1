@@ -1,10 +1,4 @@
-import {
-  MAX_QUERY_ROWS,
-  type Me,
-  type QueryResult,
-  type SavedQuery,
-  type TargetTable,
-} from "@pg_select1/shared";
+import { MAX_QUERY_ROWS, type Me, type QueryResult, type SavedQuery } from "@pg_select1/shared";
 import { PlayIcon, SaveIcon, SquareIcon, EraserIcon } from "lucide-react";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
@@ -16,7 +10,7 @@ import { SqlEditor, type SqlEditorHandle } from "@/editor/SqlEditor";
 import { describeError } from "@/lib/api";
 import { useLoaded } from "@/lib/loaded";
 import { modifierKey } from "@/lib/platform";
-import { sqlIdentifier } from "@/lib/sql";
+import { sqlTableName } from "@/lib/sql";
 import { cn } from "@/lib/utils";
 import { fetchSavedQuery, updateSavedQuery } from "@/queries/api";
 import { SaveQueryDialog, ScopeBadge } from "@/queries/SavedQueryDialogs";
@@ -74,11 +68,6 @@ function cancelCurrent(current: RefObject<string | undefined>): void {
   if (id) cancelQuery(id).catch(() => undefined);
 }
 
-// A table's name with its schema, which works whatever the connection's `search_path`.
-function sqlName({ schema, name }: TargetTable): string {
-  return `${sqlIdentifier(schema)}.${sqlIdentifier(name)}`;
-}
-
 // The explorer's address on a database, with a saved query open or not.
 function explorePath(connection: string | undefined, queryId: string | null): string {
   const params = new URLSearchParams(connection ? { connection } : {});
@@ -104,8 +93,8 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * another is picked), write a SQL statement
  * in the {@link SqlEditor} and run it there, read-only, to see its rows, a page at a time as the
  * person scrolls down, up to {@link MAX_QUERY_ROWS}.
- * The database's tables are listed beside it. Clicking one writes its name where the cursor is;
- * ⌘ or Ctrl-clicking it replaces the SQL with `select * from` it and runs that. While a query runs, the last result
+ * The database's tables are listed beside it. Clicking one replaces the SQL with `select * from`
+ * it and runs that, and each has a button to copy its name. While a query runs, the last result
  * stays on screen until the new one fades in over it. A run can be cancelled, and is when the
  * person picks another database or leaves the page. The database is kept in the address, so a
  * reload or a link opens the same one.
@@ -318,8 +307,9 @@ export function ExplorePage({ user }: { user: Me }) {
       {connections.kind === "loaded" && list.length === 0 && <NoDatabases isAdmin={isAdmin} />}
 
       {list.length > 0 && (
-        <div className="grid gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
-          <aside className="grid content-start gap-3">
+        <div className="grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)]">
+          {/* One column as wide as the aside, so a long table name is cut short, not widening it. */}
+          <aside className="grid grid-cols-1 content-start gap-3">
             <DatabaseSelect
               connections={list}
               value={connection?.name}
@@ -343,23 +333,14 @@ export function ExplorePage({ user }: { user: Me }) {
               <TableList
                 connection={connection.name}
                 tables={tables.value}
-                onPick={(t, open) => {
-                  if (!open) {
-                    editor.current?.insert(sqlName(t));
-                    return;
-                  }
-                  const text = `select * from ${sqlName(t)}`;
+                onOpen={(t) => {
+                  const text = `select * from ${sqlTableName(t)}`;
                   setSql(text);
                   // What's still running was for other SQL, which isn't there any more.
                   stop();
                   start(text);
                 }}
               />
-            )}
-            {tables.kind === "loaded" && tables.value.length > 0 && (
-              <p className="px-2 text-xs text-muted-foreground">
-                {modifierKey()}-click to show all
-              </p>
             )}
           </aside>
 
@@ -478,7 +459,7 @@ export function ExplorePage({ user }: { user: Me }) {
                     </>
                   )}
                   {status === "cancelled" && "The query was cancelled."}
-                  {status === "idle" && `${modifierKey()} Enter runs it, read-only`}
+                  {status === "idle" && `${modifierKey()} Enter to execute`}
                 </span>
                 {saving.kind === "saving" && (
                   <span className="text-xs text-muted-foreground">Saving…</span>

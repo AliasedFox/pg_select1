@@ -59,7 +59,7 @@ test("picks a database, runs a query on it and shows its rows", async () => {
   expect(within(alan!).getByText("NULL")).toBeDefined();
 });
 
-test("runs select * from a table ⌘ or Ctrl-clicked, in place of the SQL written", async () => {
+test("runs select * from a table clicked, in place of the SQL written", async () => {
   const asked: string[] = [];
   server.use(
     http.post("/api/explore/connections/:id/query", async ({ request }) => {
@@ -74,19 +74,11 @@ test("runs select * from a table ⌘ or Ctrl-clicked, in place of the SQL writte
   expect(within(tables).getByText("reporting")).toBeDefined();
   const sql = screen.getByRole("textbox", { name: "SQL" });
   await user.type(sql, "select 1");
-  const customers = within(tables).getByRole("button", { name: "customers" });
-  expect(customers.classList.contains("cursor-pointer")).toBe(false);
-  await user.keyboard("{Control>}");
-  // Holding it shows a click would open the table.
-  expect(customers.classList.contains("cursor-pointer")).toBe(true);
-  await user.click(customers);
-  await user.keyboard("{/Control}");
-  expect(customers.classList.contains("cursor-pointer")).toBe(false);
+  await user.click(within(tables).getByRole("button", { name: "customers" }));
 
   expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
   expect(sqlOf(sql)).toBe('select * from "public"."customers"');
   expect(asked).toEqual(['select * from "public"."customers"']);
-  expect(screen.getByText("Ctrl-click to show all")).toBeDefined();
 });
 
 test("clears the SQL and the result", async () => {
@@ -96,9 +88,7 @@ test("clears the SQL and the result", async () => {
   const tables = await screen.findByRole("navigation", { name: "Tables" });
   const sql = screen.getByRole("textbox", { name: "SQL" });
   expect(screen.getByRole("button", { name: "Clear" })).toHaveProperty("disabled", true);
-  await user.keyboard("{Control>}");
   await user.click(within(tables).getByRole("button", { name: "customers" }));
-  await user.keyboard("{/Control}");
   expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
 
   await user.click(screen.getByRole("button", { name: "Clear" }));
@@ -109,7 +99,7 @@ test("clears the SQL and the result", async () => {
   expect(screen.getByRole("button", { name: "Clear" })).toHaveProperty("disabled", true);
 });
 
-test("writes a clicked table's name in the SQL where the cursor is, without running it", async () => {
+test("copies a table's name with its schema, quoted, without running it", async () => {
   const asked: string[] = [];
   server.use(
     http.post("/api/explore/connections/:id/query", async ({ request }) => {
@@ -130,26 +120,35 @@ test("writes a clicked table's name in the SQL where the cursor is, without runn
   renderApp("/explore?connection=shop");
 
   const tables = await screen.findByRole("navigation", { name: "Tables" });
-  const sql = screen.getByRole("textbox", { name: "SQL" });
-  await user.click(within(tables).getByRole("button", { name: "customers" }));
-  expect(sqlOf(sql)).toBe('"public"."customers"');
+  await user.click(within(tables).getByRole("button", { name: "Copy customers" }));
+  expect(await navigator.clipboard.readText()).toBe('"public"."customers"');
+  expect(within(tables).getByRole("button", { name: "Copied" })).toBeDefined();
 
-  const editor = EditorView.findFromDOM(sql);
-  editor?.dispatch({
-    changes: { from: 0, to: editor.state.doc.length, insert: "select * from  limit 10" },
-    selection: { anchor: 14 },
-  });
-  await user.click(within(tables).getByRole("button", { name: "customers" }));
-  expect(sqlOf(sql)).toBe('select * from "public"."customers" limit 10');
-
-  await user.click(within(tables).getByRole("button", { name: 'odd "name"' }));
-  expect(sqlOf(sql)).toBe('select * from "public"."customers""Sales"."odd ""name""" limit 10');
+  await user.click(within(tables).getByRole("button", { name: 'Copy odd "name"' }));
+  expect(await navigator.clipboard.readText()).toBe('"Sales"."odd ""name"""');
 
   // A keyword like `user` works as a name too.
-  editor?.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: "" } });
-  await user.click(within(tables).getByRole("button", { name: "order" }));
-  expect(sqlOf(sql)).toBe('"user"."order"');
+  await user.click(within(tables).getByRole("button", { name: "Copy order" }));
+  expect(await navigator.clipboard.readText()).toBe('"user"."order"');
+  expect(sqlOf(screen.getByRole("textbox", { name: "SQL" }))).toBe("");
   expect(asked).toEqual([]);
+});
+
+test("shows a table's name whole in a tooltip when it doesn't fit", async () => {
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  const tables = await screen.findByRole("navigation", { name: "Tables" });
+  await user.hover(within(tables).getByText("orders"));
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  expect(screen.queryByRole("tooltip")).toBeNull();
+
+  // jsdom lays nothing out, so the name is made wider than it's shown.
+  const customers = within(tables).getByText("customers");
+  Object.defineProperty(customers, "scrollWidth", { value: 300 });
+  Object.defineProperty(customers, "clientWidth", { value: 100 });
+  await user.hover(customers);
+  expect((await screen.findByRole("tooltip", {}, { timeout: 2000 })).textContent).toBe("customers");
 });
 
 test("runs with Ctrl or ⌘ and Enter", async () => {

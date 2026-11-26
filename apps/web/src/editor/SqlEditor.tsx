@@ -14,8 +14,6 @@ const NO_TABLES: readonly TargetTable[] = [];
 export interface SqlEditorHandle {
   /** Puts the cursor back in the SQL. */
   focus: () => void;
-  /** Writes text in place of what's selected, or where the cursor is, and puts the cursor after it. */
-  insert: (text: string) => void;
 }
 
 /**
@@ -94,12 +92,6 @@ export function SqlEditor({
 
   useImperativeHandle(ref, () => ({
     focus: () => view.current?.focus(),
-    insert: (text) => {
-      const editor = view.current;
-      if (!editor) return;
-      editor.dispatch(editor.state.replaceSelection(text), { scrollIntoView: true });
-      editor.focus();
-    },
   }));
 
   return (

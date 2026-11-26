@@ -28,7 +28,7 @@ export const OneDatabase = meta.story({
   },
 });
 
-// The hints name Ctrl rather than ⌘, as on Windows and Linux.
+// The hint names Ctrl rather than ⌘, as on Windows and Linux.
 export const OnWindows = meta.story({
   globals: { platform: "windows" },
   beforeEach({ msw }) {
