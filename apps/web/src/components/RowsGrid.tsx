@@ -51,6 +51,9 @@ const PADDING_CH = 4;
 // How close to the last row the window gets before the grid asks for more, in rows.
 const LOAD_AHEAD = 50;
 
+// How many rows are rendered past each edge of the window, so a scroll shows them at once.
+const OVERSCAN = 10;
+
 function columnWidths({ columns, rows }: TableRows): number[] {
   return columns.map((column, index) => {
     let longest = Math.max(column.name.length, column.type.length);
@@ -61,20 +64,56 @@ function columnWidths({ columns, rows }: TableRows): number[] {
   });
 }
 
+// The grid's lines with no rows in them, drawn behind the rows: the browser scrolls the page
+// before the rows for where it scrolls to are rendered, and a quick scroll past a few screens
+// shows these for a moment rather than nothing. A line under each row, though not the last, whose
+// bottom is the grid's own border, and one at the right of each column, where the cells' are.
+function emptyGrid(widths: number[]): CSSProperties {
+  let right = 0;
+  const columns = widths.map((width) => {
+    right += width;
+    return `transparent 0 calc(${right}ch - 1px), var(--border) 0 ${right}ch`;
+  });
+  return {
+    backgroundImage: `linear-gradient(to right, ${columns.join(", ")}, transparent 0), linear-gradient(to bottom, transparent calc(${ROW_HEIGHT}px - 1px), var(--border) 0)`,
+    backgroundSize: `100% 100%, 100% ${ROW_HEIGHT}px`,
+    backgroundRepeat: "no-repeat, repeat-y",
+    // Scrolled sideways along with the rows, and short of the last row's line.
+    backgroundAttachment: "local",
+    backgroundClip: "content-box",
+    paddingBottom: 1,
+  };
+}
+
 // One value, or `NULL`, which stands out from text and has nothing to copy. Memoized, since the
-// rows in the window render again as the page scrolls, and their values don't change.
+// rows in the window render again as the page scrolls, and their values don't change. Its copy
+// button is only rendered once the pointer first comes over it, fading in the first time: each
+// row that scrolls into the window mounts a cell for every column, and a button for each was
+// half of what scrolling cost.
 const Cell = memo(function Cell({ value, line }: { value: string | null; line: boolean }) {
+  const [hovered, setHovered] = useState(false);
   return (
-    <td className={cn("group/cell relative min-w-0 border-r px-3 leading-8", line && "border-b")}>
+    <td
+      className={cn("group/cell relative min-w-0 border-r px-3 leading-8", line && "border-b")}
+      onPointerEnter={
+        hovered
+          ? undefined
+          : () => {
+              setHovered(true);
+            }
+      }
+    >
       {value === null ? (
         <span className="block text-muted-foreground/70">NULL</span>
       ) : (
         <>
           <Clipped text={value} />
-          <CopyButton
-            value={value}
-            className="group-hover/cell:opacity-100 group-hover/cell:transition-[color,opacity]"
-          />
+          {hovered && (
+            <CopyButton
+              value={value}
+              className="animate-fade-in group-hover/cell:opacity-100 group-hover/cell:transition-[color,opacity]"
+            />
+          )}
         </>
       )}
     </td>
@@ -195,6 +234,44 @@ function ClauseMenu({
   );
 }
 
+// A column's header: its name and type, and the menus that copy a filter, a group or a sort on
+// it. Memoized, since the grid renders again on every frame the page scrolls, and rendering its
+// three menus for every column each time was most of what scrolling cost.
+const ColumnHead = memo(function ColumnHead({
+  name,
+  type,
+  sql,
+}: {
+  name: string;
+  type: string;
+  sql: string;
+}) {
+  return (
+    <th
+      scope="col"
+      className="group/head relative min-w-0 border-r border-b px-3 py-1.5 text-left font-normal"
+    >
+      <Clipped text={name} className="font-medium text-foreground" />
+      <Clipped text={type} className="text-muted-foreground" />
+      <div className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-1">
+        {/* Like sorting, neither filters nor groups the rows here. */}
+        <ClauseMenu
+          label={`Filter by ${name}`}
+          icon={<FilterIcon className="size-3.5" />}
+          clauses={columnFilters(name, type, sql)}
+        />
+        <ClauseMenu
+          label={`Group by ${name}`}
+          icon={<GroupIcon className="size-3.5" />}
+          hint={groupLabel}
+          clauses={columnGroups(name, type, sql)}
+        />
+        <SortMenu column={name} />
+      </div>
+    </th>
+  );
+});
+
 /**
  * Shows a table's or a query's rows in a grid as long as they are, scrolled with the page, under
  * a header with each column's name and type that stays below the app's header. Only the rows in
@@ -232,6 +309,7 @@ export function RowsGrid({
     gridTemplateColumns: `${widths.map((width) => `${width}ch`).join(" ")} minmax(0, 1fr)`,
   };
   const width = `max(100%, ${totalWidth}ch)`;
+  const background = useMemo(() => emptyGrid(widths), [widths]);
 
   // How far down the page the rows start, which the virtualizer counts the window's scroll from.
   // Measured again whenever the page changes size, since what's above, like the SQL box, can grow.
@@ -254,12 +332,14 @@ export function RowsGrid({
   const virtualizer = useWindowVirtualizer({
     count: data.rows.length,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 10,
+    overscan: OVERSCAN,
     scrollMargin,
   });
 
+  const items = virtualizer.getVirtualItems();
+
   // Each time the window moves or rows come, whether it's near the last of them.
-  const lastShown = virtualizer.getVirtualItems().at(-1)?.index ?? -1;
+  const lastShown = items.at(-1)?.index ?? -1;
   useEffect(() => {
     if (onNearEnd && lastShown >= data.rows.length - LOAD_AHEAD) onNearEnd();
   }, [onNearEnd, lastShown, data.rows.length]);
@@ -290,30 +370,8 @@ export function RowsGrid({
       >
         <tr aria-rowindex={1} className="grid" style={{ ...rowStyle, width }}>
           {data.columns.map((column, index) => (
-            <th
-              // By position: a query's columns can share a name.
-              key={index}
-              scope="col"
-              className="group/head relative min-w-0 border-r border-b px-3 py-1.5 text-left font-normal"
-            >
-              <Clipped text={column.name} className="font-medium text-foreground" />
-              <Clipped text={column.type} className="text-muted-foreground" />
-              <div className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-1">
-                {/* Like sorting, neither filters nor groups the rows here. */}
-                <ClauseMenu
-                  label={`Filter by ${column.name}`}
-                  icon={<FilterIcon className="size-3.5" />}
-                  clauses={columnFilters(column.name, column.type, sql)}
-                />
-                <ClauseMenu
-                  label={`Group by ${column.name}`}
-                  icon={<GroupIcon className="size-3.5" />}
-                  hint={groupLabel}
-                  clauses={columnGroups(column.name, column.type, sql)}
-                />
-                <SortMenu column={column.name} />
-              </div>
-            </th>
+            // By position: a query's columns can share a name.
+            <ColumnHead key={index} name={column.name} type={column.type} sql={sql} />
           ))}
           <th aria-hidden="true" className="border-b p-0" />
         </tr>
@@ -324,9 +382,9 @@ export function RowsGrid({
           follow(bodyRef.current);
         }}
         className="relative block [scrollbar-width:none] overflow-x-auto"
-        style={{ height: virtualizer.getTotalSize() }}
+        style={{ ...background, height: virtualizer.getTotalSize() }}
       >
-        {virtualizer.getVirtualItems().map((item) => {
+        {items.map((item) => {
           const row = data.rows[item.index] ?? [];
           // The last row's bottom is the grid's own border.
           const line = item.index < data.rows.length - 1;

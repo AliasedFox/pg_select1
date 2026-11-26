@@ -261,6 +261,9 @@ test("copies a value from its cell", async () => {
   await user.click(screen.getByRole("button", { name: "Run" }));
   const grid = await screen.findByRole("table", { name: "Result" });
   const alan = within(grid).getByText("alan@example.com").closest("td");
+  // The button is only there once the pointer has come over its cell.
+  expect(within(alan!).queryByRole("button")).toBeNull();
+  await user.hover(alan!);
   await user.click(within(alan!).getByRole("button", { name: "Copy" }));
 
   expect(await navigator.clipboard.readText()).toBe("alan@example.com");
