@@ -284,6 +284,38 @@ test("copies an order by on a column, to paste in the SQL", async () => {
   expect(within(grid).getByRole("button", { name: "Copied" }).textContent).toBe("Copied");
 });
 
+test("copies a where on a column, of those that fit its type", async () => {
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  const grid = await screen.findByRole("table", { name: "Result" });
+  await user.click(within(grid).getByRole("button", { name: "Filter by email" }));
+  // Text has text searches, which a number doesn't.
+  await user.click(await screen.findByRole("menuitem", { name: /contains/ }));
+
+  expect(await navigator.clipboard.readText()).toBe(`where "email" ilike '%value%'`);
+  expect(within(grid).getByRole("button", { name: "Copied" }).textContent).toBe("Copied");
+
+  await user.click(within(grid).getByRole("button", { name: "Filter by id" }));
+  expect(await screen.findByRole("menuitem", { name: /between/ })).toBeDefined();
+  expect(screen.queryByRole("menuitem", { name: /contains/ })).toBeNull();
+});
+
+test("copies an and instead when the SQL has a where already", async () => {
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1 where true");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  const grid = await screen.findByRole("table", { name: "Result" });
+  await user.click(within(grid).getByRole("button", { name: "Filter by email" }));
+  await user.click(await screen.findByRole("menuitem", { name: /contains/ }));
+
+  expect(await navigator.clipboard.readText()).toBe(`and "email" ilike '%value%'`);
+});
+
 test("shows a value whole in a tooltip when it doesn't fit in one line", async () => {
   server.use(
     http.post("/api/explore/connections/:id/query", () =>

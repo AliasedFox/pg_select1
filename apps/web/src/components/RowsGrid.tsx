@@ -1,9 +1,11 @@
 import type { TableRows } from "@pg_select1/shared";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, CheckIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, CheckIcon, FilterIcon } from "lucide-react";
 import {
   type CSSProperties,
+  Fragment,
   memo,
+  type ReactNode,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -18,9 +20,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCopy } from "@/lib/clipboard";
+import { columnFilters } from "@/lib/filters";
 import { sqlIdentifier } from "@/lib/sql";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +72,34 @@ const Cell = memo(function Cell({ value, line }: { value: string | null; line: b
   );
 });
 
+// A column header's button, which shows while the header's hovered or its menu's open, and stays
+// in sight for a moment after it copies. Its place is the header's buttons', so the two sit side
+// by side however wide "Copied" makes one.
+const headButton = (copied: boolean) =>
+  cn(
+    hoverButton,
+    "static translate-y-0 group-hover/head:opacity-100 group-hover/head:transition-[color,opacity] data-[state=open]:opacity-100",
+    copied && "opacity-100",
+  );
+
+// What a header's button shows: its icon, or that it just copied.
+function HeadButtonContent({ copied, icon }: { copied: boolean; icon: ReactNode }) {
+  return copied ? (
+    <>
+      <CheckIcon className="size-3.5 text-success" />
+      <span className="animate-fade-in">Copied</span>
+    </>
+  ) : (
+    icon
+  );
+}
+
+const copyLabel = (
+  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+    Copy, to paste in the SQL
+  </DropdownMenuLabel>
+);
+
 // Copies an `order by` on a column, ascending or descending, to paste into the SQL, and says so
 // for a moment after. It doesn't sort the rows here: there may be more than the grid has.
 function SortMenu({ column }: { column: string }) {
@@ -77,25 +109,12 @@ function SortMenu({ column }: { column: string }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={copied ? "Copied" : `Sort by ${column}`}
-        className={cn(
-          hoverButton,
-          "group-hover/head:opacity-100 group-hover/head:transition-[color,opacity] data-[state=open]:opacity-100",
-          copied && "opacity-100",
-        )}
+        className={headButton(copied)}
       >
-        {copied ? (
-          <>
-            <CheckIcon className="size-3.5 text-success" />
-            <span className="animate-fade-in">Copied</span>
-          </>
-        ) : (
-          <ArrowUpDownIcon className="size-3.5" />
-        )}
+        <HeadButtonContent copied={copied} icon={<ArrowUpDownIcon className="size-3.5" />} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-          Copy, to paste in the SQL
-        </DropdownMenuLabel>
+        {copyLabel}
         <DropdownMenuItem
           className="font-mono text-xs"
           onSelect={() => {
@@ -119,6 +138,44 @@ function SortMenu({ column }: { column: string }) {
   );
 }
 
+// Copies a `where` on a column, among those that fit its type, to paste into the SQL, or an `and`
+// when `sql` has a `where` already, and says so for a moment after. Like sorting, it doesn't
+// filter the rows here.
+function FilterMenu({ column, type, sql }: { column: string; type: string; sql: string }) {
+  const { copied, copy } = useCopy();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={copied ? "Copied" : `Filter by ${column}`}
+        className={headButton(copied)}
+      >
+        <HeadButtonContent copied={copied} icon={<FilterIcon className="size-3.5" />} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {copyLabel}
+        {columnFilters(column, type, sql).map((group, index) => (
+          // By position: a type's groups never change.
+          <Fragment key={index}>
+            {index > 0 && <DropdownMenuSeparator />}
+            {group.map((filter) => (
+              <DropdownMenuItem
+                key={filter.name}
+                className="text-xs"
+                onSelect={() => {
+                  copy(filter.sql);
+                }}
+              >
+                <span className="w-28 shrink-0 text-muted-foreground">{filter.name}</span>
+                <span className="font-mono">{filter.sql}</span>
+              </DropdownMenuItem>
+            ))}
+          </Fragment>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /**
  * Shows a table's or a query's rows in a grid as long as they are, scrolled with the page, under
  * a header with each column's name and type that stays below the app's header. Only the rows in
@@ -126,16 +183,21 @@ function SortMenu({ column }: { column: string }) {
  * is called whenever the window comes near the last row, to load more. A grid wider than the
  * page scrolls sideways by itself, its header along with it. A value too long for its column is
  * cut short, whole in a tooltip on hover, and each one can be copied from a button that shows
- * on hover; `NULL` stands out from text. Each column's header copies an `order by` on it.
+ * on hover; `NULL` stands out from text. Each column's header copies an `order by` on it, or a
+ * `where` that fits its type, like `ilike` on text, which is an `and` when `sql`, the query in the
+ * editor, has a `where` already.
  */
 export function RowsGrid({
   data,
   label,
+  sql = "",
   onNearEnd,
   className,
 }: {
   data: TableRows;
   label: string;
+  /** The query the rows' filters are to be pasted in. */
+  sql?: string;
   onNearEnd?: () => void;
   className?: string;
 }) {
@@ -211,7 +273,10 @@ export function RowsGrid({
             >
               <Clipped text={column.name} className="font-medium text-foreground" />
               <Clipped text={column.type} className="text-muted-foreground" />
-              <SortMenu column={column.name} />
+              <div className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-1">
+                <FilterMenu column={column.name} type={column.type} sql={sql} />
+                <SortMenu column={column.name} />
+              </div>
             </th>
           ))}
           <th aria-hidden="true" className="border-b p-0" />
