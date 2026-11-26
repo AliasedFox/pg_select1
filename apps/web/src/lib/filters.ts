@@ -1,3 +1,4 @@
+import { columnKind } from "@/lib/kinds";
 import { sqlIdentifier } from "@/lib/sql";
 
 /** A `where` clause on one column, or an `and` to add to one, with what it keeps in a few words. */
@@ -10,33 +11,6 @@ export interface ColumnFilter {
 function isoDay(day: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `'${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}'`;
-}
-
-// What kind of value a column holds, by the type Postgres's `format_type` names it with, which
-// decides which filters make sense on it.
-type Kind =
-  | "boolean"
-  | "number"
-  | "text"
-  | "date"
-  | "timestamp"
-  | "jsonb"
-  | "json"
-  | "array"
-  | "other";
-
-function kindOf(type: string): Kind {
-  if (type.endsWith("]")) return "array";
-  if (type === "boolean") return "boolean";
-  if (/^(smallint|integer|bigint|real|double precision|numeric|decimal|money|oid)\b/.test(type)) {
-    return "number";
-  }
-  if (type === '"char"' || /^(text|character|name|citext)\b/.test(type)) return "text";
-  if (type === "date") return "date";
-  if (type.startsWith("timestamp")) return "timestamp";
-  if (type === "jsonb") return "jsonb";
-  if (type === "json") return "json";
-  return "other";
 }
 
 /**
@@ -66,7 +40,7 @@ export function columnFilters(
   });
   const nulls = [where("is null", `${c} is null`), where("is not null", `${c} is not null`)];
 
-  switch (kindOf(type)) {
+  switch (columnKind(type)) {
     case "boolean":
       return [
         [

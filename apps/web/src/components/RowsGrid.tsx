@@ -1,6 +1,13 @@
 import type { TableRows } from "@pg_select1/shared";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, CheckIcon, FilterIcon } from "lucide-react";
+import {
+  ArrowDownIcon,
+  ArrowUpDownIcon,
+  ArrowUpIcon,
+  CheckIcon,
+  FilterIcon,
+  GroupIcon,
+} from "lucide-react";
 import {
   type CSSProperties,
   Fragment,
@@ -25,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCopy } from "@/lib/clipboard";
 import { columnFilters } from "@/lib/filters";
+import { columnGroups } from "@/lib/groups";
 import { sqlIdentifier } from "@/lib/sql";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +42,8 @@ const ROW_HEIGHT = 32;
 // A column is as wide as its name, its type or its longest value among the first rows, within
 // limits, in characters of the grid's monospaced font.
 const SAMPLE_ROWS = 100;
-const MIN_WIDTH_CH = 6;
+// At least wide enough for its header's three buttons, filter, group and sort, beside its padding.
+const MIN_WIDTH_CH = 10;
 const MAX_WIDTH_CH = 40;
 // Room for a cell's padding and border, in the same characters, with one to spare.
 const PADDING_CH = 4;
@@ -94,11 +103,14 @@ function HeadButtonContent({ copied, icon }: { copied: boolean; icon: ReactNode 
   );
 }
 
-const copyLabel = (
+// What a header's menu says it copies.
+const menuLabel = (text: string) => (
   <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-    Copy, to paste in the SQL
+    {text}
   </DropdownMenuLabel>
 );
+const copyLabel = menuLabel("Copy, to paste in the SQL");
+const groupLabel = menuLabel("Copy a query that counts each group");
 
 // Copies an `order by` on a column, ascending or descending, to paste into the SQL, and says so
 // for a moment after. It doesn't sort the rows here: there may be more than the grid has.
@@ -138,35 +150,42 @@ function SortMenu({ column }: { column: string }) {
   );
 }
 
-// Copies a `where` on a column, among those that fit its type, to paste into the SQL, or an `and`
-// when `sql` has a `where` already, and says so for a moment after. Like sorting, it doesn't
-// filter the rows here.
-function FilterMenu({ column, type, sql }: { column: string; type: string; sql: string }) {
+// Copies the SQL of one of a column's clauses, listed in groups by what they do, and says so for
+// a moment after. `label` names the button until it copies, and `hint` says what's copied. Each
+// shows its `clause` when the SQL it copies is more than that.
+function ClauseMenu({
+  label,
+  icon,
+  hint = copyLabel,
+  clauses,
+}: {
+  label: string;
+  icon: ReactNode;
+  hint?: ReactNode;
+  clauses: { name: string; sql: string; clause?: string }[][];
+}) {
   const { copied, copy } = useCopy();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label={copied ? "Copied" : `Filter by ${column}`}
-        className={headButton(copied)}
-      >
-        <HeadButtonContent copied={copied} icon={<FilterIcon className="size-3.5" />} />
+      <DropdownMenuTrigger aria-label={copied ? "Copied" : label} className={headButton(copied)}>
+        <HeadButtonContent copied={copied} icon={icon} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {copyLabel}
-        {columnFilters(column, type, sql).map((group, index) => (
+        {hint}
+        {clauses.map((group, index) => (
           // By position: a type's groups never change.
           <Fragment key={index}>
             {index > 0 && <DropdownMenuSeparator />}
-            {group.map((filter) => (
+            {group.map((clause) => (
               <DropdownMenuItem
-                key={filter.name}
+                key={clause.name}
                 className="text-xs"
                 onSelect={() => {
-                  copy(filter.sql);
+                  copy(clause.sql);
                 }}
               >
-                <span className="w-28 shrink-0 text-muted-foreground">{filter.name}</span>
-                <span className="font-mono">{filter.sql}</span>
+                <span className="w-28 shrink-0 text-muted-foreground">{clause.name}</span>
+                <span className="font-mono">{clause.clause ?? clause.sql}</span>
               </DropdownMenuItem>
             ))}
           </Fragment>
@@ -183,9 +202,10 @@ function FilterMenu({ column, type, sql }: { column: string; type: string; sql: 
  * is called whenever the window comes near the last row, to load more. A grid wider than the
  * page scrolls sideways by itself, its header along with it. A value too long for its column is
  * cut short, whole in a tooltip on hover, and each one can be copied from a button that shows
- * on hover; `NULL` stands out from text. Each column's header copies an `order by` on it, or a
+ * on hover; `NULL` stands out from text. Each column's header copies an `order by` on it, a
  * `where` that fits its type, like `ilike` on text, which is an `and` when `sql`, the query in the
- * editor, has a `where` already.
+ * editor, has a `where` already, or a query that counts the rows of `sql` in each group of it,
+ * like a timestamp's day.
  */
 export function RowsGrid({
   data,
@@ -196,7 +216,7 @@ export function RowsGrid({
 }: {
   data: TableRows;
   label: string;
-  /** The query the rows' filters are to be pasted in. */
+  /** The query in the editor, which the columns' filters go in and their groups wrap. */
   sql?: string;
   onNearEnd?: () => void;
   className?: string;
@@ -274,7 +294,18 @@ export function RowsGrid({
               <Clipped text={column.name} className="font-medium text-foreground" />
               <Clipped text={column.type} className="text-muted-foreground" />
               <div className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-1">
-                <FilterMenu column={column.name} type={column.type} sql={sql} />
+                {/* Like sorting, neither filters nor groups the rows here. */}
+                <ClauseMenu
+                  label={`Filter by ${column.name}`}
+                  icon={<FilterIcon className="size-3.5" />}
+                  clauses={columnFilters(column.name, column.type, sql)}
+                />
+                <ClauseMenu
+                  label={`Group by ${column.name}`}
+                  icon={<GroupIcon className="size-3.5" />}
+                  hint={groupLabel}
+                  clauses={columnGroups(column.name, column.type, sql)}
+                />
                 <SortMenu column={column.name} />
               </div>
             </th>

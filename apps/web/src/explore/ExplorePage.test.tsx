@@ -316,6 +316,32 @@ test("copies an and instead when the SQL has a where already", async () => {
   expect(await navigator.clipboard.readText()).toBe(`and "email" ilike '%value%'`);
 });
 
+test("copies a query that counts each group of a column, of those that fit its type", async () => {
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select * from customers");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  const grid = await screen.findByRole("table", { name: "Result" });
+  await user.click(within(grid).getByRole("button", { name: "Group by created_at" }));
+  // A timestamp groups by its day, which text doesn't.
+  await user.click(await screen.findByRole("menuitem", { name: /by day/ }));
+
+  expect(await navigator.clipboard.readText()).toBe(
+    [
+      `select date_trunc('day', "created_at") as "created_at", count(*)`,
+      "from customers",
+      "group by 1",
+      "order by 1",
+    ].join("\n"),
+  );
+  expect(within(grid).getByRole("button", { name: "Copied" }).textContent).toBe("Copied");
+
+  await user.click(within(grid).getByRole("button", { name: "Group by email" }));
+  expect(await screen.findByRole("menuitem", { name: /ignoring case/ })).toBeDefined();
+  expect(screen.queryByRole("menuitem", { name: /by day/ })).toBeNull();
+});
+
 test("shows a value whole in a tooltip when it doesn't fit in one line", async () => {
   server.use(
     http.post("/api/explore/connections/:id/query", () =>
