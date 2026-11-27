@@ -24,7 +24,7 @@ export function createSavedQuery(input: CreateSavedQueryRequest): Promise<SavedQ
   return callApi("POST", "/api/saved-queries", savedQuery, input);
 }
 
-/** Changes a saved query's name, description, SQL, connections or who sees it. */
+/** Changes a saved query's name, description, SQL, connections, who sees it or how it's shown. */
 export function updateSavedQuery(
   id: string,
   changes: UpdateSavedQueryRequest,

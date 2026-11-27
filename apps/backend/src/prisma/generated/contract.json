@@ -45,12 +45,41 @@
     "namespaces": {
       "public": {
         "enum": {
-          "DashboardVisualization": {
+          "ChartKind": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "bar",
+                "value": "bar"
+              },
+              {
+                "name": "line",
+                "value": "line"
+              },
+              {
+                "name": "area",
+                "value": "area"
+              },
+              {
+                "name": "pie",
+                "value": "pie"
+              }
+            ]
+          },
+          "QueryDisplay": {
             "codecId": "pg/text@1",
             "members": [
               {
                 "name": "table",
                 "value": "table"
+              },
+              {
+                "name": "chart",
+                "value": "chart"
+              },
+              {
+                "name": "number",
+                "value": "number"
               }
             ]
           },
@@ -562,19 +591,6 @@
                   "codecId": "pg/uuid@1",
                   "kind": "scalar"
                 }
-              },
-              "visualization": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                },
-                "valueSet": {
-                  "entityKind": "enum",
-                  "entityName": "DashboardVisualization",
-                  "namespaceId": "public",
-                  "plane": "domain"
-                }
               }
             },
             "relations": {
@@ -624,9 +640,6 @@
                 },
                 "savedQueryId": {
                   "column": "saved_query_id"
-                },
-                "visualization": {
-                  "column": "visualization"
                 }
               },
               "namespaceId": "public",
@@ -635,6 +648,33 @@
           },
           "SavedQuery": {
             "fields": {
+              "chartKind": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "ChartKind",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "chartX": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "chartY": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "createdAt": {
                 "nullable": false,
                 "type": {
@@ -650,6 +690,19 @@
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
+                }
+              },
+              "display": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "QueryDisplay",
+                  "namespaceId": "public",
+                  "plane": "domain"
                 }
               },
               "id": {
@@ -724,11 +777,23 @@
             },
             "storage": {
               "fields": {
+                "chartKind": {
+                  "column": "chart_kind"
+                },
+                "chartX": {
+                  "column": "chart_x"
+                },
+                "chartY": {
+                  "column": "chart_y"
+                },
                 "createdAt": {
                   "column": "created_at"
                 },
                 "description": {
                   "column": "description"
+                },
+                "display": {
+                  "column": "display"
                 },
                 "id": {
                   "column": "id"
@@ -1372,13 +1437,6 @@
               ]
             },
             "dashboard_items": {
-              "checks": [
-                {
-                  "expression": "\"visualization\" IN ('table')",
-                  "name": "dashboard_items_visualization_check_58801661",
-                  "prefix": "dashboard_items_visualization_check"
-                }
-              ],
               "columns": {
                 "dashboard_id": {
                   "codecId": "pg/uuid@1",
@@ -1399,21 +1457,6 @@
                   "codecId": "pg/uuid@1",
                   "dataType": "pg/uuid",
                   "nullable": false
-                },
-                "visualization": {
-                  "codecId": "pg/text@1",
-                  "dataType": "pg/text",
-                  "default": {
-                    "kind": "literal",
-                    "value": "table"
-                  },
-                  "nullable": false,
-                  "valueSet": {
-                    "entityKind": "valueSet",
-                    "entityName": "DashboardVisualization",
-                    "namespaceId": "public",
-                    "plane": "storage"
-                  }
                 }
               },
               "foreignKeys": [
@@ -1586,12 +1629,43 @@
             "saved_queries": {
               "checks": [
                 {
+                  "expression": "\"chart_kind\" IN ('bar', 'line', 'area', 'pie')",
+                  "name": "saved_queries_chart_kind_check_cabe5888",
+                  "prefix": "saved_queries_chart_kind_check"
+                },
+                {
+                  "expression": "\"display\" IN ('table', 'chart', 'number')",
+                  "name": "saved_queries_display_check_65cd5e70",
+                  "prefix": "saved_queries_display_check"
+                },
+                {
                   "expression": "\"scope\" IN ('personal', 'global')",
                   "name": "saved_queries_scope_check_2736efd0",
                   "prefix": "saved_queries_scope_check"
                 }
               ],
               "columns": {
+                "chart_kind": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "ChartKind",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "chart_x": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "chart_y": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
                 "created_at": {
                   "codecId": "pg/timestamptz-date@1",
                   "dataType": "pg/timestamptz",
@@ -1604,6 +1678,21 @@
                   "codecId": "pg/text@1",
                   "dataType": "pg/text",
                   "nullable": true
+                },
+                "display": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "default": {
+                    "kind": "literal",
+                    "value": "table"
+                  },
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "QueryDisplay",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
                 },
                 "id": {
                   "codecId": "pg/uuid@1",
@@ -2038,10 +2127,21 @@
             }
           },
           "valueSet": {
-            "DashboardVisualization": {
+            "ChartKind": {
               "kind": "valueSet",
               "values": [
-                "table"
+                "bar",
+                "line",
+                "area",
+                "pie"
+              ]
+            },
+            "QueryDisplay": {
+              "kind": "valueSet",
+              "values": [
+                "table",
+                "chart",
+                "number"
               ]
             },
             "QueryScope": {
@@ -2081,7 +2181,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "9d167ea7ddff1afc00680a370a310f8808198a6f082f58e7e7ca5f7da346dd2c"
+    "storageHash": "805b7f664aa74aab988cb618ab66691574d316d2896195cf4240d850a3c3f30b"
   },
   "execution": {
     "executionHash": "a4b48d411158f1183a65ee96f1fa288fb35c4f4c0d84cf8b582fe9bdad5e60f4",

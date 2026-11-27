@@ -1,4 +1,4 @@
-import type { Me, QueryScope, SavedQuery } from "@pg_select1/shared";
+import type { Me, QueryDisplay, QueryScope, SavedQuery } from "@pg_select1/shared";
 import { type MouseEvent, type SubmitEvent, useId, useState } from "react";
 
 import {
@@ -143,13 +143,14 @@ function SavedQueryForm({
 }
 
 /**
- * Saves the explorer's SQL as a new query on its connection, asking for a name, a description
- * and who sees it, then hands the saved query to `onSaved` and closes.
+ * Saves the explorer's SQL as a new query on its connection, shown as `display` says, asking for
+ * a name, a description and who sees it, then hands the saved query to `onSaved` and closes.
  */
 export function SaveQueryDialog({
   user,
   sql,
   connectionId,
+  display,
   initialName = "",
   onOpenChange,
   onSaved,
@@ -157,6 +158,7 @@ export function SaveQueryDialog({
   user: Me;
   sql: string;
   connectionId: string;
+  display: QueryDisplay;
   initialName?: string;
   onOpenChange: (open: boolean) => void;
   onSaved: (query: SavedQuery) => void;
@@ -167,7 +169,8 @@ export function SaveQueryDialog({
         <DialogHeader>
           <DialogTitle>Save query</DialogTitle>
           <DialogDescription>
-            Saved with its SQL and database, to open in the explorer and run again.
+            Saved with its SQL, its database and how its result is shown, to open in the explorer
+            and run again, and to put on dashboards.
           </DialogDescription>
         </DialogHeader>
         <SavedQueryForm
@@ -183,6 +186,7 @@ export function SaveQueryDialog({
               scope,
               sql,
               connectionIds: [connectionId],
+              display,
             });
             onSaved(saved);
             onOpenChange(false);
@@ -195,7 +199,8 @@ export function SaveQueryDialog({
 
 /**
  * Changes a saved query's name, description and, for its owner, who sees it, then hands the
- * changed query to `onSaved` and closes. Its SQL and database are changed in the explorer.
+ * changed query to `onSaved` and closes. Its SQL, database and how its result is shown are
+ * changed in the explorer.
  */
 export function EditSavedQueryDialog({
   user,
@@ -216,7 +221,7 @@ export function EditSavedQueryDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Open it in the explorer to change its SQL or database.
+            Open it in the explorer to change its SQL, its database or how its result is shown.
           </DialogDescription>
         </DialogHeader>
         <SavedQueryForm

@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import {
+  chartAxes,
   chartPoints,
   defaultAxes,
   MAX_CHART_ROWS,
@@ -29,6 +30,26 @@ test("has nothing up the side when no column but the first holds numbers", () =>
     y: undefined,
   });
   expect(defaultAxes([column("count", "bigint")])).toEqual({ x: 0, y: undefined });
+});
+
+test("finds the columns a chart's settings name, wherever they are now", () => {
+  const columns = [column("day", "date"), column("total", "numeric"), column("count", "bigint")];
+  expect(chartAxes(columns, { x: "day", y: "count" })).toEqual({ x: 0, y: 2 });
+  expect(chartAxes(columns, { x: "total", y: "count" })).toEqual({ x: 1, y: 2 });
+  expect(chartAxes(columns, { x: null, y: null })).toEqual(defaultAxes(columns));
+});
+
+test("picks a column for what a chart's settings name that isn't there, or can't be up the side", () => {
+  const columns = [column("day", "date"), column("total", "numeric"), column("count", "bigint")];
+  expect(chartAxes(columns, { x: "gone", y: "count" })).toEqual({ x: 0, y: 2 });
+  expect(chartAxes(columns, { x: "day", y: "gone" })).toEqual({ x: 0, y: 1 });
+  // Not text up the side, nor the column along the bottom.
+  expect(chartAxes(columns, { x: "day", y: "day" })).toEqual({ x: 0, y: 1 });
+  expect(chartAxes(columns, { x: "total", y: null })).toEqual({ x: 1, y: 2 });
+  expect(chartAxes([column("count", "bigint")], { x: null, y: "count" })).toEqual({
+    x: 0,
+    y: undefined,
+  });
 });
 
 test("reads numbers as Postgres prints them", () => {

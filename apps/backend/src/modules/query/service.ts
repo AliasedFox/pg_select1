@@ -1,6 +1,9 @@
 import type {
+  ChartKind,
   createSavedQueryRequest,
   ExplorableConnection,
+  QueryDisplay,
+  QueryDisplayType,
   QueryScope,
   SavedQuery,
   updateSavedQueryRequest,
@@ -19,12 +22,24 @@ const savedQueryFields = [
   "description",
   "sql",
   "scope",
+  "display",
+  "chartKind",
+  "chartX",
+  "chartY",
   "ownerId",
   "createdAt",
   "updatedAt",
 ] as const;
 
-interface SavedQueryRow {
+// How a saved query's display is kept in its row.
+interface DisplayColumns {
+  display: QueryDisplayType;
+  chartKind: ChartKind | null;
+  chartX: string | null;
+  chartY: string | null;
+}
+
+interface SavedQueryRow extends DisplayColumns {
   id: string;
   name: string;
   description: string | null;
@@ -78,6 +93,21 @@ async function connectionsOf(
   return byQuery;
 }
 
+// The columns that keep `display`: a chart's settings only for a chart, none for the rest.
+function displayColumns(display: QueryDisplay): DisplayColumns {
+  if (display.type !== "chart") {
+    return { display: display.type, chartKind: null, chartX: null, chartY: null };
+  }
+  return { display: "chart", chartKind: display.kind, chartX: display.x, chartY: display.y };
+}
+
+// The display a row keeps. A chart missing its kind, which only a hand-written row would be, is
+// drawn as bars, the chart's first kind.
+function displayOf(row: DisplayColumns): QueryDisplay {
+  if (row.display !== "chart") return { type: row.display };
+  return { type: "chart", kind: row.chartKind ?? "bar", x: row.chartX, y: row.chartY };
+}
+
 function toSavedQuery(
   row: SavedQueryRow,
   connections: ExplorableConnection[],
@@ -90,6 +120,7 @@ function toSavedQuery(
     sql: row.sql,
     scope: row.scope,
     connections,
+    display: displayOf(row),
     owner: row.owner,
     canEdit: canEdit(row, user),
     createdAt: row.createdAt.toISOString(),
@@ -175,6 +206,7 @@ export async function createSavedQuery(
       description: input.description ?? null,
       sql: input.sql,
       scope: input.scope,
+      ...displayColumns(input.display),
       ownerId: user.id,
     });
     await tx.orm.public.SavedQueryConnection.createAll(
@@ -190,7 +222,8 @@ export async function createSavedQuery(
 }
 
 /**
- * Changes a saved query: its name, description, SQL, connections or who sees it.
+ * Changes a saved query: its name, description, SQL, connections, who sees it or how its result
+ * is shown.
  *
  * @throws {HttpError} a 404 when `user` doesn't see it or a new connection isn't one they can
  *   explore, and a 403 when they can't change it, when someone other than its owner changes who
@@ -224,6 +257,7 @@ export async function updateSavedQuery(
       description: changes.description === undefined ? row.description : changes.description,
       sql: changes.sql ?? row.sql,
       scope: changes.scope ?? row.scope,
+      ...displayColumns(changes.display ?? displayOf(row)),
     });
     if (connections) {
       await tx.orm.public.SavedQueryConnection.where({ savedQueryId: id }).deleteAll();

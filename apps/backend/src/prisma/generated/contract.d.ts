@@ -23,7 +23,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'9d167ea7ddff1afc00680a370a310f8808198a6f082f58e7e7ca5f7da346dd2c'>;
+  StorageHashBase<'805b7f664aa74aab988cb618ab66691574d316d2896195cf4240d850a3c3f30b'>;
 export type ExecutionHash =
   ExecutionHashBase<'a4b48d411158f1183a65ee96f1fa288fb35c4f4c0d84cf8b582fe9bdad5e60f4'>;
 export type ProfileHash =
@@ -290,10 +290,15 @@ type FieldTypeOverrides = {
           readonly input: 'personal' | 'global';
         };
       };
-      readonly DashboardItem: {
-        readonly visualization: { readonly output: 'table'; readonly input: 'table' };
-      };
       readonly SavedQuery: {
+        readonly chartKind: {
+          readonly output: 'bar' | 'line' | 'area' | 'pie';
+          readonly input: 'bar' | 'line' | 'area' | 'pie';
+        };
+        readonly display: {
+          readonly output: 'table' | 'chart' | 'number';
+          readonly input: 'table' | 'chart' | 'number';
+        };
         readonly scope: {
           readonly output: 'personal' | 'global';
           readonly input: 'personal' | 'global';
@@ -336,9 +341,6 @@ type ColumnTypeOverrides = {
         readonly input: 'disable' | 'require' | 'verify-full';
       };
     };
-    readonly dashboard_items: {
-      readonly visualization: { readonly output: 'table'; readonly input: 'table' };
-    };
     readonly dashboards: {
       readonly scope: {
         readonly output: 'personal' | 'global';
@@ -346,6 +348,14 @@ type ColumnTypeOverrides = {
       };
     };
     readonly saved_queries: {
+      readonly chart_kind: {
+        readonly output: 'bar' | 'line' | 'area' | 'pie';
+        readonly input: 'bar' | 'line' | 'area' | 'pie';
+      };
+      readonly display: {
+        readonly output: 'table' | 'chart' | 'number';
+        readonly input: 'table' | 'chart' | 'number';
+      };
       readonly scope: {
         readonly output: 'personal' | 'global';
         readonly input: 'personal' | 'global';
@@ -426,14 +436,17 @@ export namespace Models {
     id: FieldOutputTypes['public']['DashboardItem']['id'];
     position: FieldOutputTypes['public']['DashboardItem']['position'];
     savedQueryId: FieldOutputTypes['public']['DashboardItem']['savedQueryId'];
-    visualization: FieldOutputTypes['public']['DashboardItem']['visualization'];
     dashboard: public_Dashboard;
     savedQuery: public_SavedQuery;
     readonly [RelationKeys]?: 'dashboard' | 'savedQuery';
   };
   export type public_SavedQuery = {
+    chartKind: FieldOutputTypes['public']['SavedQuery']['chartKind'];
+    chartX: FieldOutputTypes['public']['SavedQuery']['chartX'];
+    chartY: FieldOutputTypes['public']['SavedQuery']['chartY'];
     createdAt: FieldOutputTypes['public']['SavedQuery']['createdAt'];
     description: FieldOutputTypes['public']['SavedQuery']['description'];
+    display: FieldOutputTypes['public']['SavedQuery']['display'];
     id: FieldOutputTypes['public']['SavedQuery']['id'];
     name: FieldOutputTypes['public']['SavedQuery']['name'];
     ownerId: FieldOutputTypes['public']['SavedQuery']['ownerId'];
@@ -738,16 +751,6 @@ type ContractBase = Omit<
                   readonly nullable: false;
                   readonly many: false;
                 };
-                readonly visualization: {
-                  readonly dataType: 'pg/text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                  readonly default: {
-                    readonly kind: 'literal';
-                    readonly value: DefaultLiteralValue<'pg/text@1', 'table'>;
-                  };
-                  readonly many: false;
-                };
               };
               primaryKey: { readonly columns: readonly ['id'] };
               uniques: readonly [];
@@ -870,6 +873,24 @@ type ContractBase = Omit<
             };
             readonly saved_queries: {
               columns: {
+                readonly chart_kind: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly chart_x: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly chart_y: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
                 readonly created_at: {
                   readonly dataType: 'pg/timestamptz';
                   readonly codecId: 'pg/timestamptz-date@1';
@@ -881,6 +902,16 @@ type ContractBase = Omit<
                   readonly dataType: 'pg/text';
                   readonly codecId: 'pg/text@1';
                   readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly display: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'table'>;
+                  };
                   readonly many: false;
                 };
                 readonly id: {
@@ -1225,9 +1256,13 @@ type ContractBase = Omit<
             };
           };
           readonly valueSet: {
-            readonly DashboardVisualization: {
+            readonly ChartKind: {
               readonly kind: 'valueSet';
-              readonly values: readonly ['table'];
+              readonly values: readonly ['bar', 'line', 'area', 'pie'];
+            };
+            readonly QueryDisplay: {
+              readonly kind: 'valueSet';
+              readonly values: readonly ['table', 'chart', 'number'];
             };
             readonly QueryScope: {
               readonly kind: 'valueSet';
@@ -1546,10 +1581,6 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
               };
-              readonly visualization: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
             };
             readonly relations: {
               readonly dashboard: {
@@ -1585,12 +1616,23 @@ type ContractBase = Omit<
                 readonly id: { readonly column: 'id' };
                 readonly position: { readonly column: 'position' };
                 readonly savedQueryId: { readonly column: 'saved_query_id' };
-                readonly visualization: { readonly column: 'visualization' };
               };
             };
           };
           readonly SavedQuery: {
             readonly fields: {
+              readonly chartKind: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly chartX: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly chartY: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
               readonly createdAt: {
                 readonly nullable: false;
                 readonly type: {
@@ -1601,6 +1643,10 @@ type ContractBase = Omit<
               };
               readonly description: {
                 readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly display: {
+                readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
               readonly id: {
@@ -1647,8 +1693,12 @@ type ContractBase = Omit<
               readonly table: 'saved_queries';
               readonly namespaceId: 'public';
               readonly fields: {
+                readonly chartKind: { readonly column: 'chart_kind' };
+                readonly chartX: { readonly column: 'chart_x' };
+                readonly chartY: { readonly column: 'chart_y' };
                 readonly createdAt: { readonly column: 'created_at' };
                 readonly description: { readonly column: 'description' };
+                readonly display: { readonly column: 'display' };
                 readonly id: { readonly column: 'id' };
                 readonly name: { readonly column: 'name' };
                 readonly ownerId: { readonly column: 'owner_id' };
@@ -1901,9 +1951,22 @@ type ContractBase = Omit<
           };
         };
         readonly enum: {
-          readonly DashboardVisualization: {
+          readonly ChartKind: {
             readonly codecId: 'pg/text@1';
-            readonly members: readonly [{ readonly name: 'table'; readonly value: 'table' }];
+            readonly members: readonly [
+              { readonly name: 'bar'; readonly value: 'bar' },
+              { readonly name: 'line'; readonly value: 'line' },
+              { readonly name: 'area'; readonly value: 'area' },
+              { readonly name: 'pie'; readonly value: 'pie' },
+            ];
+          };
+          readonly QueryDisplay: {
+            readonly codecId: 'pg/text@1';
+            readonly members: readonly [
+              { readonly name: 'table'; readonly value: 'table' },
+              { readonly name: 'chart'; readonly value: 'chart' },
+              { readonly name: 'number'; readonly value: 'number' },
+            ];
           };
           readonly QueryScope: {
             readonly codecId: 'pg/text@1';
@@ -1938,8 +2001,16 @@ type ContractBase = Omit<
           };
         };
         readonly enumMemberTypes?: {
-          readonly DashboardVisualization: readonly [
+          readonly ChartKind: readonly [
+            { readonly name: 'bar'; readonly value: 'bar' },
+            { readonly name: 'line'; readonly value: 'line' },
+            { readonly name: 'area'; readonly value: 'area' },
+            { readonly name: 'pie'; readonly value: 'pie' },
+          ];
+          readonly QueryDisplay: readonly [
             { readonly name: 'table'; readonly value: 'table' },
+            { readonly name: 'chart'; readonly value: 'chart' },
+            { readonly name: 'number'; readonly value: 'number' },
           ];
           readonly QueryScope: readonly [
             { readonly name: 'personal'; readonly value: 'personal' },

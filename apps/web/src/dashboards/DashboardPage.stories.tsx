@@ -28,6 +28,33 @@ export const ForAViewer = meta.story({
   },
 });
 
+// Each query shown as it was saved: a line chart of the customers' ids, and the first one's id.
+export const ShownAsSaved = meta.story({
+  beforeEach({ msw }) {
+    msw.use(
+      http.get("/api/dashboards/:id", () =>
+        HttpResponse.json({
+          ...overview,
+          items: overview?.items.map((item, index) =>
+            item.savedQuery && index < 2
+              ? {
+                  ...item,
+                  savedQuery: {
+                    ...item.savedQuery,
+                    display:
+                      index === 0
+                        ? { type: "chart", kind: "line", x: "email", y: "id" }
+                        : { type: "number" },
+                  },
+                }
+              : item,
+          ),
+        }),
+      ),
+    );
+  },
+});
+
 export const Running = meta.story({
   beforeEach({ msw }) {
     msw.use(

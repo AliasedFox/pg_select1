@@ -1,13 +1,4 @@
-import {
-  type Dashboard,
-  type DashboardSummary,
-  type DashboardVisualization,
-  dashboardVisualization,
-  dashboardVisualizations,
-  type Me,
-  type QueryScope,
-  type SavedQuery,
-} from "@pg_select1/shared";
+import type { Dashboard, DashboardSummary, Me, QueryScope, SavedQuery } from "@pg_select1/shared";
 import { type MouseEvent, type SubmitEvent, useId, useState } from "react";
 
 import {
@@ -45,9 +36,6 @@ import { useLoaded } from "@/lib/loaded";
 import { fetchSavedQueries } from "@/queries/api";
 
 import { createDashboard, deleteDashboard, updateDashboard } from "./api";
-
-// What each way of showing a query is called.
-const visualizationLabels: Record<DashboardVisualization, string> = { table: "Table" };
 
 interface Fields {
   name: string;
@@ -294,20 +282,19 @@ export function DeleteDashboardDialog({
 }
 
 /**
- * Picks one of the saved queries the signed-in user sees and how to show it, and hands both to
- * `onAdd`, which adds it to the dashboard; it closes once that's done.
+ * Picks one of the saved queries the signed-in user sees and hands it to `onAdd`, which adds it
+ * to the dashboard; it closes once that's done. It's shown there as the query was saved to be.
  */
 export function AddQueryDialog({
   onOpenChange,
   onAdd,
 }: {
   onOpenChange: (open: boolean) => void;
-  onAdd: (query: SavedQuery, visualization: DashboardVisualization) => Promise<void>;
+  onAdd: (query: SavedQuery) => Promise<void>;
 }) {
   const id = useId();
   const queries = useLoaded(fetchSavedQueries);
   const [queryId, setQueryId] = useState("");
-  const [visualization, setVisualization] = useState<DashboardVisualization>("table");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const list = queries.kind === "loaded" ? queries.value : [];
@@ -322,7 +309,7 @@ export function AddQueryDialog({
     setBusy(true);
     setError(null);
     try {
-      await onAdd(query, visualization);
+      await onAdd(query);
       onOpenChange(false);
     } catch (failure) {
       setError(describeError(failure));
@@ -336,7 +323,8 @@ export function AddQueryDialog({
         <DialogHeader>
           <DialogTitle>Add a query</DialogTitle>
           <DialogDescription>
-            It goes at the bottom of the dashboard, and runs each time it's opened.
+            It goes at the bottom of the dashboard, shown as it was saved, and runs each time it's
+            opened.
           </DialogDescription>
         </DialogHeader>
         <form aria-label="Add a query" className="grid gap-4" onSubmit={(e) => void submit(e)}>
@@ -362,26 +350,6 @@ export function AddQueryDialog({
               </p>
             )}
             {queries.kind === "failed" && <FormError message={queries.message} />}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor={`${id}-visualization`}>Show as</Label>
-            <Select
-              value={visualization}
-              onValueChange={(value) => {
-                setVisualization(dashboardVisualization.parse(value));
-              }}
-            >
-              <SelectTrigger id={`${id}-visualization`} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                {dashboardVisualizations.map((kind) => (
-                  <SelectItem key={kind} value={kind}>
-                    {visualizationLabels[kind]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
           <FormError message={error} />
           <div className="flex justify-end">

@@ -1,11 +1,11 @@
-import { runQueryRequest, type TableRows } from "@pg_select1/shared";
+import { type ChartKind, runQueryRequest, type TableRows } from "@pg_select1/shared";
 import { delay, http, HttpResponse } from "msw";
 import { useState } from "react";
 
 import { ResultChart } from "@/components/ResultChart";
 import { ResultNumber } from "@/components/ResultNumber";
 import { RowsGrid } from "@/components/RowsGrid";
-import type { ChartKind } from "@/lib/chart";
+import { DEFAULT_CHART } from "@/lib/chart";
 
 import preview from "../../.storybook/preview";
 import { admin, customerRows, savedQueries, viewer } from "../../test/fixtures";
@@ -207,10 +207,10 @@ const signups: TableRows = {
   rowCap: 200,
 };
 
-// A chart of `data`, starting as `initial`, whose select switches its kind.
+// A chart of `data`, starting as `initial`, whose selects and toggle change it.
 function ChartOf({ data, initial = "bar" }: { data: TableRows; initial?: ChartKind }) {
-  const [kind, setKind] = useState(initial);
-  return <ResultChart data={data} kind={kind} onKindChange={setKind} />;
+  const [settings, setSettings] = useState({ ...DEFAULT_CHART, kind: initial });
+  return <ResultChart data={data} settings={settings} onChange={setSettings} />;
 }
 
 export const Chart = meta.story({

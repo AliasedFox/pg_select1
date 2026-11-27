@@ -1,4 +1,11 @@
-import { MAX_QUERY_ROWS, type Me, type QueryResult, type SavedQuery } from "@pg_select1/shared";
+import {
+  MAX_QUERY_ROWS,
+  type Me,
+  type QueryDisplay,
+  type QueryDisplayType,
+  type QueryResult,
+  type SavedQuery,
+} from "@pg_select1/shared";
 import {
   ChartColumnIcon,
   EraserIcon,
@@ -19,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { SqlEditor, type SqlEditorHandle } from "@/editor/SqlEditor";
 import { describeError } from "@/lib/api";
-import type { ChartKind } from "@/lib/chart";
+import { type ChartSettings, DEFAULT_CHART } from "@/lib/chart";
 import { useLoaded } from "@/lib/loaded";
 import { modifierKey } from "@/lib/platform";
 import { sqlTableName } from "@/lib/sql";
@@ -62,7 +69,17 @@ type Saving =
 
 // How a result is shown: its rows in a grid, as a chart, or as the one number in its first row's
 // first column.
-type View = "table" | "chart" | "number";
+type View = QueryDisplayType;
+
+// How a saved query keeps the view, with the chart's settings when it's a chart.
+function displayOf(view: View, chart: ChartSettings): QueryDisplay {
+  return view === "chart" ? { type: "chart", ...chart } : { type: view };
+}
+
+function sameDisplay(a: QueryDisplay, b: QueryDisplay): boolean {
+  if (a.type !== "chart" || b.type !== "chart") return a.type === b.type;
+  return a.kind === b.kind && a.x === b.x && a.y === b.y;
+}
 
 // Switches a result between its grid, its chart and its number, with a button of each's icon, named on hover.
 function ViewToggle({ value, onChange }: { value: View; onChange: (view: View) => void }) {
@@ -133,15 +150,16 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * it and runs that, and each has a button to copy its name. While a query runs, the last result
  * stays on screen until the new one fades in over it. A result can be switched from its grid to
  * a {@link ResultChart}, of bars, a line, an area or a pie, or to a {@link ResultNumber}, the
- * value in its first row's first column, which stays switched, and on the same kind of chart, for
- * the runs after. A run can be cancelled, and is when the person picks another
+ * value in its first row's first column, which stays switched, and on the same chart, for the
+ * runs after. A run can be cancelled, and is when the person picks another
  * database or leaves the page. The database is kept in the address, so a
  * reload or a link opens the same one.
  *
- * The SQL can be saved as a query, on the database picked, and a saved query opened from the
- * address (`?query=<id>`), with its SQL in the editor and its database picked, and run at once
- * on it. Changes to a saved query `user` can change are saved over it; any other is saved as a
- * new one.
+ * The SQL can be saved as a query, on the database picked and shown as its result is now, which
+ * is how it's shown on dashboards too. A saved query is opened from the address
+ * (`?query=<id>`), with its SQL in the editor, its database picked and its result shown as it was
+ * saved, and run at once on it. Changes to a saved query `user` can change, how it's shown
+ * included, are saved over it; any other is saved as a new one.
  *
  * The versions of the SQL as it's written are kept in memory, until the page is left or
  * reloaded, and one can be put back from the History dialog.
@@ -166,7 +184,7 @@ export function ExplorePage({ user }: { user: Me }) {
   // Kept from one run to the next. `switchedOn` is the run whose result was last switched, so the
   // view switched to fades in, but not again inside a new result as that fades in.
   const [view, setView] = useState<View>("table");
-  const [chartKind, setChartKind] = useState<ChartKind>("bar");
+  const [chart, setChart] = useState<ChartSettings>(DEFAULT_CHART);
   const [switchedOn, setSwitchedOn] = useState<number | undefined>(undefined);
   const runs = useRef(0);
   // The run whose answer is still wanted, so a cancelled or replaced one's is dropped.
@@ -197,7 +215,8 @@ export function ExplorePage({ user }: { user: Me }) {
   );
   const tables = useLoaded(loadTables);
 
-  // Opens the saved query in the address: its SQL goes in the editor.
+  // Opens the saved query in the address: its SQL goes in the editor, and its result is shown as
+  // it was saved.
   useEffect(() => {
     if (!queryId || asked.current === queryId) return undefined;
     asked.current = queryId;
@@ -208,6 +227,11 @@ export function ExplorePage({ user }: { user: Me }) {
         if (asked.current !== query.id) return;
         setOpened(query);
         setSql(query.sql);
+        const { display: shown } = query;
+        setView(shown.type);
+        setChart(
+          shown.type === "chart" ? { kind: shown.kind, x: shown.x, y: shown.y } : DEFAULT_CHART,
+        );
         runOnOpen.current = query.id;
       },
       (error: unknown) => {
@@ -266,11 +290,12 @@ export function ExplorePage({ user }: { user: Me }) {
     );
   };
 
-  // Saves the SQL and database over the open saved query.
+  const display = displayOf(view, chart);
+  // Saves the SQL, database and how the result is shown over the open saved query.
   const saveChanges = () => {
     if (!savedQuery || !connectionId) return;
     setSaving({ kind: "saving" });
-    updateSavedQuery(savedQuery.id, { sql, connectionIds: [connectionId] }).then(
+    updateSavedQuery(savedQuery.id, { sql, connectionIds: [connectionId], display }).then(
       (saved) => {
         setOpened(saved);
         saves.current += 1;
@@ -282,7 +307,10 @@ export function ExplorePage({ user }: { user: Me }) {
     );
   };
   const unsaved =
-    !savedQuery || sql.trim() !== savedQuery.sql || savedQuery.connections[0]?.id !== connectionId;
+    !savedQuery ||
+    sql.trim() !== savedQuery.sql ||
+    savedQuery.connections[0]?.id !== connectionId ||
+    !sameDisplay(display, savedQuery.display);
 
   // The latest `start`, for the effect below, which runs once rather than on every render.
   const startLatest = useRef(start);
@@ -527,8 +555,12 @@ export function ExplorePage({ user }: { user: Me }) {
                 {saving.kind === "saving" && (
                   <span className="text-xs text-muted-foreground">Saving…</span>
                 )}
+                {/* Keyed apart from the result's size beside it, whose key counts runs. */}
                 {saving.kind === "saved" && !unsaved && (
-                  <span key={saving.n} className="animate-fade-in text-xs text-muted-foreground">
+                  <span
+                    key={`saved-${saving.n}`}
+                    className="animate-fade-in text-xs text-muted-foreground"
+                  >
                     Saved.
                   </span>
                 )}
@@ -574,6 +606,7 @@ export function ExplorePage({ user }: { user: Me }) {
                 user={user}
                 sql={sql}
                 connectionId={connection.id}
+                display={display}
                 initialName={savedQuery ? `${savedQuery.name} copy` : ""}
                 onOpenChange={setSaveDialog}
                 onSaved={(saved) => {
@@ -603,8 +636,8 @@ export function ExplorePage({ user }: { user: Me }) {
                       {view === "chart" ? (
                         <ResultChart
                           data={answer.result}
-                          kind={chartKind}
-                          onKindChange={setChartKind}
+                          settings={chart}
+                          onChange={setChart}
                           more={
                             answer.result.truncated && answer.result.rows.length < MAX_QUERY_ROWS
                           }

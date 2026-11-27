@@ -60,6 +60,42 @@ test("shows its title and description, and each query's rows, in order", async (
   expect(nav.getByRole("link", { name: "Dashboards" }).getAttribute("aria-current")).toBe("page");
 });
 
+test("shows each query as it was saved: a chart, a number or a table", async () => {
+  server.use(
+    http.get("/api/dashboards/:id", () =>
+      HttpResponse.json({
+        ...overview,
+        items: overview!.items.map((item, index) =>
+          item.savedQuery && index < 2
+            ? {
+                ...item,
+                savedQuery: {
+                  ...item.savedQuery,
+                  display:
+                    index === 0
+                      ? { type: "chart", kind: "bar", x: "email", y: "id" }
+                      : { type: "number" },
+                },
+              }
+            : item,
+        ),
+      }),
+    ),
+  );
+  renderApp(`/dashboards/${overview?.id}`);
+
+  const signups = within(await screen.findByRole("region", { name: "Daily signups" }));
+  expect(await signups.findByRole("figure", { name: "Result chart" })).toBeDefined();
+  // Only the chart: its columns and kind are changed in the explorer.
+  expect(signups.queryByRole("combobox", { name: "X axis" })).toBeNull();
+  expect(signups.queryByRole("table")).toBeNull();
+  const orders = within(screen.getByRole("region", { name: "Open orders" }));
+  const number = await orders.findByRole("figure", { name: "Result number" });
+  // The customers' first row's first column, their id.
+  expect(within(number).getByText("id")).toBeDefined();
+  expect(orders.queryByRole("table")).toBeNull();
+});
+
 test("opens a query in the explorer", async () => {
   const user = userEvent.setup();
   renderApp(`/dashboards/${overview?.id}`);
@@ -87,7 +123,6 @@ test("moves a query down, keeping its rows, and saves the new order", async () =
   expect(sent[0]).toEqual({
     items: [open!.id, daily!.id, "0199a1b2-0000-7000-8000-0000000000af"].map((savedQueryId) => ({
       savedQueryId,
-      visualization: "table",
     })),
   });
   expect(ran).toHaveLength(2);
@@ -127,7 +162,7 @@ test("removes a query", async () => {
   });
 });
 
-test("adds a saved query at the bottom, as a table", async () => {
+test("adds a saved query at the bottom", async () => {
   const sent = recordSaves();
   const user = userEvent.setup();
   renderApp(`/dashboards/${weekly?.id}`);
@@ -135,7 +170,6 @@ test("adds a saved query at the bottom, as a table", async () => {
   expect(await screen.findByText(/No queries on this dashboard yet/)).toBeDefined();
   await user.click(screen.getByRole("button", { name: "Add query" }));
   const form = within(await screen.findByRole("form", { name: "Add a query" }));
-  expect(form.getByRole("combobox", { name: "Show as" }).textContent).toBe("Table");
   await user.click(form.getByRole("combobox", { name: "Saved query" }));
   await user.click(await screen.findByRole("option", { name: "Unpaid invoices" }));
   await user.click(form.getByRole("button", { name: "Add" }));
@@ -143,7 +177,7 @@ test("adds a saved query at the bottom, as a table", async () => {
   const added = within(await screen.findByRole("region", { name: "Unpaid invoices" }));
   // Its database was deleted, so there's nothing to run it on.
   expect(added.getByText(/Its database was deleted/)).toBeDefined();
-  expect(sent).toEqual([{ items: [{ savedQueryId: unpaid!.id, visualization: "table" }] }]);
+  expect(sent).toEqual([{ items: [{ savedQueryId: unpaid!.id }] }]);
 });
 
 test("runs every query again", async () => {
