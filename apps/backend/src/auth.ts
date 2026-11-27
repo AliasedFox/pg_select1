@@ -1,6 +1,6 @@
 import type { IncomingHttpHeaders } from "node:http";
 
-import { MIN_PASSWORD_LENGTH, type Role, role } from "@pg_select1/shared";
+import { MIN_PASSWORD_LENGTH, type Role, role, type Theme, theme } from "@pg_select1/shared";
 import { betterAuth } from "better-auth";
 import { fromNodeHeaders } from "better-auth/node";
 import { Pool } from "pg";
@@ -44,6 +44,7 @@ export const auth = betterAuth({
     fields: { emailVerified: "email_verified", ...timestamps },
     additionalFields: {
       role: { type: "string", required: true, defaultValue: "viewer", input: false },
+      theme: { type: "string", required: true, defaultValue: "system", input: false },
     },
   },
   session: {
@@ -84,12 +85,13 @@ export const auth = betterAuth({
   logger: { disabled: env.NODE_ENV === "test" },
 });
 
-/** The signed-in user a request is made by. */
+/** The signed-in user a request is made by, with the theme they picked. */
 export interface SessionUser {
   id: string;
   email: string;
   name: string;
   role: Role;
+  theme: Theme;
 }
 
 /** Answers who sent a request, from its session cookie, or `null` when nobody is signed in. */
@@ -97,5 +99,11 @@ export async function getSessionUser(headers: IncomingHttpHeaders): Promise<Sess
   const session = await auth.api.getSession({ headers: fromNodeHeaders(headers) });
   if (!session) return null;
   const { id, email, name } = session.user;
-  return { id, email, name, role: role.parse(session.user.role) };
+  return {
+    id,
+    email,
+    name,
+    role: role.parse(session.user.role),
+    theme: theme.parse(session.user.theme),
+  };
 }

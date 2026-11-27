@@ -35,7 +35,7 @@ export async function setPassword(token: string, newPassword: string): Promise<v
   await sendApi("POST", "/api/auth/reset-password", { token, newPassword });
 }
 
-/** Changes the signed-in user's name, answering them as they are now. */
+/** Changes the signed-in user's name or theme, answering them as they are now. */
 export function updateMe(changes: UpdateMeRequest): Promise<Me> {
   return callApi("PATCH", "/api/me", me, changes);
 }

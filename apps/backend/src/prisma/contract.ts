@@ -12,6 +12,15 @@ const Role = enumType(
   member("viewer", "viewer"),
 );
 
+/** Light or dark for a user's pages: the system's (the default), or light or dark whatever it says. */
+const Theme = enumType(
+  "Theme",
+  { codecId: "pg/text@1" },
+  member("system", "system"),
+  member("light", "light"),
+  member("dark", "dark"),
+);
+
 /** How a connection uses TLS, named after libpq's `sslmode`s it behaves like. */
 const SslMode = enumType(
   "SslMode",
@@ -62,6 +71,7 @@ export const contract = defineContract(
         emailVerified: field.column(type.Boolean()).default(false),
         image: field.column(type.String()).optional(),
         role: field.namedType(Role).default("viewer"),
+        theme: field.namedType(Theme).default("system"),
         createdAt: CreatedAt,
         updatedAt: UpdatedAt,
       },
@@ -238,7 +248,7 @@ export const contract = defineContract(
     }));
 
     return {
-      enums: { Role, SslMode, QueryScope, DashboardVisualization },
+      enums: { Role, Theme, SslMode, QueryScope, DashboardVisualization },
       models: {
         User,
         Session,
