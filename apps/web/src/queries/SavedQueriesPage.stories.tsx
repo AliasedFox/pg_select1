@@ -48,6 +48,7 @@ export const SaveDialog = meta.story({
       user={admin}
       sql="select 1"
       connectionId="0199a1b2-0000-7000-8000-0000000000c2"
+      display={{ type: "table" }}
       onOpenChange={fn()}
       onSaved={fn()}
     />
@@ -60,6 +61,7 @@ export const SaveDialogForAViewer = meta.story({
       user={viewer}
       sql="select 1"
       connectionId="0199a1b2-0000-7000-8000-0000000000c2"
+      display={{ type: "table" }}
       onOpenChange={fn()}
       onSaved={fn()}
     />

@@ -132,6 +132,7 @@ export const savedQueries: SavedQuery[] = [
     sql: "select date_trunc('day', created_at) as day, count(*)\nfrom customers\ngroup by 1\norder by 1",
     scope: "global",
     connections: [{ id: "0199a1b2-0000-7000-8000-0000000000c2", name: "shop" }],
+    display: { type: "table" },
     owner: { id: admin.id, name: admin.name },
     canEdit: true,
     createdAt: "2026-01-05T09:00:00.000Z",
@@ -144,6 +145,7 @@ export const savedQueries: SavedQuery[] = [
     sql: "select * from reporting.open_orders",
     scope: "personal",
     connections: [{ id: "0199a1b2-0000-7000-8000-0000000000c2", name: "shop" }],
+    display: { type: "table" },
     owner: { id: admin.id, name: admin.name },
     canEdit: true,
     createdAt: "2026-01-05T10:00:00.000Z",
@@ -156,6 +158,7 @@ export const savedQueries: SavedQuery[] = [
     sql: "select * from invoices where paid_at is null and sent_at < now() - interval '30 days'",
     scope: "global",
     connections: [],
+    display: { type: "table" },
     owner: { id: "0199a1b2-0000-7000-8000-000000000002", name: "Eddie Editor" },
     canEdit: true,
     createdAt: "2026-01-04T09:00:00.000Z",
@@ -165,10 +168,7 @@ export const savedQueries: SavedQuery[] = [
 
 // A dashboard's queries as the API answers them, from the saved queries above by id, and as
 // someone else's personal query for any other.
-function itemsOf(
-  items: { savedQueryId: string; visualization: "table" }[],
-  prefix: string,
-): Dashboard["items"] {
+function itemsOf(items: { savedQueryId: string }[], prefix: string): Dashboard["items"] {
   return items.map((item, index) => ({
     id: `${prefix}${index}`,
     ...item,
@@ -193,9 +193,9 @@ export const dashboards: Dashboard[] = [
     updatedAt: "2026-01-08T09:00:00.000Z",
     items: itemsOf(
       [
-        { savedQueryId: "0199a1b2-0000-7000-8000-0000000000a1", visualization: "table" },
-        { savedQueryId: "0199a1b2-0000-7000-8000-0000000000a2", visualization: "table" },
-        { savedQueryId: "0199a1b2-0000-7000-8000-0000000000af", visualization: "table" },
+        { savedQueryId: "0199a1b2-0000-7000-8000-0000000000a1" },
+        { savedQueryId: "0199a1b2-0000-7000-8000-0000000000a2" },
+        { savedQueryId: "0199a1b2-0000-7000-8000-0000000000af" },
       ],
       "0199a1b2-0000-7000-8000-00000000010",
     ),

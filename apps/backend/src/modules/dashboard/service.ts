@@ -3,7 +3,6 @@ import type {
   Dashboard,
   DashboardItem,
   DashboardSummary,
-  DashboardVisualization,
   QueryScope,
   updateDashboardRequest,
 } from "@pg_select1/shared";
@@ -39,7 +38,6 @@ interface DashboardRow {
 interface ItemRow {
   id: string;
   savedQueryId: string;
-  visualization: DashboardVisualization;
 }
 
 type ItemsInput = z.output<typeof createDashboardRequest>["items"];
@@ -70,12 +68,7 @@ function ensureCanShare(scope: QueryScope, user: SessionUser): void {
 async function itemsOf(ids: readonly string[]): Promise<Map<string, ItemRow[]>> {
   const byDashboard = new Map<string, ItemRow[]>(ids.map((id) => [id, []]));
   if (ids.length === 0) return byDashboard;
-  const rows = await db.orm.public.DashboardItem.select(
-    "id",
-    "dashboardId",
-    "savedQueryId",
-    "visualization",
-  )
+  const rows = await db.orm.public.DashboardItem.select("id", "dashboardId", "savedQueryId")
     .where((r) => r.dashboardId.in([...ids]))
     .orderBy((r) => r.position.asc())
     .all();
@@ -139,7 +132,6 @@ function itemRows(dashboardId: string, items: ItemsInput) {
   return items.map((item, position) => ({
     dashboardId,
     savedQueryId: item.savedQueryId,
-    visualization: item.visualization,
     position,
   }));
 }

@@ -11,6 +11,8 @@ import {
 import { type MouseEvent, useEffect, useMemo, useState } from "react";
 
 import { Loading } from "@/components/Loading";
+import { ResultChart } from "@/components/ResultChart";
+import { ResultNumber } from "@/components/ResultNumber";
 import { RowsGrid } from "@/components/RowsGrid";
 import { Button } from "@/components/ui/button";
 import {
@@ -152,8 +154,18 @@ function ItemButtons({ name, controls }: { name: string; controls: ItemControls 
   );
 }
 
+// A query's result as the query says it's shown: its rows in a grid, a chart of them, or the
+// one number in its first row's first column.
+function ResultOf({ query, result }: { query: SavedQuery; result: QueryResult }) {
+  const { display } = query;
+  if (display.type === "chart") return <ResultChart data={result} settings={display} />;
+  if (display.type === "number") return <ResultNumber data={result} />;
+  return <RowsGrid data={result} label={`${query.name}'s rows`} sql={query.sql} />;
+}
+
 // One saved query on the dashboard, the whole width of it: its name, which opens it in the
-// explorer, its database and description, then its rows, run on its first database.
+// explorer, its database and description, then its result, run on its first database and shown
+// as the query says.
 function QueryItem({
   query,
   refresh,
@@ -215,9 +227,7 @@ function QueryItem({
       {shown?.kind === "done" && (
         <div key={answer?.n} className="grid min-w-0 animate-fade-in gap-2">
           <p className="text-xs text-muted-foreground">{describeResult(shown.result)}</p>
-          {shown.result.columns.length > 0 && (
-            <RowsGrid data={shown.result} label={`${query.name}'s rows`} sql={query.sql} />
-          )}
+          {shown.result.columns.length > 0 && <ResultOf query={query} result={shown.result} />}
         </div>
       )}
     </section>
@@ -239,16 +249,17 @@ function HiddenItem({ controls }: { controls?: ItemControls }) {
 
 // What the API takes for a dashboard's queries.
 function itemsInput(items: readonly DashboardItem[]) {
-  return items.map(({ savedQueryId, visualization }) => ({ savedQueryId, visualization }));
+  return items.map(({ savedQueryId }) => ({ savedQueryId }));
 }
 
 /**
  * A dashboard: its title and description, then each of its saved queries, one under another, the
  * whole width of the page, each run on its database when the page opens, read-only as in the
- * explorer, and shown as a table of its rows. Running them again keeps their rows on screen
- * until the new ones fade in, and leaving the page cancels what's still running. Those who can
- * change the dashboard add queries to it, move them up and down, take them off, and change its
- * title, description and who sees it, or delete it.
+ * explorer, and shown as the query was saved to be: as a table of its rows, a chart or a number.
+ * Running them again keeps their results on screen until the new ones fade in, and leaving the
+ * page cancels what's still running. Those who can change the dashboard add queries to it, move
+ * them up and down, take them off, and change its title, description and who sees it, or delete
+ * it.
  */
 export function DashboardPage({ id, user }: { id: string; user: Me }) {
   const load = useMemo(() => () => fetchDashboard(id), [id]);
@@ -427,9 +438,9 @@ export function DashboardPage({ id, user }: { id: string; user: Me }) {
       {open === "add" && (
         <AddQueryDialog
           onOpenChange={closeDialog}
-          onAdd={async (query, visualization) => {
+          onAdd={async (query) => {
             const saved = await updateDashboard(dashboard.id, {
-              items: [...itemsInput(dashboard.items), { savedQueryId: query.id, visualization }],
+              items: [...itemsInput(dashboard.items), { savedQueryId: query.id }],
             });
             setChanged(saved);
           }}

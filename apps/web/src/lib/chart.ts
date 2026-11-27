@@ -1,4 +1,9 @@
-import type { ResultColumn } from "@pg_select1/shared";
+import {
+  type ChartKind,
+  chartKind,
+  type QueryDisplay,
+  type ResultColumn,
+} from "@pg_select1/shared";
 
 import { columnKind } from "@/lib/kinds";
 
@@ -9,10 +14,17 @@ export const MAX_CHART_ROWS = 500;
 export const MAX_PIE_SLICES = 8;
 
 /** The kinds of chart a result can be drawn as, in the order they're offered. */
-export const CHART_KINDS = ["bar", "line", "area", "pie"] as const;
+export const CHART_KINDS: readonly ChartKind[] = chartKind.options;
 
-/** How a chart draws a result's rows: as bars, a line, the area under a line, or a pie's slices. */
-export type ChartKind = (typeof CHART_KINDS)[number];
+/**
+ * How a chart draws a result: its kind, and the columns along the bottom and up the side, by
+ * name, or `null` for the ones {@link chartAxes} picks. It's what a saved query shown as a chart
+ * keeps.
+ */
+export type ChartSettings = Omit<Extract<QueryDisplay, { type: "chart" }>, "type">;
+
+/** What a chart starts as, before anything's picked: bars, on the columns it picks. */
+export const DEFAULT_CHART: ChartSettings = { kind: "bar", x: null, y: null };
 
 /** One bar: what's along the bottom, as Postgres prints it, and how high it is, if it's a number. */
 export interface ChartPoint {
@@ -41,6 +53,29 @@ export function defaultAxes(columns: ResultColumn[]): { x: number; y: number | u
   if (second && isNumberColumn(second)) return { x: 0, y: 1 };
   const y = columns.findIndex((column, index) => index > 0 && isNumberColumn(column));
   return { x: 0, y: y === -1 ? undefined : y };
+}
+
+/**
+ * Finds the columns a chart of a result has, by their positions, from the columns `settings`
+ * names. A column the result doesn't have, or `null`, is the one {@link defaultAxes} picks, and
+ * so is a column up the side that isn't one of numbers or is the one along the bottom, else the
+ * first other column of numbers. With duplicate names, it's the first column of the name.
+ */
+export function chartAxes(
+  columns: ResultColumn[],
+  settings: Pick<ChartSettings, "x" | "y">,
+): { x: number; y: number | undefined } {
+  const fallback = defaultAxes(columns);
+  const named = (name: string | null) =>
+    name === null ? -1 : columns.findIndex((column) => column.name === name);
+  const picked = named(settings.x);
+  const x = picked === -1 ? fallback.x : picked;
+  const y = named(settings.y);
+  const column = columns[y];
+  if (y !== x && column && isNumberColumn(column)) return { x, y };
+  if (fallback.y !== undefined && fallback.y !== x) return { x, y: fallback.y };
+  const other = columns.findIndex((c, index) => index !== x && isNumberColumn(c));
+  return { x, y: other === -1 ? undefined : other };
 }
 
 /**

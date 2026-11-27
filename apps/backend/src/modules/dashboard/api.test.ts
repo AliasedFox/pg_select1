@@ -104,11 +104,22 @@ describe("making", () => {
       owner: { id: viewer.id },
       canEdit: true,
     });
-    expect(made.items.map((item) => [item.savedQueryId, item.visualization])).toEqual([
-      [second.id, "table"],
-      [first.id, "table"],
-    ]);
+    expect(made.items.map((item) => item.savedQueryId)).toEqual([second.id, first.id]);
     expect(made.items[0]?.savedQuery).toMatchObject({ id: second.id, sql: "select 1" });
+  });
+
+  test("a query on a dashboard is shown as the query says", async () => {
+    const editor = await signedInAs("editor");
+    const display = { type: "chart", kind: "pie", x: "status", y: "orders" } as const;
+    const charted = await saveQuery(editor.cookie, { display });
+    const plain = await saveQuery(editor.cookie);
+
+    const made = await make(editor.cookie, { items: itemsOf(charted.id, plain.id) });
+
+    expect(made.items.map((item) => item.savedQuery?.display)).toEqual([
+      display,
+      { type: "table" },
+    ]);
   });
 
   test("a dashboard needs a title, and at most so many queries", async () => {
@@ -120,7 +131,7 @@ describe("making", () => {
         name: "D",
         items: itemsOf(...Array.from({ length: MAX_DASHBOARD_ITEMS + 1 }, () => query.id)),
       },
-      { name: "D", items: [{ savedQueryId: query.id, visualization: "chart" }] },
+      { name: "D", items: [{ savedQueryId: "not-a-uuid" }] },
     ];
 
     for (const body of tries) {

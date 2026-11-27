@@ -38,11 +38,26 @@ const QueryScope = enumType(
   member("global", "global"),
 );
 
-/** How a dashboard shows a saved query's result: as a table of its rows, for now the only way. */
-const DashboardVisualization = enumType(
-  "DashboardVisualization",
+/**
+ * How a saved query's result is shown, in the explorer and on dashboards: as a table of its
+ * rows, as a chart, or as the one number in its first row's first column.
+ */
+const QueryDisplay = enumType(
+  "QueryDisplay",
   { codecId: "pg/text@1" },
   member("table", "table"),
+  member("chart", "chart"),
+  member("number", "number"),
+);
+
+/** How a chart of a saved query's result draws it: as bars, a line, an area or a pie. */
+const ChartKind = enumType(
+  "ChartKind",
+  { codecId: "pg/text@1" },
+  member("bar", "bar"),
+  member("line", "line"),
+  member("area", "area"),
+  member("pie", "pie"),
 );
 
 /**
@@ -155,7 +170,8 @@ export const contract = defineContract(
 
     // A query someone saved to run again. A personal one goes with its owner; a global one stays
     // when its owner is deleted, with no owner (`src/modules/user/service.ts` deletes the
-    // personal ones first).
+    // personal ones first). Its result is shown as `display` says; the `chart*` fields are set
+    // only for a chart, and its columns are by name, `null` for the one the chart picks.
     const SavedQuery = model("SavedQuery", {
       fields: {
         id: Id,
@@ -163,6 +179,10 @@ export const contract = defineContract(
         description: field.column(type.String()).optional(),
         sql: field.column(type.String()),
         scope: field.namedType(QueryScope).default("personal"),
+        display: field.namedType(QueryDisplay).default("table"),
+        chartKind: field.namedType(ChartKind).optional(),
+        chartX: field.column(type.String()).optional(),
+        chartY: field.column(type.String()).optional(),
         ownerId: field.column(type.Uuid()).optional(),
         createdAt: CreatedAt,
         updatedAt: UpdatedAt,
@@ -224,15 +244,14 @@ export const contract = defineContract(
       indexes: [constraints.index([cols.ownerId])],
     }));
 
-    // A saved query on a dashboard, first one first, and how it's shown. The same query can be on
-    // a dashboard more than once. Deleting the query takes it off its dashboards.
+    // A saved query on a dashboard, first one first, shown as the query's `display` says. The same
+    // query can be on a dashboard more than once. Deleting the query takes it off its dashboards.
     const DashboardItem = model("DashboardItem", {
       fields: {
         id: Id,
         dashboardId: field.column(type.Uuid()),
         savedQueryId: field.column(type.Uuid()),
         position: field.column(type.Int()),
-        visualization: field.namedType(DashboardVisualization).default("table"),
       },
       relations: {
         dashboard: rel
@@ -248,7 +267,7 @@ export const contract = defineContract(
     }));
 
     return {
-      enums: { Role, Theme, SslMode, QueryScope, DashboardVisualization },
+      enums: { Role, Theme, SslMode, QueryScope, QueryDisplay, ChartKind },
       models: {
         User,
         Session,

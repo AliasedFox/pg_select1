@@ -360,9 +360,38 @@ export const queryScope = z.enum(["personal", "global"]);
 /** One of the {@link queryScope}s. */
 export type QueryScope = z.infer<typeof queryScope>;
 
+/** The kinds of chart a result can be drawn as: bars, a line, the area under a line, or a pie. */
+export const chartKind = z.enum(["bar", "line", "area", "pie"]);
+
+/** One of the {@link chartKind}s. */
+export type ChartKind = z.infer<typeof chartKind>;
+
+// A column a chart has on one of its axes, by name; `null` leaves it to the chart, which picks
+// one by the result's columns.
+const chartColumn = z.string().min(1).max(200).nullable();
+
+/**
+ * How a saved query's result is shown, in the explorer as it opens and on dashboards: as a
+ * table of its rows, as a chart, or as the one number in its first row's first column. A chart
+ * also has its kind and the columns along the bottom (`x`) and up the side (`y`), by name, so
+ * they stay as the query's columns are moved about; one the result doesn't have, or `null`, is
+ * picked as the chart picks it with none.
+ */
+export const queryDisplay = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("table") }),
+  z.object({ type: z.literal("chart"), kind: chartKind, x: chartColumn, y: chartColumn }),
+  z.object({ type: z.literal("number") }),
+]);
+
+/** How a saved query's result is shown, as {@link queryDisplay} parses it. */
+export type QueryDisplay = z.infer<typeof queryDisplay>;
+
+/** One of the ways a {@link queryDisplay} shows a result. */
+export type QueryDisplayType = QueryDisplay["type"];
+
 /**
  * A saved query as `GET /api/saved-queries` answers it: its SQL, the connections it runs on,
- * first one first, and who sees it. `connections` holds only those the caller can explore, so
+ * first one first, who sees it and how its result is shown. `connections` holds only those the caller can explore, so
  * it's empty when they were deleted or hidden. `owner` is who saved it, `null` once they've been
  * deleted, and `canEdit` whether the caller can change or delete it.
  */
@@ -373,6 +402,7 @@ export const savedQuery = z.object({
   sql: z.string(),
   scope: queryScope,
   connections: z.array(explorableConnection),
+  display: queryDisplay,
   owner: z.object({ id: z.string(), name: z.string() }).nullable(),
   canEdit: z.boolean(),
   createdAt: z.iso.datetime(),
@@ -403,13 +433,17 @@ const savedQueryConnectionIds = z
   .min(1, "Pick a database")
   .max(1, "A query runs on one database for now");
 
-/** The body of `POST /api/saved-queries`: a query to save, personal unless `scope` says global. */
+/**
+ * The body of `POST /api/saved-queries`: a query to save, personal unless `scope` says global,
+ * and shown as a table unless `display` says otherwise.
+ */
 export const createSavedQueryRequest = z.object({
   name: savedQueryName,
   description: savedQueryDescription,
   sql: querySql,
   scope: queryScope.default("personal"),
   connectionIds: savedQueryConnectionIds,
+  display: queryDisplay.default({ type: "table" }),
 });
 
 /** A query to save, as {@link createSavedQueryRequest} takes it. */
@@ -425,30 +459,20 @@ export const updateSavedQueryRequest = z.object({
   sql: querySql.optional(),
   scope: queryScope.optional(),
   connectionIds: savedQueryConnectionIds.optional(),
+  display: queryDisplay.optional(),
 });
 
 /** A change to a saved query, as {@link updateSavedQueryRequest} takes it. */
 export type UpdateSavedQueryRequest = z.input<typeof updateSavedQueryRequest>;
 
-/** How a dashboard shows a saved query's result: as a table of its rows, for now the only way. */
-export const dashboardVisualization = z.enum(["table"]);
-
-/** One of the {@link dashboardVisualization}s. */
-export type DashboardVisualization = z.infer<typeof dashboardVisualization>;
-
-/** Every way a dashboard shows a query, for pickers. */
-export const dashboardVisualizations: readonly DashboardVisualization[] =
-  dashboardVisualization.options;
-
 /**
- * A saved query on a dashboard, and how it's shown. `savedQuery` is `null` when the caller
- * doesn't see it, as with someone else's personal query on a global dashboard; `savedQueryId`
+ * A saved query on a dashboard, shown as the query's `display` says. `savedQuery` is `null` when
+ * the caller doesn't see it, as with someone else's personal query on a global dashboard; `savedQueryId`
  * is there all the same, so the dashboard can be changed without losing it.
  */
 export const dashboardItem = z.object({
   id: z.string(),
   savedQueryId: z.string(),
-  visualization: dashboardVisualization,
   savedQuery: savedQuery.nullable(),
 });
 
@@ -491,12 +515,7 @@ const dashboardName = z.string().trim().min(1, "Give the dashboard a title").max
 
 // The queries on a dashboard, first one first, each replacing what was there.
 const dashboardItems = z
-  .array(
-    z.object({
-      savedQueryId: z.uuid({ message: "There's no such saved query" }),
-      visualization: dashboardVisualization.default("table"),
-    }),
-  )
+  .array(z.object({ savedQueryId: z.uuid({ message: "There's no such saved query" }) }))
   .max(MAX_DASHBOARD_ITEMS, `A dashboard has at most ${MAX_DASHBOARD_ITEMS} queries`);
 
 /**

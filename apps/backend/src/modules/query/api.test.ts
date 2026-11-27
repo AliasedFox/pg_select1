@@ -84,9 +84,42 @@ describe("saving", () => {
       sql: "select count(*) from users",
       scope: "personal",
       connections: [{ id: shop.id, name: shop.name }],
+      display: { type: "table" },
       owner: { id: viewer.id },
       canEdit: true,
     });
+  });
+
+  test("a query is shown as it's saved: a table, a number, or a chart with its axes", async () => {
+    const viewer = await signedInAs("viewer");
+    const chart = { type: "chart", kind: "line", x: "day", y: "signups" } as const;
+
+    const charted = await save(viewer.cookie, { display: chart });
+    const counted = await save(viewer.cookie, { display: { type: "number" } });
+    const picked = await save(viewer.cookie, {
+      display: { type: "chart", kind: "pie", x: null, y: null },
+    });
+
+    expect(charted.display).toEqual(chart);
+    expect(counted.display).toEqual({ type: "number" });
+    expect(picked.display).toEqual({ type: "chart", kind: "pie", x: null, y: null });
+  });
+
+  test("a chart needs a kind it can draw", async () => {
+    const editor = await signedInAs("editor");
+    const tries = [
+      { type: "chart", x: null, y: null },
+      { type: "chart", kind: "scatter", x: null, y: null },
+      { type: "map" },
+    ];
+
+    for (const display of tries) {
+      const res = await request(
+        "/api/saved-queries",
+        json({ name: "Q", sql: "select 1", connectionIds: [shop.id], display }, editor.cookie),
+      );
+      expect(res.status).toBe(400);
+    }
   });
 
   test("a query needs a name, SQL and one connection", async () => {
@@ -183,6 +216,43 @@ describe("changing and deleting", () => {
     const changed = savedQuery.parse(await res.json());
     expect(changed).toMatchObject({ name: "Renamed", sql: "select 2", description: null });
     expect(Date.parse(changed.updatedAt)).toBeGreaterThanOrEqual(Date.parse(saved.updatedAt));
+  });
+
+  test("how it's shown can be changed, and a chart's settings go when it's no longer one", async () => {
+    const saved = await save(admin.cookie, {
+      display: { type: "chart", kind: "bar", x: "day", y: "total" },
+    });
+    const change = async (body: unknown) => {
+      const res = await request(
+        `/api/saved-queries/${saved.id}`,
+        json(body, admin.cookie, "PATCH"),
+      );
+      expect(res.status).toBe(200);
+      return savedQuery.parse(await res.json()).display;
+    };
+
+    // A change to something else keeps how it's shown.
+    expect(await change({ name: "Renamed" })).toEqual({
+      type: "chart",
+      kind: "bar",
+      x: "day",
+      y: "total",
+    });
+    expect(await change({ display: { type: "table" } })).toEqual({ type: "table" });
+    expect(await change({ display: { type: "chart", kind: "area", x: null, y: null } })).toEqual({
+      type: "chart",
+      kind: "area",
+      x: null,
+      y: null,
+    });
+    const row = await db.orm.public.SavedQuery.select("chartKind", "chartX", "chartY").first({
+      id: saved.id,
+    });
+    expect(row).toEqual({ chartKind: "area", chartX: null, chartY: null });
+    await change({ display: { type: "number" } });
+    expect(
+      await db.orm.public.SavedQuery.select("display", "chartKind").first({ id: saved.id }),
+    ).toEqual({ display: "number", chartKind: null });
   });
 
   test("its connections can be changed", async () => {

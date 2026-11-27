@@ -579,6 +579,7 @@ test("saves the SQL as a personal query on the database picked, and keeps it ope
     sql: "select 1",
     scope: "personal",
     connectionIds: [shop?.id],
+    display: { type: "table" },
   });
   expect(screen.getByText("Saved.")).toBeDefined();
   // Nothing has changed since.
@@ -626,7 +627,11 @@ test("saves changes over the saved query open, or as a new one", async () => {
   await user.click(save);
 
   expect(await screen.findByText("Saved.")).toBeDefined();
-  expect(sent).toEqual({ sql: `explain ${daily.sql}`, connectionIds: [shop?.id] });
+  expect(sent).toEqual({
+    sql: `explain ${daily.sql}`,
+    connectionIds: [shop?.id],
+    display: { type: "table" },
+  });
 });
 
 test("a saved query its user can't change is saved as a new one only", async () => {
@@ -922,4 +927,94 @@ test("shows a result as the number in its first row's first column, and keeps it
   );
   await user.click(screen.getByRole("button", { name: "Run" }));
   expect(await screen.findByText("There's no row to show a number of.")).toBeDefined();
+});
+
+test("opens a saved query shown as it was saved, and saves how it's shown", async () => {
+  const daily = {
+    ...savedQueries[0]!,
+    display: { type: "chart", kind: "pie", x: "status", y: "orders" } as const,
+  };
+  const sent: unknown[] = [];
+  server.use(
+    http.get("/api/saved-queries/:id", () => HttpResponse.json(daily)),
+    http.post("/api/explore/connections/:id/query", () => HttpResponse.json(ordersByStatus)),
+    http.patch("/api/saved-queries/:id", async ({ request }) => {
+      const changes = updateSavedQueryRequest.parse(await request.json());
+      sent.push(changes.display);
+      return HttpResponse.json({ ...daily, ...changes });
+    }),
+  );
+  const user = userEvent.setup();
+  renderApp(`/explore?query=${daily.id}`);
+
+  const chart = await screen.findByRole("figure", { name: "Result chart" });
+  expect(within(chart).getByRole("combobox", { name: "Slices" }).textContent).toBe("status");
+  expect(within(chart).getByRole("button", { name: "Pie" }).getAttribute("aria-pressed")).toBe(
+    "true",
+  );
+  const save = screen.getByRole("button", { name: "Save" });
+  expect(save).toHaveProperty("disabled", true);
+
+  // A chart of another kind is a change to save, with its columns by name.
+  await user.click(within(chart).getByRole("button", { name: "Bar" }));
+  expect(save).toHaveProperty("disabled", false);
+  await user.click(save);
+  await screen.findByText("Saved.");
+  await user.click(screen.getByRole("button", { name: "Number" }));
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => {
+    expect(sent).toHaveLength(2);
+  });
+  expect(sent).toEqual([
+    { type: "chart", kind: "bar", x: "status", y: "orders" },
+    { type: "number" },
+  ]);
+});
+
+test("saves a new query shown as its result is, with the chart's columns", async () => {
+  let sent: unknown;
+  server.use(
+    http.post("/api/explore/connections/:id/query", () =>
+      HttpResponse.json({
+        ...ordersByStatus,
+        columns: [
+          ordersByStatus.columns[0],
+          { name: "total", type: "numeric" },
+          ...ordersByStatus.columns.slice(1),
+        ],
+        rows: [["paid", "120.50", "4"]],
+      }),
+    ),
+    http.post("/api/saved-queries", async ({ request }) => {
+      sent = createSavedQueryRequest.parse(await request.json()).display;
+      return HttpResponse.json(
+        { ...savedQueries[1], id: "0199a1b2-0000-7000-8000-0000000000a9" },
+        { status: 201 },
+      );
+    }),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  await user.click(await screen.findByRole("button", { name: "Chart" }));
+  await user.click(await screen.findByRole("combobox", { name: "Y axis" }));
+  await user.click(await screen.findByRole("option", { name: "orders" }));
+  await user.click(screen.getByRole("button", { name: "Line" }));
+  await user.click(screen.getByRole("button", { name: "Save…" }));
+  const form = within(await screen.findByRole("form", { name: "Save query" }));
+  await user.type(form.getByLabelText("Name"), "By status");
+  await user.click(form.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => {
+    expect(sent).toBeDefined();
+  });
+  expect(sent).toEqual({
+    type: "chart",
+    kind: "line",
+    x: "status",
+    y: "orders",
+  });
 });

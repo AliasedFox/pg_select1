@@ -1,0 +1,446 @@
+[
+  {
+    "id": "dropCheckConstraint.dashboard_items.dashboard_items_visualization_check_58801661",
+    "label": "Drop check constraint \"dashboard_items_visualization_check_58801661\" on \"dashboard_items\"",
+    "operationClass": "widening",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "dashboard_items_visualization_check_58801661",
+        "table": "dashboard_items"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"dashboard_items_visualization_check_58801661\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "dashboard_items_visualization_check_58801661",
+          "public",
+          "\"public\".\"dashboard_items\""
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "constraint \"dashboard_items_visualization_check_58801661\" on \"dashboard_items\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop check constraint \"dashboard_items_visualization_check_58801661\"",
+        "sql": "ALTER TABLE \"public\".\"dashboard_items\" DROP CONSTRAINT \"dashboard_items_visualization_check_58801661\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"dashboard_items_visualization_check_58801661\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "dashboard_items_visualization_check_58801661",
+          "public",
+          "\"public\".\"dashboard_items\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "constraint \"dashboard_items_visualization_check_58801661\" on \"dashboard_items\""
+        }
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.dashboard_items.visualization",
+    "label": "Drop column \"visualization\" from \"dashboard_items\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "visualization",
+        "table": "dashboard_items"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"visualization\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "dashboard_items",
+          "visualization"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "column \"visualization\" on \"dashboard_items\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"visualization\"",
+        "sql": "ALTER TABLE \"public\".\"dashboard_items\" DROP COLUMN \"visualization\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"visualization\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "dashboard_items",
+          "visualization"
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "column \"visualization\" on \"dashboard_items\""
+        }
+      }
+    ]
+  },
+  {
+    "id": "column.public.saved_queries.chart_kind",
+    "label": "Add column \"chart_kind\" to \"saved_queries\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "chart_kind",
+        "table": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"chart_kind\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_kind"
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "column \"chart_kind\" on \"saved_queries\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"chart_kind\"",
+        "sql": "ALTER TABLE \"public\".\"saved_queries\" ADD COLUMN \"chart_kind\" text"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"chart_kind\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_kind"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "column \"chart_kind\" on \"saved_queries\""
+        }
+      },
+      {
+        "description": "verify column \"chart_kind\" has type \"text\"",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_attribute\" AS \"a\" INNER JOIN \"pg_class\" AS \"c\" ON \"c\".\"oid\" = \"a\".\"attrelid\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"relnamespace\" WHERE (\"n\".\"nspname\" = $1 AND \"c\".\"relname\" = $2 AND \"a\".\"attname\" = $3 AND (format_type(\"a\".\"atttypid\", \"a\".\"atttypmod\")) = $4 AND NOT (\"a\".\"attisdropped\"))) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_kind",
+          "text"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.saved_queries.chart_x",
+    "label": "Add column \"chart_x\" to \"saved_queries\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "chart_x",
+        "table": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"chart_x\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_x"
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "column \"chart_x\" on \"saved_queries\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"chart_x\"",
+        "sql": "ALTER TABLE \"public\".\"saved_queries\" ADD COLUMN \"chart_x\" text"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"chart_x\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_x"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "column \"chart_x\" on \"saved_queries\""
+        }
+      },
+      {
+        "description": "verify column \"chart_x\" has type \"text\"",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_attribute\" AS \"a\" INNER JOIN \"pg_class\" AS \"c\" ON \"c\".\"oid\" = \"a\".\"attrelid\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"relnamespace\" WHERE (\"n\".\"nspname\" = $1 AND \"c\".\"relname\" = $2 AND \"a\".\"attname\" = $3 AND (format_type(\"a\".\"atttypid\", \"a\".\"atttypmod\")) = $4 AND NOT (\"a\".\"attisdropped\"))) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_x",
+          "text"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.saved_queries.chart_y",
+    "label": "Add column \"chart_y\" to \"saved_queries\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "chart_y",
+        "table": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"chart_y\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_y"
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "column \"chart_y\" on \"saved_queries\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"chart_y\"",
+        "sql": "ALTER TABLE \"public\".\"saved_queries\" ADD COLUMN \"chart_y\" text"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"chart_y\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_y"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "column \"chart_y\" on \"saved_queries\""
+        }
+      },
+      {
+        "description": "verify column \"chart_y\" has type \"text\"",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_attribute\" AS \"a\" INNER JOIN \"pg_class\" AS \"c\" ON \"c\".\"oid\" = \"a\".\"attrelid\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"relnamespace\" WHERE (\"n\".\"nspname\" = $1 AND \"c\".\"relname\" = $2 AND \"a\".\"attname\" = $3 AND (format_type(\"a\".\"atttypid\", \"a\".\"atttypmod\")) = $4 AND NOT (\"a\".\"attisdropped\"))) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_y",
+          "text"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.saved_queries.display",
+    "label": "Add column \"display\" to \"saved_queries\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "display",
+        "table": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"display\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "display"
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "column \"display\" on \"saved_queries\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"display\"",
+        "sql": "ALTER TABLE \"public\".\"saved_queries\" ADD COLUMN \"display\" text DEFAULT 'table' NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"display\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "display"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "column \"display\" on \"saved_queries\""
+        }
+      },
+      {
+        "description": "verify column \"display\" has type \"text\"",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_attribute\" AS \"a\" INNER JOIN \"pg_class\" AS \"c\" ON \"c\".\"oid\" = \"a\".\"attrelid\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"relnamespace\" WHERE (\"n\".\"nspname\" = $1 AND \"c\".\"relname\" = $2 AND \"a\".\"attname\" = $3 AND (format_type(\"a\".\"atttypid\", \"a\".\"atttypmod\")) = $4 AND NOT (\"a\".\"attisdropped\"))) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "display",
+          "text"
+        ]
+      },
+      {
+        "description": "verify column \"display\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "display",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.saved_queries.saved_queries_chart_kind_check_cabe5888",
+    "label": "Add check constraint \"saved_queries_chart_kind_check_cabe5888\" on \"saved_queries\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "saved_queries_chart_kind_check_cabe5888",
+        "table": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"saved_queries_chart_kind_check_cabe5888\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "saved_queries_chart_kind_check_cabe5888",
+          "public",
+          "\"public\".\"saved_queries\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "constraint \"saved_queries_chart_kind_check_cabe5888\" on \"saved_queries\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"saved_queries_chart_kind_check_cabe5888\"",
+        "sql": "ALTER TABLE \"public\".\"saved_queries\" ADD CONSTRAINT \"saved_queries_chart_kind_check_cabe5888\" CHECK (\"chart_kind\" IN ('bar', 'line', 'area', 'pie'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify check constraint \"saved_queries_chart_kind_check_cabe5888\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3) AND \"c\".\"contype\" = $4)) AS \"result\"",
+        "params": [
+          "saved_queries_chart_kind_check_cabe5888",
+          "public",
+          "\"public\".\"saved_queries\"",
+          "c"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.saved_queries.saved_queries_display_check_65cd5e70",
+    "label": "Add check constraint \"saved_queries_display_check_65cd5e70\" on \"saved_queries\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "saved_queries_display_check_65cd5e70",
+        "table": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"saved_queries_display_check_65cd5e70\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "saved_queries_display_check_65cd5e70",
+          "public",
+          "\"public\".\"saved_queries\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "constraint \"saved_queries_display_check_65cd5e70\" on \"saved_queries\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"saved_queries_display_check_65cd5e70\"",
+        "sql": "ALTER TABLE \"public\".\"saved_queries\" ADD CONSTRAINT \"saved_queries_display_check_65cd5e70\" CHECK (\"display\" IN ('table', 'chart', 'number'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify check constraint \"saved_queries_display_check_65cd5e70\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3) AND \"c\".\"contype\" = $4)) AS \"result\"",
+        "params": [
+          "saved_queries_display_check_65cd5e70",
+          "public",
+          "\"public\".\"saved_queries\"",
+          "c"
+        ]
+      }
+    ]
+  }
+]

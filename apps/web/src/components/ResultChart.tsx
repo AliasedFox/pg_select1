@@ -1,4 +1,4 @@
-import type { TableRows } from "@pg_select1/shared";
+import type { ChartKind, TableRows } from "@pg_select1/shared";
 import {
   ArrowLeftRightIcon,
   ChartAreaIcon,
@@ -7,7 +7,7 @@ import {
   ChartPieIcon,
   type LucideIcon,
 } from "lucide-react";
-import { type ReactNode, useId, useMemo, useState } from "react";
+import { type ReactNode, useId, useMemo } from "react";
 import {
   Area,
   AreaChart,
@@ -39,10 +39,10 @@ import {
 } from "@/components/ui/select";
 import {
   CHART_KINDS,
-  type ChartKind,
+  chartAxes,
   type ChartPoint,
   chartPoints,
-  defaultAxes,
+  type ChartSettings,
   isNumberColumn,
   MAX_CHART_ROWS,
   type PieSlice,
@@ -152,32 +152,35 @@ function AxisSelect({
 }
 
 /**
- * Shows a result's first {@link MAX_CHART_ROWS} rows as a chart of the `kind` picked from a toggle
- * after the axes: bars, a line, an area or a pie. It has a column along the bottom and another
- * column, of numbers, up the side, picked from two selects that never offer the column the other
- * has, and swapped with a button between them when the column along the bottom holds numbers
- * too. A pie has a slice for each row instead, named by the first select and sized by the
- * second, the largest of them, in greys, listed beside it (see {@link pieSlices}). It starts with
- * the first column along the bottom and the second up the side, or the first column of numbers
- * after the first when the second isn't one, and says so when there's none to chart.
- * `kind` is kept by the caller, so it stays picked for the next result. `more` says there are
- * rows past these that the grid reads as it scrolls, which the chart doesn't. Nothing grows in:
- * the chart fades in with what it's in.
+ * Shows a result's first {@link MAX_CHART_ROWS} rows as a chart of the kind `settings` says:
+ * bars, a line, an area or a pie. It has a column along the bottom and another column, of
+ * numbers, up the side, those `settings` names, or the ones {@link chartAxes} picks when it names
+ * none or ones the result doesn't have. A pie has a slice for each row instead, named by the
+ * first column and sized by the second, the largest of them, in greys, listed beside it (see
+ * {@link pieSlices}). It says so when there's no column of numbers to chart.
+ *
+ * With `onChange`, as in the explorer, the columns are picked from two selects that never offer
+ * the column the other has, and swapped with a button between them when the column along the
+ * bottom holds numbers too, and the kind from a toggle after them; each change is handed to
+ * `onChange` with both columns by name, so it stays for the next result and can be saved. Without
+ * it, as on a dashboard, it's only the chart. `more` says there are rows past these that the grid
+ * reads as it scrolls, which the chart doesn't. Nothing grows in: the chart fades in with what
+ * it's in.
  */
 export function ResultChart({
   data,
-  kind,
-  onKindChange,
+  settings,
+  onChange,
   more = false,
 }: {
   data: TableRows;
-  kind: ChartKind;
-  onKindChange: (kind: ChartKind) => void;
+  settings: ChartSettings;
+  onChange?: (settings: ChartSettings) => void;
   more?: boolean;
 }) {
   const { columns, rows } = data;
-  const [axes, setAxes] = useState(() => defaultAxes(columns));
-  const { x, y } = axes;
+  const { kind } = settings;
+  const { x, y } = chartAxes(columns, settings);
   const yType = y === undefined ? "" : (columns[y]?.type ?? "");
   const points = useMemo(
     () => (y === undefined ? [] : chartPoints(rows, x, y, yType)),
@@ -202,6 +205,12 @@ export function ResultChart({
     );
   }
 
+  // Both columns by name, as the settings keep them.
+  const axesOf = (nextX: number, nextY: number) => ({
+    kind,
+    x: columns[nextX]?.name ?? null,
+    y: columns[nextY]?.name ?? null,
+  });
   // Only a column of numbers can go up the side.
   const canSwap = all[x]?.number ?? false;
   const yName = columns[y]?.name ?? "";
@@ -211,51 +220,62 @@ export function ResultChart({
 
   return (
     <figure aria-label="Result chart" className="grid gap-3 rounded-lg border p-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <AxisSelect
-            label={pie ? "Slices" : "X axis"}
-            columns={xColumns}
-            value={x}
-            onChange={(index) => {
-              setAxes({ x: index, y });
-            }}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Swap axes"
-            title={
-              canSwap
-                ? "Swap axes"
-                : `${columns[x]?.name ?? ""} isn't a column of numbers, for the ${pie ? "values" : "Y axis"}`
-            }
-            disabled={!canSwap}
-            onClick={() => {
-              setAxes({ x: y, y: x });
-            }}
-          >
-            <ArrowLeftRightIcon aria-hidden="true" />
-          </Button>
-          <AxisSelect
-            label={pie ? "Values" : "Y axis"}
-            columns={yColumns}
-            value={y}
-            onChange={(index) => {
-              setAxes({ x, y: index });
-            }}
-          />
+      {(onChange !== undefined || !shownAll) && (
+        <div className="flex flex-wrap items-center gap-4">
+          {onChange && (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <AxisSelect
+                  label={pie ? "Slices" : "X axis"}
+                  columns={xColumns}
+                  value={x}
+                  onChange={(index) => {
+                    onChange(axesOf(index, y));
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Swap axes"
+                  title={
+                    canSwap
+                      ? "Swap axes"
+                      : `${columns[x]?.name ?? ""} isn't a column of numbers, for the ${pie ? "values" : "Y axis"}`
+                  }
+                  disabled={!canSwap}
+                  onClick={() => {
+                    onChange(axesOf(y, x));
+                  }}
+                >
+                  <ArrowLeftRightIcon aria-hidden="true" />
+                </Button>
+                <AxisSelect
+                  label={pie ? "Values" : "Y axis"}
+                  columns={yColumns}
+                  value={y}
+                  onChange={(index) => {
+                    onChange(axesOf(x, index));
+                  }}
+                />
+              </div>
+              <KindToggle
+                value={kind}
+                onChange={(next) => {
+                  onChange({ ...settings, kind: next });
+                }}
+              />
+            </>
+          )}
+          {!shownAll && (
+            <span className="text-xs text-muted-foreground">
+              {more
+                ? `Charts the first ${points.length.toLocaleString()} rows; the table reads more as it scrolls.`
+                : `Charts the first ${points.length.toLocaleString()} of ${rows.length.toLocaleString()} rows.`}
+            </span>
+          )}
         </div>
-        <KindToggle value={kind} onChange={onKindChange} />
-        {!shownAll && (
-          <span className="text-xs text-muted-foreground">
-            {more
-              ? `Charts the first ${points.length.toLocaleString()} rows; the table reads more as it scrolls.`
-              : `Charts the first ${points.length.toLocaleString()} of ${rows.length.toLocaleString()} rows.`}
-          </span>
-        )}
-      </div>
+      )}
       {pie ? (
         <PieOf points={points} config={config} />
       ) : (
