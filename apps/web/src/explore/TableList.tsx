@@ -5,6 +5,7 @@ import type { MouseEvent } from "react";
 import { Clipped } from "@/components/Clipped";
 import { CopyButton } from "@/components/CopyButton";
 import { sqlTableName } from "@/lib/sql";
+import { cn } from "@/lib/utils";
 
 const kindIcons: Record<TableKind, LucideIcon> = {
   table: Table2Icon,
@@ -18,7 +19,8 @@ const itemClass =
   "relative flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left font-mono text-sm text-muted-foreground transition-colors outline-none before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-transparent before:transition-colors group-hover/table:bg-muted group-hover/table:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-muted aria-[current=page]:text-foreground aria-[current=page]:before:bg-highlight";
 
 /**
- * A connection's tables, under each schema's name, each with an icon for its kind. Clicking one
+ * A connection's tables, under each schema's name, each with an icon for its kind. `public` comes
+ * first, in bold, and the other schemas follow in alphabetical order. Clicking one
  * calls `onOpen`; with `href`, each is a link there too, and otherwise a button. A name too long
  * to fit is shown whole in a tooltip, and hovering one shows a button that copies its name with
  * its schema, quoted for SQL. `current` is marked as the page shown.
@@ -50,12 +52,22 @@ export function TableList({
     if (inSchema) inSchema.push(t);
     else schemas.set(t.schema, [t]);
   }
+  const ordered = [...schemas].toSorted(([a], [b]) =>
+    a === "public" ? -1 : b === "public" ? 1 : a.localeCompare(b),
+  );
 
   return (
     <nav aria-label="Tables" className="grid animate-fade-in grid-cols-1 content-start gap-3">
-      {[...schemas].map(([schema, inSchema]) => (
+      {ordered.map(([schema, inSchema]) => (
         <div key={schema}>
-          <h3 className="px-2 pb-1 text-xs font-medium text-muted-foreground">{schema}</h3>
+          <h3
+            className={cn(
+              "px-2 pb-1 text-xs text-muted-foreground",
+              schema === "public" ? "font-bold" : "font-medium",
+            )}
+          >
+            {schema}
+          </h3>
           <ul>
             {inSchema.map((t) => {
               const Icon = kindIcons[t.kind];

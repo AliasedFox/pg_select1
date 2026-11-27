@@ -10,7 +10,7 @@ description: Open a GitHub pull request for pg_select1, after formatting the cod
 3. Run `bun run lint`. Fix what it still reports in the code, or, where the code is right and the rule isn't, suppress it on that line with a reason (`// oxlint-disable-next-line <rule> -- <why>`). Tell the user what you changed.
 4. After the last code change, run `bun run check`: the typecheck, linter, format check and tests at once, in one command. Each check's lines are prefixed with its name; it goes on when one fails, and fails if any did.
 5. If any fails or can't run, stop and tell the user. Don't open the PR unless they say to.
-6. Commit, push, and open the PR with `gh pr create`, with its title and description (see below). In its Testing section, list what actually ran and the results.
+6. Commit, push, and open the PR with `gh pr create`, with its title and description (see below). In its Testing section, list what actually ran and the results. Once it's up, open it in the default web browser with `gh pr view --web`.
 7. Stop here, with the PR's URL, unless the user asked for a review too (e.g. "create a PR and review"); then go on.
 8. Once it's up, start the `code-reviewer` agent with the Agent tool (`subagent_type: "code-reviewer"`). Give it only the PR's number and URL, none of this session: it reads the title, description and diff itself, and posts its review on the PR.
 9. When the review comes back, show its findings here as they are, numbered, and say they're posted on the PR. Don't act on any of them: the user reads them and says which to implement.
