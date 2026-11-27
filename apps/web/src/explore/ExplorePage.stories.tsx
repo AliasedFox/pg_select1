@@ -1,6 +1,7 @@
 import { runQueryRequest, type TableRows } from "@pg_select1/shared";
 import { delay, http, HttpResponse } from "msw";
 
+import { ResultChart } from "@/components/ResultChart";
 import { RowsGrid } from "@/components/RowsGrid";
 
 import preview from "../../.storybook/preview";
@@ -186,4 +187,28 @@ export const ManyRows = meta.story({
       }),
     );
   },
+});
+
+// Signups on each day of November, with their revenue, which the chart's side can switch to.
+const signups: TableRows = {
+  columns: [
+    { name: "day", type: "date" },
+    { name: "signups", type: "bigint" },
+    { name: "revenue", type: "numeric(10,2)" },
+  ],
+  rows: Array.from({ length: 30 }, (_, i) => {
+    const count = 40 + Math.round(30 * Math.sin(i / 3)) + (i % 7) * 4;
+    return [`2026-11-${String(i + 1).padStart(2, "0")}`, String(count), (count * 19.5).toFixed(2)];
+  }),
+  truncated: false,
+  rowCap: 200,
+};
+
+export const Chart = meta.story({
+  render: () => <ResultChart data={signups} />,
+});
+
+// The customers have no column of numbers but their id, the first, so there's nothing to chart.
+export const ChartWithoutNumbers = meta.story({
+  render: () => <ResultChart data={customerRows} />,
 });

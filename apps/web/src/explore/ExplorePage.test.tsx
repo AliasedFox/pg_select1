@@ -728,3 +728,115 @@ test("waits for a saved query to say its database before picking the first", asy
     expect(asked).toEqual([shop?.id ?? ""]);
   });
 });
+
+// Orders by their status, counted.
+const ordersByStatus = {
+  columns: [
+    { name: "status", type: "text" },
+    { name: "orders", type: "bigint" },
+  ],
+  rows: [
+    ["paid", "12"],
+    ["refunded", "3"],
+    ["pending", "5"],
+  ],
+  truncated: false,
+  rowCap: 200,
+  durationMs: 4,
+};
+
+test("charts a result as bars, the first column along the bottom and the second up the side", async () => {
+  server.use(
+    http.post("/api/explore/connections/:id/query", () => HttpResponse.json(ordersByStatus)),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  await screen.findByRole("table", { name: "Result" });
+  const toggle = screen.getByRole("group", { name: "View" });
+  expect(within(toggle).getByRole("button", { name: "Table" }).getAttribute("aria-pressed")).toBe(
+    "true",
+  );
+  await user.click(within(toggle).getByRole("button", { name: "Chart" }));
+
+  const chart = await screen.findByRole("figure", { name: "Result chart" });
+  expect(screen.queryByRole("table", { name: "Result" })).toBeNull();
+  expect(within(chart).getByRole("combobox", { name: "X axis" }).textContent).toBe("status");
+  expect(within(chart).getByRole("combobox", { name: "Y axis" }).textContent).toBe("orders");
+  // Neither axis offers the column the other has.
+  await user.click(within(chart).getByRole("combobox", { name: "X axis" }));
+  expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
+    "status",
+  ]);
+  await user.keyboard("{Escape}");
+  // status isn't a number, so it can't go up the side.
+  expect(within(chart).getByRole("button", { name: "Swap axes" })).toHaveProperty("disabled", true);
+
+  // Still a chart for the next run.
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  await waitFor(() => {
+    expect(screen.getByText("3 rows in 4 ms")).toBeDefined();
+  });
+  expect(screen.getByRole("figure", { name: "Result chart" })).toBeDefined();
+
+  await user.click(screen.getByRole("button", { name: "Table" }));
+  expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
+});
+
+test("charts the first column of numbers when the second isn't one, and says when there's none", async () => {
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  await screen.findByRole("table", { name: "Result" });
+  await user.click(screen.getByRole("button", { name: "Chart" }));
+  // The customers have no column of numbers but their id, the first.
+  expect(await screen.findByText(/There's no column of numbers to chart/)).toBeDefined();
+
+  server.use(
+    http.post("/api/explore/connections/:id/query", () =>
+      HttpResponse.json({
+        ...ordersByStatus,
+        columns: [
+          { name: "day", type: "date" },
+          ordersByStatus.columns[0],
+          { name: "total", type: "numeric" },
+        ],
+        rows: [["2026-11-26", "paid", "120.50"]],
+      }),
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  const chart = await screen.findByRole("figure", { name: "Result chart" });
+  expect(within(chart).getByRole("combobox", { name: "X axis" }).textContent).toBe("day");
+  expect(within(chart).getByRole("combobox", { name: "Y axis" }).textContent).toBe("total");
+  await user.click(within(chart).getByRole("combobox", { name: "X axis" }));
+  expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
+    "day",
+    "status",
+  ]);
+  await user.keyboard("{Escape}");
+  // A query whose first column holds numbers too can have its axes swapped.
+  server.use(
+    http.post("/api/explore/connections/:id/query", () =>
+      HttpResponse.json({
+        ...ordersByStatus,
+        columns: [
+          { name: "hour", type: "integer" },
+          { name: "orders", type: "bigint" },
+        ],
+        rows: [["9", "4"]],
+      }),
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  await waitFor(() => {
+    expect(screen.getByRole("button", { name: "Swap axes" })).toHaveProperty("disabled", false);
+  });
+  await user.click(screen.getByRole("button", { name: "Swap axes" }));
+  expect(screen.getByRole("combobox", { name: "X axis" }).textContent).toBe("orders");
+  expect(screen.getByRole("combobox", { name: "Y axis" }).textContent).toBe("hour");
+});

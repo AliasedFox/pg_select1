@@ -111,6 +111,7 @@ The web app is a single-page app:
 | **shadcn/ui**                                              | Components, copied into `components/ui/` and kept close to stock, on **Radix UI** primitives. |
 | **CodeMirror 6** + `@codemirror/lang-sql`                  | The SQL editor, with autocomplete fed by the connection's schema.                             |
 | **TanStack Table** + **TanStack Virtual**                  | Result grids and table browsing, virtualized so large results scroll smoothly.                |
+| **Recharts**, through shadcn/ui's `chart`                  | Charting a result, as a bar chart, in the theme's colors. Bars don't grow in; charts fade in. |
 | **cmdk**                                                   | The command palette and searchable pickers (tables, connections, saved queries).              |
 | **lucide-react**                                           | Icons.                                                                                        |
 | **Fontsource**                                             | Self-hosted Geist and Geist Mono, so nothing loads from Google.                               |
