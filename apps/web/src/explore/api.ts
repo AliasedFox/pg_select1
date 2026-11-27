@@ -47,6 +47,18 @@ export function runQuery(
   });
 }
 
+/**
+ * Answers a random UUID to run a query as, and to cancel it by. Not `crypto.randomUUID`, which
+ * needs a secure context, since pg_select1 may be served over plain HTTP on a local network.
+ */
+export function newRunId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 /** Asks the API to cancel the query run as `runId`, if it's still running. */
 export async function cancelQuery(runId: string): Promise<void> {
   await sendApi("POST", `/api/explore/queries/${runId}/cancel`);

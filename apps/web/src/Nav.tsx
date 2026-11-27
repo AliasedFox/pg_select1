@@ -21,7 +21,14 @@ interface NavMenuItem {
 const MAIN_PAGES = [
   { path: "/explore", label: "Explore" },
   { path: "/queries", label: "Queries" },
+  { path: "/dashboards", label: "Dashboards" },
 ];
+
+// Whether `to` is the current page, or the one the current page is in, as a dashboard is in
+// Dashboards.
+function isCurrent(path: string, to: string): boolean {
+  return path === to || path.startsWith(`${to}/`);
+}
 
 // The pages only admins see.
 const ADMIN_MENU: NavMenuItem[] = [
@@ -45,7 +52,7 @@ const navItemClass =
   "relative flex h-full items-center gap-1 px-1 text-sm font-medium text-muted-foreground transition-colors outline-none after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-transparent after:transition-colors hover:text-foreground focus-visible:text-foreground aria-[current=page]:text-foreground aria-[current=page]:after:bg-highlight data-[state=open]:text-foreground";
 
 /**
- * The header's main navigation: the explorer and saved queries for everyone, and the Admin menu
+ * The header's main navigation: the explorer, saved queries and dashboards for everyone, and the Admin menu
  * for admins.
  */
 export function Nav({ path, user }: { path: string; user: Me }) {
@@ -55,7 +62,7 @@ export function Nav({ path, user }: { path: string; user: Me }) {
         <a
           key={to}
           href={to}
-          aria-current={path === to ? "page" : undefined}
+          aria-current={isCurrent(path, to) ? "page" : undefined}
           className={navItemClass}
           onClick={(event: MouseEvent) => {
             event.preventDefault();

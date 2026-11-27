@@ -10,6 +10,8 @@ import { SignInPage } from "@/auth/SignInPage";
 import { Brand } from "@/Brand";
 import { Loading } from "@/components/Loading";
 import { ConnectionsPage } from "@/connections/ConnectionsPage";
+import { DashboardPage } from "@/dashboards/DashboardPage";
+import { DashboardsPage } from "@/dashboards/DashboardsPage";
 import { ExplorePage } from "@/explore/ExplorePage";
 import { Footer } from "@/Footer";
 import { cn } from "@/lib/utils";
@@ -27,8 +29,11 @@ export function App() {
   );
 }
 
-// The pages that use the whole width of the window.
-const fullWidth = new Set(["/explore"]);
+// Whether a page uses the whole width of the window: the explorer and a dashboard do, for their
+// rows.
+function isFullWidth(path: string): boolean {
+  return path === "/explore" || path.startsWith("/dashboards/");
+}
 
 function Shell() {
   const path = usePath();
@@ -78,7 +83,7 @@ function Shell() {
         className={cn(
           "mx-auto w-full flex-1 animate-fade-in px-4 pt-6 pb-16 sm:px-6 sm:pt-10",
           // The explorer's rows use the whole width; other pages keep to the header's.
-          !fullWidth.has(path) && "max-w-screen-xl",
+          !isFullWidth(path) && "max-w-screen-xl",
         )}
       >
         {page}
@@ -101,6 +106,10 @@ function SignedInPage({ path, user }: { path: string; user: Me }) {
   if (path === "/" || path === "/sign-in") return <Redirect to="/explore" />;
   if (path === "/explore") return <ExplorePage user={user} />;
   if (path === "/queries") return <SavedQueriesPage user={user} />;
+  if (path === "/dashboards") return <DashboardsPage user={user} />;
+  if (path.startsWith("/dashboards/")) {
+    return <DashboardPage id={path.slice("/dashboards/".length)} user={user} />;
+  }
   // The query page was merged into the explorer: its links open it, on the same database.
   if (path === "/query") return <Redirect to={`/explore${window.location.search}`} />;
   if (path === "/profile") return <ProfilePage user={user} />;

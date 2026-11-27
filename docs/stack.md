@@ -28,7 +28,7 @@ flowchart LR
 
 Two kinds of database, kept apart throughout:
 
-- **pg_select1's own database** holds its users, connections, saved queries, alerts and alert runs, which Prisma owns in `public`, and pg-boss's jobs and schedules, which pg-boss owns in `pgboss`. Where it has postgres_fdw, it also holds a foreign server for each connection used across connections, with that target's tables as foreign tables in the connection's schemas.
+- **pg_select1's own database** holds its users, connections, saved queries, dashboards, alerts and alert runs, which Prisma owns in `public`, and pg-boss's jobs and schedules, which pg-boss owns in `pgboss`. Where it has postgres_fdw, it also holds a foreign server for each connection used across connections, with that target's tables as foreign tables in the connection's schemas.
 - **Your databases** are the ones people explore and alert on. A query on one connection runs directly on its database with `pg`. A query on two or more runs in pg_select1's database, through postgres_fdw. pg_select1 never uses Prisma on them, never migrates them, and writes to them only when a connection is explicitly marked writable.
 
 [`queries.md`](queries.md) has the design: how a query's connections pick its path, the names, the roles, and how the safety rules hold on each path.
@@ -76,6 +76,7 @@ The API is split by product area into modules in `apps/backend/src/modules/<name
 | `connection` | Connections to target databases, their encrypted credentials, whether they're visible to everyone or only to admins, read-only and limits settings, the address pg_select1's database sees them at, connection tests, and, for connections used across connections, their foreign servers, user mappings and foreign tables, refreshed on a schedule |
 | `explore`    | Schema introspection on the target's own catalog (schemas, tables, columns, indexes, constraints), table browsing, ad-hoc queries on one connection or across several                                                                                                                                                                                |
 | `query`      | Saved queries, their history and last results                                                                                                                                                                                                                                                                                                        |
+| `dashboard`  | Dashboards: saved queries shown one under another, in order, each as a table of its rows, personal or shared with everyone like a saved query                                                                                                                                                                                                        |
 | `alert`      | Alerts, their schedules and conditions, alert runs, the ok → triggered → resolved state                                                                                                                                                                                                                                                              |
 | `notify`     | Notification channels (Slack, webhook), deliveries and their retries                                                                                                                                                                                                                                                                                 |
 
@@ -83,7 +84,7 @@ Each module has the same shape: `api.ts` (its `endpoints` list), `service.ts` (t
 
 ### Web app areas
 
-`apps/web/src/` keeps the app's shell at the root (`main.tsx`, `App.tsx`, `router.tsx`, `ui.tsx`) and everything else in a folder per product area: `explore/`, `editor/`, `queries/`, `alerts/`, `connections/`, `settings/`, and `lib/` for what every area uses. shadcn/ui's components are in `components/ui/`.
+`apps/web/src/` keeps the app's shell at the root (`main.tsx`, `App.tsx`, `router.tsx`, `ui.tsx`) and everything else in a folder per product area: `explore/`, `editor/`, `queries/`, `dashboards/`, `alerts/`, `connections/`, `settings/`, and `lib/` for what every area uses. shadcn/ui's components are in `components/ui/`.
 
 ## Backend
 

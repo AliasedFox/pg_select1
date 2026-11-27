@@ -21,12 +21,19 @@ const SslMode = enumType(
   member("verify-full", "verify-full"),
 );
 
-/** Who sees a saved query: only the user who saved it, or everyone signed in. */
+/** Who sees a saved query or a dashboard: only the user who saved it, or everyone signed in. */
 const QueryScope = enumType(
   "QueryScope",
   { codecId: "pg/text@1" },
   member("personal", "personal"),
   member("global", "global"),
+);
+
+/** How a dashboard shows a saved query's result: as a table of its rows, for now the only way. */
+const DashboardVisualization = enumType(
+  "DashboardVisualization",
+  { codecId: "pg/text@1" },
+  member("table", "table"),
 );
 
 /**
@@ -185,8 +192,53 @@ export const contract = defineContract(
         indexes: [constraints.index([cols.connectionId])],
       }));
 
+    // Saved queries shown together, one under another. Who sees it and who can change it go as
+    // for a saved query, and so does what happens to it when its owner is deleted.
+    const Dashboard = model("Dashboard", {
+      fields: {
+        id: Id,
+        name: field.column(type.String()),
+        description: field.column(type.String()).optional(),
+        scope: field.namedType(QueryScope).default("personal"),
+        ownerId: field.column(type.Uuid()).optional(),
+        createdAt: CreatedAt,
+        updatedAt: UpdatedAt,
+      },
+      relations: {
+        owner: rel
+          .belongsTo(User, { from: "ownerId", to: "id" })
+          .sql({ fk: { onDelete: "setNull" } }),
+      },
+    }).sql(({ cols, constraints }) => ({
+      table: "dashboards",
+      indexes: [constraints.index([cols.ownerId])],
+    }));
+
+    // A saved query on a dashboard, first one first, and how it's shown. The same query can be on
+    // a dashboard more than once. Deleting the query takes it off its dashboards.
+    const DashboardItem = model("DashboardItem", {
+      fields: {
+        id: Id,
+        dashboardId: field.column(type.Uuid()),
+        savedQueryId: field.column(type.Uuid()),
+        position: field.column(type.Int()),
+        visualization: field.namedType(DashboardVisualization).default("table"),
+      },
+      relations: {
+        dashboard: rel
+          .belongsTo(Dashboard, { from: "dashboardId", to: "id" })
+          .sql({ fk: { onDelete: "cascade" } }),
+        savedQuery: rel
+          .belongsTo(SavedQuery, { from: "savedQueryId", to: "id" })
+          .sql({ fk: { onDelete: "cascade" } }),
+      },
+    }).sql(({ cols, constraints }) => ({
+      table: "dashboard_items",
+      indexes: [constraints.index([cols.dashboardId]), constraints.index([cols.savedQueryId])],
+    }));
+
     return {
-      enums: { Role, SslMode, QueryScope },
+      enums: { Role, SslMode, QueryScope, DashboardVisualization },
       models: {
         User,
         Session,
@@ -195,6 +247,8 @@ export const contract = defineContract(
         Connection,
         SavedQuery,
         SavedQueryConnection,
+        Dashboard,
+        DashboardItem,
       },
     };
   },

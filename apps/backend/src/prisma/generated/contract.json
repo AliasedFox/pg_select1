@@ -12,6 +12,14 @@
       "model": "Connection",
       "namespace": "public"
     },
+    "dashboard_items": {
+      "model": "DashboardItem",
+      "namespace": "public"
+    },
+    "dashboards": {
+      "model": "Dashboard",
+      "namespace": "public"
+    },
     "saved_queries": {
       "model": "SavedQuery",
       "namespace": "public"
@@ -37,6 +45,15 @@
     "namespaces": {
       "public": {
         "enum": {
+          "DashboardVisualization": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "table",
+                "value": "table"
+              }
+            ]
+          },
           "QueryScope": {
             "codecId": "pg/text@1",
             "members": [
@@ -387,6 +404,216 @@
               },
               "namespaceId": "public",
               "table": "connections"
+            }
+          },
+          "Dashboard": {
+            "fields": {
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-date@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "description": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "name": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "ownerId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "scope": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "QueryScope",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "updatedAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-date@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              }
+            },
+            "relations": {
+              "owner": {
+                "cardinality": "N:1",
+                "nullable": true,
+                "on": {
+                  "localFields": [
+                    "ownerId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "User",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "description": {
+                  "column": "description"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "name": {
+                  "column": "name"
+                },
+                "ownerId": {
+                  "column": "owner_id"
+                },
+                "scope": {
+                  "column": "scope"
+                },
+                "updatedAt": {
+                  "column": "updated_at"
+                }
+              },
+              "namespaceId": "public",
+              "table": "dashboards"
+            }
+          },
+          "DashboardItem": {
+            "fields": {
+              "dashboardId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "position": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "savedQueryId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "visualization": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "DashboardVisualization",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              }
+            },
+            "relations": {
+              "dashboard": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "dashboardId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Dashboard",
+                  "namespace": "public"
+                }
+              },
+              "savedQuery": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "savedQueryId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "SavedQuery",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "dashboardId": {
+                  "column": "dashboard_id"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "position": {
+                  "column": "position"
+                },
+                "savedQueryId": {
+                  "column": "saved_query_id"
+                },
+                "visualization": {
+                  "column": "visualization"
+                }
+              },
+              "namespaceId": "public",
+              "table": "dashboard_items"
             }
           },
           "SavedQuery": {
@@ -1111,6 +1338,218 @@
                 }
               ]
             },
+            "dashboard_items": {
+              "checks": [
+                {
+                  "expression": "\"visualization\" IN ('table')",
+                  "name": "dashboard_items_visualization_check_58801661",
+                  "prefix": "dashboard_items_visualization_check"
+                }
+              ],
+              "columns": {
+                "dashboard_id": {
+                  "codecId": "pg/uuid@1",
+                  "dataType": "pg/uuid",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "dataType": "pg/uuid",
+                  "nullable": false
+                },
+                "position": {
+                  "codecId": "pg/int4@1",
+                  "dataType": "pg/int4",
+                  "nullable": false
+                },
+                "saved_query_id": {
+                  "codecId": "pg/uuid@1",
+                  "dataType": "pg/uuid",
+                  "nullable": false
+                },
+                "visualization": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "default": {
+                    "kind": "literal",
+                    "value": "table"
+                  },
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "DashboardVisualization",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                }
+              },
+              "foreignKeys": [
+                {
+                  "index": {
+                    "name": "dashboard_items_dashboard_id_idx_115aeb8e"
+                  },
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "dashboard_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "dashboard_items"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "dashboards"
+                  }
+                },
+                {
+                  "index": {
+                    "name": "dashboard_items_saved_query_id_idx_05dd5900"
+                  },
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "saved_query_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "dashboard_items"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "saved_queries"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "dashboard_id"
+                  ],
+                  "name": "dashboard_items_dashboard_id_idx_115aeb8e",
+                  "prefix": "dashboard_items_dashboard_id_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "saved_query_id"
+                  ],
+                  "name": "dashboard_items_saved_query_id_idx_05dd5900",
+                  "prefix": "dashboard_items_saved_query_id_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
+            "dashboards": {
+              "checks": [
+                {
+                  "expression": "\"scope\" IN ('personal', 'global')",
+                  "name": "dashboards_scope_check_2736efd0",
+                  "prefix": "dashboards_scope_check"
+                }
+              ],
+              "columns": {
+                "created_at": {
+                  "codecId": "pg/timestamptz-date@1",
+                  "dataType": "pg/timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "description": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "dataType": "pg/uuid",
+                  "nullable": false
+                },
+                "name": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "owner_id": {
+                  "codecId": "pg/uuid@1",
+                  "dataType": "pg/uuid",
+                  "nullable": true
+                },
+                "scope": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "default": {
+                    "kind": "literal",
+                    "value": "personal"
+                  },
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "QueryScope",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "updated_at": {
+                  "codecId": "pg/timestamptz-date@1",
+                  "dataType": "pg/timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "foreignKeys": [
+                {
+                  "index": {
+                    "name": "dashboards_owner_id_idx_ade9f347"
+                  },
+                  "onDelete": "setNull",
+                  "source": {
+                    "columns": [
+                      "owner_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "dashboards"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "users"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "owner_id"
+                  ],
+                  "name": "dashboards_owner_id_idx_ade9f347",
+                  "prefix": "dashboards_owner_id_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
             "saved_queries": {
               "checks": [
                 {
@@ -1546,6 +1985,12 @@
             }
           },
           "valueSet": {
+            "DashboardVisualization": {
+              "kind": "valueSet",
+              "values": [
+                "table"
+              ]
+            },
             "QueryScope": {
               "kind": "valueSet",
               "values": [
@@ -1575,10 +2020,10 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "5c0d7a010aa3297dd2f93fc676650b8c92918322a45711cd35e2a56896e4e2a5"
+    "storageHash": "2c55bf481508c6c0cc1c40e2fc7568c1e18028329a9373621b78e0340bf8426f"
   },
   "execution": {
-    "executionHash": "9ee8be841ee004bfeb02f725de5fa01e8845c5986d3486592bcb292abd9c3177",
+    "executionHash": "a4b48d411158f1183a65ee96f1fa288fb35c4f4c0d84cf8b582fe9bdad5e60f4",
     "mutations": {
       "defaults": [
         {
@@ -1669,6 +2114,63 @@
           },
           "ref": {
             "entry": "connections",
+            "field": "updated_at",
+            "namespace": "public"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "uuidv7",
+            "kind": "generator"
+          },
+          "ref": {
+            "entry": "dashboard_items",
+            "field": "id",
+            "namespace": "public"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "timestampNow",
+            "kind": "generator",
+            "params": {
+              "precision": 3
+            }
+          },
+          "ref": {
+            "entry": "dashboards",
+            "field": "created_at",
+            "namespace": "public"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "uuidv7",
+            "kind": "generator"
+          },
+          "ref": {
+            "entry": "dashboards",
+            "field": "id",
+            "namespace": "public"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "timestampNow",
+            "kind": "generator",
+            "params": {
+              "precision": 3
+            }
+          },
+          "onUpdate": {
+            "id": "timestampNow",
+            "kind": "generator",
+            "params": {
+              "precision": 3
+            }
+          },
+          "ref": {
+            "entry": "dashboards",
             "field": "updated_at",
             "namespace": "public"
           }

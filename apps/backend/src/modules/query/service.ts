@@ -124,6 +124,30 @@ export async function listSavedQueries(user: SessionUser): Promise<SavedQuery[]>
 }
 
 /**
+ * Answers the saved queries among `ids` that `user` sees, by id. Those they don't, or that
+ * don't exist, are left out, as a dashboard needs when it shows someone else's personal query.
+ */
+export async function findVisibleSavedQueries(
+  ids: readonly string[],
+  user: SessionUser,
+): Promise<Map<string, SavedQuery>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  const rows = (
+    await savedQueries()
+      .where((q) => q.id.in(unique))
+      .all()
+  ).filter((row) => canSee(row, user));
+  const connections = await connectionsOf(
+    rows.map((r) => r.id),
+    user,
+  );
+  return new Map(
+    rows.map((row) => [row.id, toSavedQuery(row, connections.get(row.id) ?? [], user)]),
+  );
+}
+
+/**
  * Answers one saved query `user` sees.
  *
  * @throws {HttpError} a 404 when there's no such query, or it's someone else's personal one.
