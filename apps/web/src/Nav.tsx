@@ -102,6 +102,8 @@ function NavMenu({ label, items, path }: { label: string; items: NavMenuItem[]; 
               onClick={(event: MouseEvent) => {
                 event.preventDefault();
                 navigate(to);
+                // Radix closes a menu when an item is picked only if its click wasn't prevented.
+                menu.close();
               }}
             >
               <Icon aria-hidden="true" className="mt-0.5 text-muted-foreground" />
@@ -122,7 +124,7 @@ const HOVER_CLOSE_DELAY = 150;
 
 // A menu that a mouse opens by hovering over it; a click, a tap or the keyboard open it as any
 // menu. Spread `root` on the DropdownMenu, `hover` on its trigger, `trigger` on it too and
-// `content` on its DropdownMenuContent.
+// `content` on its DropdownMenuContent, and `close` it when an item is picked.
 function useHoverMenu() {
   const [open, setOpen] = useState(false);
   // Whether the pointer opened it, so it closes when the pointer leaves without taking the focus.
@@ -157,6 +159,9 @@ function useHoverMenu() {
 
   return {
     root: { modal: false, open, onOpenChange },
+    close: () => {
+      onOpenChange(false);
+    },
     hover,
     trigger: {
       ref: trigger,

@@ -29,10 +29,9 @@ export function App() {
   );
 }
 
-// Whether a page uses the whole width of the window: the explorer and a dashboard do, for their
-// rows.
+// Whether a page uses the whole width of the window: the explorer does, for its rows.
 function isFullWidth(path: string): boolean {
-  return path === "/explore" || path.startsWith("/dashboards/");
+  return path === "/explore";
 }
 
 function Shell() {

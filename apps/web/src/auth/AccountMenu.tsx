@@ -23,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { avatarGradient } from "@/lib/avatar";
 import { isTheme, showTheme, storedTheme, type Theme } from "@/lib/theme";
 import { navigate } from "@/router";
 
@@ -33,7 +34,8 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: LucideIcon }[] = [
 ];
 
 /**
- * The signed-in user's menu, opened from their initial at the right of the header: who they are,
+ * The signed-in user's menu, opened from their initial, on a gradient of two hues picked from
+ * their id (see {@link avatarGradient}), at the right of the header: who they are,
  * their profile, the theme and signing out. The theme shows as soon as it's picked and is kept on this device,
  * not on the account.
  */
@@ -55,7 +57,12 @@ export function AccountMenu({ user }: { user: Me }) {
         className="cursor-pointer rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <Avatar>
-          <AvatarFallback className="font-semibold">{initial}</AvatarFallback>
+          <AvatarFallback
+            style={{ backgroundImage: avatarGradient(user.id) }}
+            className="font-semibold text-black"
+          >
+            {initial}
+          </AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">

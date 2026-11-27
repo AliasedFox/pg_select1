@@ -2,6 +2,7 @@ import { MAX_QUERY_ROWS, type Me, type QueryResult, type SavedQuery } from "@pg_
 import {
   ChartColumnIcon,
   EraserIcon,
+  HashIcon,
   HistoryIcon,
   PlayIcon,
   SaveIcon,
@@ -12,6 +13,7 @@ import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } 
 
 import { Loading } from "@/components/Loading";
 import { ResultChart } from "@/components/ResultChart";
+import { ResultNumber } from "@/components/ResultNumber";
 import { RowsGrid } from "@/components/RowsGrid";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -58,10 +60,11 @@ type Saving =
   | { kind: "saved"; n: number }
   | { kind: "failed"; message: string };
 
-// How a result is shown: its rows in a grid, or as a chart.
-type View = "table" | "chart";
+// How a result is shown: its rows in a grid, as a chart, or as the one number in its first row's
+// first column.
+type View = "table" | "chart" | "number";
 
-// Switches a result between its grid and its chart, with a button of each's icon, named on hover.
+// Switches a result between its grid, its chart and its number, with a button of each's icon, named on hover.
 function ViewToggle({ value, onChange }: { value: View; onChange: (view: View) => void }) {
   const option = (view: View, label: string, icon: ReactNode) => (
     <button
@@ -84,6 +87,7 @@ function ViewToggle({ value, onChange }: { value: View; onChange: (view: View) =
     <fieldset aria-label="View" className="flex min-w-0 rounded-md border p-0.5">
       {option("table", "Table", <TableIcon aria-hidden="true" />)}
       {option("chart", "Chart", <ChartColumnIcon aria-hidden="true" />)}
+      {option("number", "Number", <HashIcon aria-hidden="true" />)}
     </fieldset>
   );
 }
@@ -128,8 +132,9 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * The database's tables are listed beside it. Clicking one replaces the SQL with `select * from`
  * it and runs that, and each has a button to copy its name. While a query runs, the last result
  * stays on screen until the new one fades in over it. A result can be switched from its grid to
- * a {@link ResultChart}, of bars, a line, an area or a pie, which stays switched, and on the same
- * kind, for the runs after. A run can be cancelled, and is when the person picks another
+ * a {@link ResultChart}, of bars, a line, an area or a pie, or to a {@link ResultNumber}, the
+ * value in its first row's first column, which stays switched, and on the same kind of chart, for
+ * the runs after. A run can be cancelled, and is when the person picks another
  * database or leaves the page. The database is kept in the address, so a
  * reload or a link opens the same one.
  *
@@ -604,6 +609,8 @@ export function ExplorePage({ user }: { user: Me }) {
                             answer.result.truncated && answer.result.rows.length < MAX_QUERY_ROWS
                           }
                         />
+                      ) : view === "number" ? (
+                        <ResultNumber data={answer.result} />
                       ) : (
                         <RowsGrid
                           data={answer.result}

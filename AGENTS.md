@@ -71,7 +71,7 @@ Ports: pg_select1's Postgres 5440, API 3100, web 5190, Storybook 6026, pgweb 809
 - Black, white and greys (shadcn/ui's neutral theme, in `apps/web/src/index.css`, light and dark), plus the slate grey `#5c5f66`.
 - A touch of chartreuse yellow `#e8f04a`, as `highlight`, for small marks only (the current page, dots, step numbers, pills). Always black text on yellow, never yellow text on white.
 - Green (`success`) for what's fine, like an alert that's ok or resolved; red (`destructive`) for errors and triggered alerts.
-- No other accents: no blue links, no gold. `docs/stack.md` lists every color.
+- No other accents: no blue links, no gold. The one exception is a user's avatar, on a gradient picked from their id (`lib/avatar.ts`). `docs/stack.md` lists every color.
 
 ## Motion
 

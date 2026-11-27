@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { renderApp } from "../test/render";
@@ -20,5 +20,9 @@ test("goes to the admins' pages from the Admin menu", async () => {
   await user.click(within(menu).getByRole("menuitem", { name: /Users/ }));
   expect(await screen.findByRole("heading", { name: "Users" })).toBeDefined();
   expect(window.location.pathname).toBe("/users");
+  // The menu closes once a page is picked from it.
+  await waitFor(() => {
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
   expect(screen.getByRole("button", { name: "Admin" }).getAttribute("aria-current")).toBe("page");
 });

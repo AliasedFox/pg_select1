@@ -3,6 +3,7 @@ import { delay, http, HttpResponse } from "msw";
 import { useState } from "react";
 
 import { ResultChart } from "@/components/ResultChart";
+import { ResultNumber } from "@/components/ResultNumber";
 import { RowsGrid } from "@/components/RowsGrid";
 import type { ChartKind } from "@/lib/chart";
 
@@ -253,4 +254,17 @@ export const PieChart = meta.story({
 // The customers have no column of numbers but their id, the first, so there's nothing to chart.
 export const ChartWithoutNumbers = meta.story({
   render: () => <ChartOf data={customerRows} />,
+});
+
+export const NumberResult = meta.story({
+  render: () => (
+    <ResultNumber
+      data={{
+        columns: [{ name: "revenue", type: "numeric" }],
+        rows: [["1234567.50"]],
+        truncated: false,
+        rowCap: 200,
+      }}
+    />
+  ),
 });
