@@ -661,20 +661,6 @@
                   "plane": "domain"
                 }
               },
-              "chartX": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              },
-              "chartY": {
-                "nullable": true,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              },
               "createdAt": {
                 "nullable": false,
                 "type": {
@@ -779,12 +765,6 @@
               "fields": {
                 "chartKind": {
                   "column": "chart_kind"
-                },
-                "chartX": {
-                  "column": "chart_x"
-                },
-                "chartY": {
-                  "column": "chart_y"
                 },
                 "createdAt": {
                   "column": "created_at"
@@ -1656,16 +1636,6 @@
                     "plane": "storage"
                   }
                 },
-                "chart_x": {
-                  "codecId": "pg/text@1",
-                  "dataType": "pg/text",
-                  "nullable": true
-                },
-                "chart_y": {
-                  "codecId": "pg/text@1",
-                  "dataType": "pg/text",
-                  "nullable": true
-                },
                 "created_at": {
                   "codecId": "pg/timestamptz-date@1",
                   "dataType": "pg/timestamptz",
@@ -2181,7 +2151,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "805b7f664aa74aab988cb618ab66691574d316d2896195cf4240d850a3c3f30b"
+    "storageHash": "5e05024350a46c468507619ad6ba4c0281b627b33a1ba8efca4266f49e4cc265"
   },
   "execution": {
     "executionHash": "a4b48d411158f1183a65ee96f1fa288fb35c4f4c0d84cf8b582fe9bdad5e60f4",

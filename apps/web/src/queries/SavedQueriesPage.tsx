@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { displayName } from "@/lib/display";
 import { type Loaded, useLoaded } from "@/lib/loaded";
 import { navigate } from "@/router";
 
@@ -31,6 +32,17 @@ type Open =
   | { kind: "edit"; query: SavedQuery }
   | { kind: "delete"; query: SavedQuery };
 
+// How a query's result is shown, as the explorer opens it and dashboards show it, with its icon.
+function ShownAs({ query }: { query: SavedQuery }) {
+  const { label, icon: Icon } = displayName(query.display);
+  return (
+    <span className="flex items-center gap-1.5 text-muted-foreground [&_svg]:size-4">
+      <Icon aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
+
 function ownerOf(query: SavedQuery, user: Me): string {
   if (!query.owner) return "A deleted user";
   return query.owner.id === user.id ? "You" : query.owner.name;
@@ -38,7 +50,7 @@ function ownerOf(query: SavedQuery, user: Me): string {
 
 /**
  * Lists the saved queries the signed-in user sees, by name: everyone's global ones and their own
- * personal ones. Opening one takes it to the explorer, where its SQL and database are changed;
+ * personal ones, each with how its result is shown. Opening one takes it to the explorer, where its SQL and database are changed;
  * its name, description and who sees it are changed here, and it can be deleted, by those who
  * can change it. New queries are saved from the explorer.
  */
@@ -94,6 +106,7 @@ export function SavedQueriesPage({ user }: { user: Me }) {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Database</TableHead>
+                <TableHead>Shown as</TableHead>
                 <TableHead>Scope</TableHead>
                 <TableHead>Saved by</TableHead>
                 <TableHead>Updated</TableHead>
@@ -126,6 +139,9 @@ export function SavedQueriesPage({ user }: { user: Me }) {
                     {query.connections.length > 0
                       ? query.connections.map((c) => c.name).join(", ")
                       : "none"}
+                  </TableCell>
+                  <TableCell>
+                    <ShownAs query={query} />
                   </TableCell>
                   <TableCell>
                     <ScopeBadge scope={query.scope} />

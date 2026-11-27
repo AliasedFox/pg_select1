@@ -170,8 +170,8 @@ export const contract = defineContract(
 
     // A query someone saved to run again. A personal one goes with its owner; a global one stays
     // when its owner is deleted, with no owner (`src/modules/user/service.ts` deletes the
-    // personal ones first). Its result is shown as `display` says; the `chart*` fields are set
-    // only for a chart, and its columns are by name, `null` for the one the chart picks.
+    // personal ones first). Its result is shown as `display` says, and `chartKind` is set only
+    // for a chart.
     const SavedQuery = model("SavedQuery", {
       fields: {
         id: Id,
@@ -181,8 +181,6 @@ export const contract = defineContract(
         scope: field.namedType(QueryScope).default("personal"),
         display: field.namedType(QueryDisplay).default("table"),
         chartKind: field.namedType(ChartKind).optional(),
-        chartX: field.column(type.String()).optional(),
-        chartY: field.column(type.String()).optional(),
         ownerId: field.column(type.Uuid()).optional(),
         createdAt: CreatedAt,
         updatedAt: UpdatedAt,

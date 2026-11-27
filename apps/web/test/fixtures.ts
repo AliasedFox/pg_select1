@@ -120,6 +120,22 @@ export const customerRows: TableRows = {
 /** What `POST /api/explore/connections/:id/query` answers for any query: the customers' rows. */
 export const queryRows: QueryResult = { ...customerRows, durationMs: 12 };
 
+/** What the Daily signups saved query answers, for a chart of it: new customers on each day. */
+export const signupRows: QueryResult = {
+  columns: [
+    { name: "day", type: "date" },
+    { name: "count", type: "bigint" },
+  ],
+  rows: [
+    ["2026-01-02", "4"],
+    ["2026-01-03", "7"],
+    ["2026-01-04", "5"],
+  ],
+  truncated: false,
+  rowCap: 200,
+  durationMs: 8,
+};
+
 /**
  * The saved queries `GET /api/saved-queries` answers by default, by name: a global one on shop,
  * the admin's own personal one, and an editor's global one whose database was deleted.

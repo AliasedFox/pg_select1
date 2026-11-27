@@ -1,13 +1,5 @@
 import type { ChartKind, TableRows } from "@pg_select1/shared";
-import {
-  ArrowLeftRightIcon,
-  ChartAreaIcon,
-  ChartColumnIcon,
-  ChartLineIcon,
-  ChartPieIcon,
-  type LucideIcon,
-} from "lucide-react";
-import { type ReactNode, useId, useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import {
   Area,
   AreaChart,
@@ -22,32 +14,24 @@ import {
   YAxis,
 } from "recharts";
 
-import { Button } from "@/components/ui/button";
 import {
   type ChartConfig,
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   CHART_KINDS,
-  chartAxes,
-  type ChartPoint,
-  chartPoints,
-  type ChartSettings,
-  isNumberColumn,
-  MAX_CHART_ROWS,
+  type ChartColumns,
+  chartColumns,
+  type ChartData,
+  chartData,
   type PieSlice,
   pieSlices,
 } from "@/lib/chart";
+import { CHART_KIND_NAMES } from "@/lib/display";
 import { cn } from "@/lib/utils";
 
 // The longest label along the bottom, in characters, before it's cut short; the tooltip has it
@@ -58,17 +42,9 @@ const compact = new Intl.NumberFormat(undefined, { notation: "compact" });
 
 const percent = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 1 });
 
-// Each kind of chart as the chart select names it, with its icon.
-const KINDS: Record<ChartKind, { label: string; icon: LucideIcon }> = {
-  bar: { label: "Bar", icon: ChartColumnIcon },
-  line: { label: "Line", icon: ChartLineIcon },
-  area: { label: "Area", icon: ChartAreaIcon },
-  pie: { label: "Pie", icon: ChartPieIcon },
-};
-
-// The grey of slice `index` of `count`, from the primary color, the largest slice, fading
+// The grey of series or slice `index` of `count`, from the primary color, the first, fading
 // evenly toward the background, since the theme has no other colors to tell them apart.
-function sliceColor(index: number, count: number): string {
+function shade(index: number, count: number): string {
   const share = 100 - (index * 75) / Math.max(count - 1, 1);
   return `color-mix(in oklab, var(--primary) ${share.toFixed(0)}%, var(--background))`;
 }
@@ -78,14 +54,16 @@ function sliceColor(index: number, count: number): string {
 function KindToggle({
   value,
   onChange,
+  className,
 }: {
   value: ChartKind;
   onChange: (kind: ChartKind) => void;
+  className?: string;
 }) {
   return (
-    <fieldset aria-label="Chart" className="flex min-w-0 rounded-md border p-0.5">
+    <fieldset aria-label="Chart" className={cn("flex min-w-0 rounded-md border p-0.5", className)}>
       {CHART_KINDS.map((kind) => {
-        const { label, icon: Icon } = KINDS[kind];
+        const { label, icon: Icon } = CHART_KIND_NAMES[kind];
         return (
           <button
             key={kind}
@@ -111,185 +89,85 @@ function KindToggle({
   );
 }
 
-// A select of the columns a chart can have on one axis, by their positions, since a query's
-// columns can share a name.
-function AxisSelect({
-  label,
-  columns,
-  value,
-  onChange,
-}: {
-  label: string;
-  columns: { name: string; index: number }[];
-  value: number;
-  onChange: (index: number) => void;
-}) {
-  const id = useId();
-  return (
-    <div className="flex items-center gap-2">
-      <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
-        {label}
-      </Label>
-      <Select
-        value={String(value)}
-        onValueChange={(index) => {
-          onChange(Number(index));
-        }}
-      >
-        <SelectTrigger id={id} size="sm" className="min-w-32 font-mono text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent position="popper">
-          {columns.map((column) => (
-            <SelectItem key={column.index} value={String(column.index)} className="font-mono">
-              {column.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
 /**
- * Shows a result's first {@link MAX_CHART_ROWS} rows as a chart of the kind `settings` says:
- * bars, a line, an area or a pie. It has a column along the bottom and another column, of
- * numbers, up the side, those `settings` names, or the ones {@link chartAxes} picks when it names
- * none or ones the result doesn't have. A pie has a slice for each row instead, named by the
- * first column and sized by the second, the largest of them, in greys, listed beside it (see
- * {@link pieSlices}). It says so when there's no column of numbers to chart.
+ * Shows a result as a chart of `kind`: bars, a line, an area or a pie, with its columns read
+ * from their order (see {@link chartColumns}). The first column is along the bottom, and the
+ * columns of numbers after it up the side, a series each, unless a column of names comes after
+ * the first, whose names then split the first column of numbers into series, stacked as bars
+ * and areas; {@link chartData} has how many values and series it charts. A pie has a slice for
+ * each value of the first column instead, sized by the first column of numbers, the largest of
+ * them, in greys, listed beside it (see {@link pieSlices}). It says so when there's no column of
+ * numbers after the first to chart.
  *
- * With `onChange`, as in the explorer, the columns are picked from two selects that never offer
- * the column the other has, and swapped with a button between them when the column along the
- * bottom holds numbers too, and the kind from a toggle after them; each change is handed to
- * `onChange` with both columns by name, so it stays for the next result and can be saved. Without
- * it, as on a dashboard, it's only the chart. `more` says there are rows past these that the grid
- * reads as it scrolls, which the chart doesn't. Nothing grows in: the chart fades in with what
- * it's in.
+ * With `onKindChange`, as in the explorer, the kind is picked from a toggle at its top right,
+ * and handed to `onKindChange`, so it stays for the next result and can be saved. Without it, as
+ * on a dashboard, it's only the chart. `more` says there are rows past these that the grid reads
+ * as it scrolls, which the chart doesn't. Nothing grows in: the chart fades in with what it's in.
  */
 export function ResultChart({
   data,
-  settings,
-  onChange,
+  kind,
+  onKindChange,
   more = false,
 }: {
   data: TableRows;
-  settings: ChartSettings;
-  onChange?: (settings: ChartSettings) => void;
+  kind: ChartKind;
+  onKindChange?: (kind: ChartKind) => void;
   more?: boolean;
 }) {
   const { columns, rows } = data;
-  const { kind } = settings;
-  const { x, y } = chartAxes(columns, settings);
-  const yType = y === undefined ? "" : (columns[y]?.type ?? "");
-  const points = useMemo(
-    () => (y === undefined ? [] : chartPoints(rows, x, y, yType)),
-    [rows, x, y, yType],
+  const chart = useMemo(() => chartColumns(columns), [columns]);
+  const pie = kind === "pie";
+  const drawn = useMemo(
+    () => (chart === undefined || pie ? undefined : chartData({ columns, rows }, chart)),
+    [chart, pie, columns, rows],
   );
 
-  const all = columns.map((column, index) => ({
-    name: column.name,
-    index,
-    number: isNumberColumn(column),
-  }));
-  // A column is never on both axes: each select leaves out the other's.
-  const xColumns = all.filter((column) => column.index !== y);
-  const yColumns = all.filter((column) => column.number && column.index !== x);
-
-  if (y === undefined) {
+  if (chart === undefined) {
     return (
       <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-        There's no column of numbers to chart. Add one to the query, like{" "}
+        There's no column of numbers after the first to chart. Add one to the query, like{" "}
         <code className="font-mono text-foreground">count(*)</code>.
       </div>
     );
   }
 
-  // Both columns by name, as the settings keep them.
-  const axesOf = (nextX: number, nextY: number) => ({
-    kind,
-    x: columns[nextX]?.name ?? null,
-    y: columns[nextY]?.name ?? null,
-  });
-  // Only a column of numbers can go up the side.
-  const canSwap = all[x]?.number ?? false;
-  const yName = columns[y]?.name ?? "";
-  const config = { y: { label: yName, color: "var(--primary)" } } satisfies ChartConfig;
-  const shownAll = rows.length <= MAX_CHART_ROWS && !more;
-  const pie = kind === "pie";
+  // A pie adds up every row; the rest chart those of their first values along the bottom.
+  const used = drawn?.rows ?? rows.length;
+  const shownAll = used === rows.length && !more;
 
   return (
     <figure aria-label="Result chart" className="grid gap-3 rounded-lg border p-4">
-      {(onChange !== undefined || !shownAll) && (
+      {(onKindChange !== undefined || !shownAll) && (
         <div className="flex flex-wrap items-center gap-4">
-          {onChange && (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <AxisSelect
-                  label={pie ? "Slices" : "X axis"}
-                  columns={xColumns}
-                  value={x}
-                  onChange={(index) => {
-                    onChange(axesOf(index, y));
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Swap axes"
-                  title={
-                    canSwap
-                      ? "Swap axes"
-                      : `${columns[x]?.name ?? ""} isn't a column of numbers, for the ${pie ? "values" : "Y axis"}`
-                  }
-                  disabled={!canSwap}
-                  onClick={() => {
-                    onChange(axesOf(y, x));
-                  }}
-                >
-                  <ArrowLeftRightIcon aria-hidden="true" />
-                </Button>
-                <AxisSelect
-                  label={pie ? "Values" : "Y axis"}
-                  columns={yColumns}
-                  value={y}
-                  onChange={(index) => {
-                    onChange(axesOf(x, index));
-                  }}
-                />
-              </div>
-              <KindToggle
-                value={kind}
-                onChange={(next) => {
-                  onChange({ ...settings, kind: next });
-                }}
-              />
-            </>
-          )}
           {!shownAll && (
             <span className="text-xs text-muted-foreground">
               {more
-                ? `Charts the first ${points.length.toLocaleString()} rows; the table reads more as it scrolls.`
-                : `Charts the first ${points.length.toLocaleString()} of ${rows.length.toLocaleString()} rows.`}
+                ? `Charts the first ${used.toLocaleString()} rows; the table reads more as it scrolls.`
+                : `Charts the first ${used.toLocaleString()} of ${rows.length.toLocaleString()} rows.`}
             </span>
           )}
+          {onKindChange && <KindToggle value={kind} onChange={onKindChange} className="ml-auto" />}
         </div>
       )}
-      {pie ? (
-        <PieOf points={points} config={config} />
+      {kind === "pie" || drawn === undefined ? (
+        <PieOf data={data} chart={chart} />
       ) : (
-        <ChartContainer config={config} className="aspect-auto h-80 w-full">
-          {cartesian(kind, points)}
-        </ChartContainer>
+        <Cartesian kind={kind} data={drawn} />
       )}
     </figure>
   );
 }
 
-// The bars, line or area of `points`, with the column along the bottom and the numbers up the
-// side, in the primary color.
-function cartesian(kind: Exclude<ChartKind, "pie">, points: ChartPoint[]): ReactNode {
+// The bars, line or area of `data`, with the first column along the bottom and a series of
+// numbers up the side for each of its series, in greys from the primary color, named in a
+// legend when there's more than one.
+function Cartesian({ kind, data }: { kind: Exclude<ChartKind, "pie">; data: ChartData }) {
+  const { points, series, stacked } = data;
+  const config = Object.fromEntries(
+    series.map((s, i) => [s.key, { label: s.name, color: shade(i, series.length) }]),
+  ) satisfies ChartConfig;
+  const stackId = stacked ? "stack" : undefined;
   const axes = [
     <CartesianGrid key="grid" vertical={false} />,
     <XAxis
@@ -312,51 +190,77 @@ function cartesian(kind: Exclude<ChartKind, "pie">, points: ChartPoint[]): React
       tickFormatter={(value: number) => compact.format(value)}
     />,
     <ChartTooltip key="tooltip" cursor={false} content={<ChartTooltipContent />} />,
+    series.length > 1 && <ChartLegend key="legend" content={<ChartLegendContent />} />,
   ];
   const margin = { top: 8, right: 8, bottom: 0, left: 0 };
+
+  let drawn: ReactNode;
   if (kind === "line") {
-    return (
+    drawn = (
       <LineChart data={points} margin={margin}>
         {axes}
-        <Line
-          dataKey="y"
-          type="monotone"
-          stroke="var(--color-y)"
-          strokeWidth={2}
-          dot={false}
-          isAnimationActive={false}
-        />
+        {series.map(({ key }) => (
+          <Line
+            key={key}
+            dataKey={key}
+            type="monotone"
+            stroke={`var(--color-${key})`}
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+        ))}
       </LineChart>
     );
-  }
-  if (kind === "area") {
-    return (
+  } else if (kind === "area") {
+    drawn = (
       <AreaChart data={points} margin={margin}>
         {axes}
-        <Area
-          dataKey="y"
-          type="monotone"
-          stroke="var(--color-y)"
-          strokeWidth={2}
-          fill="var(--color-y)"
-          fillOpacity={0.15}
-          isAnimationActive={false}
-        />
+        {series.map(({ key }) => (
+          <Area
+            key={key}
+            dataKey={key}
+            type="monotone"
+            stackId={stackId}
+            stroke={`var(--color-${key})`}
+            strokeWidth={2}
+            fill={`var(--color-${key})`}
+            // One area is a tint under its line; stacked, each is told apart by its grey.
+            fillOpacity={series.length > 1 ? 0.6 : 0.15}
+            isAnimationActive={false}
+          />
+        ))}
       </AreaChart>
+    );
+  } else {
+    drawn = (
+      <BarChart data={points} margin={margin}>
+        {axes}
+        {series.map(({ key }) => (
+          <Bar
+            key={key}
+            dataKey={key}
+            stackId={stackId}
+            fill={`var(--color-${key})`}
+            // Rounded corners would notch a stack between its parts.
+            radius={stacked ? 0 : 2}
+            isAnimationActive={false}
+          />
+        ))}
+      </BarChart>
     );
   }
   return (
-    <BarChart data={points} margin={margin}>
-      {axes}
-      <Bar dataKey="y" fill="var(--color-y)" radius={2} isAnimationActive={false} />
-    </BarChart>
+    <ChartContainer config={config} className="aspect-auto h-80 w-full">
+      {drawn}
+    </ChartContainer>
   );
 }
 
-// A pie of the slices of `points`, with each slice listed beside it, its size and its share of
+// A pie of the slices of `data`, with each slice listed beside it, its size and its share of
 // the whole, or a note when no row has a value more than 0 to slice.
-function PieOf({ points, config }: { points: ChartPoint[]; config: ChartConfig }) {
-  const slices = useMemo(() => pieSlices(points), [points]);
+function PieOf({ data, chart }: { data: TableRows; chart: ChartColumns }) {
+  const slices = useMemo(() => pieSlices(data, chart), [data, chart]);
   if (slices.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
@@ -364,10 +268,12 @@ function PieOf({ points, config }: { points: ChartPoint[]; config: ChartConfig }
       </p>
     );
   }
+  const name = data.columns[chart.values[0]]?.name ?? "";
+  const config = { y: { label: name, color: "var(--primary)" } } satisfies ChartConfig;
   const total = slices.reduce((sum, slice) => sum + slice.y, 0);
   const filled: (PieSlice & { fill: string })[] = slices.map((slice, index) => ({
     ...slice,
-    fill: sliceColor(index, slices.length),
+    fill: shade(index, slices.length),
   }));
   return (
     <div className="flex flex-wrap items-center justify-center gap-6">

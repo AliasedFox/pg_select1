@@ -24,8 +24,6 @@ const savedQueryFields = [
   "scope",
   "display",
   "chartKind",
-  "chartX",
-  "chartY",
   "ownerId",
   "createdAt",
   "updatedAt",
@@ -35,8 +33,6 @@ const savedQueryFields = [
 interface DisplayColumns {
   display: QueryDisplayType;
   chartKind: ChartKind | null;
-  chartX: string | null;
-  chartY: string | null;
 }
 
 interface SavedQueryRow extends DisplayColumns {
@@ -93,19 +89,16 @@ async function connectionsOf(
   return byQuery;
 }
 
-// The columns that keep `display`: a chart's settings only for a chart, none for the rest.
+// The columns that keep `display`: a chart's kind only for a chart.
 function displayColumns(display: QueryDisplay): DisplayColumns {
-  if (display.type !== "chart") {
-    return { display: display.type, chartKind: null, chartX: null, chartY: null };
-  }
-  return { display: "chart", chartKind: display.kind, chartX: display.x, chartY: display.y };
+  return { display: display.type, chartKind: display.type === "chart" ? display.kind : null };
 }
 
 // The display a row keeps. A chart missing its kind, which only a hand-written row would be, is
 // drawn as bars, the chart's first kind.
 function displayOf(row: DisplayColumns): QueryDisplay {
   if (row.display !== "chart") return { type: row.display };
-  return { type: "chart", kind: row.chartKind ?? "bar", x: row.chartX, y: row.chartY };
+  return { type: "chart", kind: row.chartKind ?? "bar" };
 }
 
 function toSavedQuery(

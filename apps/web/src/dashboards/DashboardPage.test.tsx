@@ -5,7 +5,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 
-import { dashboards, queryRows, savedQueries, viewer } from "../../test/fixtures";
+import { dashboards, queryRows, savedQueries, signupRows, viewer } from "../../test/fixtures";
 import { renderApp } from "../../test/render";
 import { server } from "../../test/server";
 
@@ -62,6 +62,10 @@ test("shows its title and description, and each query's rows, in order", async (
 
 test("shows each query as it was saved: a chart, a number or a table", async () => {
   server.use(
+    http.post("/api/explore/connections/:id/query", async ({ request }) => {
+      const { sql } = runQueryRequest.parse(await request.json());
+      return HttpResponse.json(sql === daily?.sql ? signupRows : queryRows);
+    }),
     http.get("/api/dashboards/:id", () =>
       HttpResponse.json({
         ...overview,
@@ -71,10 +75,7 @@ test("shows each query as it was saved: a chart, a number or a table", async () 
                 ...item,
                 savedQuery: {
                   ...item.savedQuery,
-                  display:
-                    index === 0
-                      ? { type: "chart", kind: "bar", x: "email", y: "id" }
-                      : { type: "number" },
+                  display: index === 0 ? { type: "chart", kind: "bar" } : { type: "number" },
                 },
               }
             : item,
@@ -86,8 +87,8 @@ test("shows each query as it was saved: a chart, a number or a table", async () 
 
   const signups = within(await screen.findByRole("region", { name: "Daily signups" }));
   expect(await signups.findByRole("figure", { name: "Result chart" })).toBeDefined();
-  // Only the chart: its columns and kind are changed in the explorer.
-  expect(signups.queryByRole("combobox", { name: "X axis" })).toBeNull();
+  // Only the chart: its kind is changed in the explorer.
+  expect(signups.queryByRole("group", { name: "Chart" })).toBeNull();
   expect(signups.queryByRole("table")).toBeNull();
   const orders = within(screen.getByRole("region", { name: "Open orders" }));
   const number = await orders.findByRole("figure", { name: "Result number" });

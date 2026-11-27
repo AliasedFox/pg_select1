@@ -110,7 +110,7 @@ describe("making", () => {
 
   test("a query on a dashboard is shown as the query says", async () => {
     const editor = await signedInAs("editor");
-    const display = { type: "chart", kind: "pie", x: "status", y: "orders" } as const;
+    const display = { type: "chart", kind: "pie" } as const;
     const charted = await saveQuery(editor.cookie, { display });
     const plain = await saveQuery(editor.cookie);
 

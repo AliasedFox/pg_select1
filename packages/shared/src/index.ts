@@ -366,20 +366,14 @@ export const chartKind = z.enum(["bar", "line", "area", "pie"]);
 /** One of the {@link chartKind}s. */
 export type ChartKind = z.infer<typeof chartKind>;
 
-// A column a chart has on one of its axes, by name; `null` leaves it to the chart, which picks
-// one by the result's columns.
-const chartColumn = z.string().min(1).max(200).nullable();
-
 /**
  * How a saved query's result is shown, in the explorer as it opens and on dashboards: as a
- * table of its rows, as a chart, or as the one number in its first row's first column. A chart
- * also has its kind and the columns along the bottom (`x`) and up the side (`y`), by name, so
- * they stay as the query's columns are moved about; one the result doesn't have, or `null`, is
- * picked as the chart picks it with none.
+ * table of its rows, as a chart of the kind it says, or as the one number in its first row's
+ * first column. A chart's columns aren't kept: they're read from the order of the result's.
  */
 export const queryDisplay = z.discriminatedUnion("type", [
   z.object({ type: z.literal("table") }),
-  z.object({ type: z.literal("chart"), kind: chartKind, x: chartColumn, y: chartColumn }),
+  z.object({ type: z.literal("chart"), kind: chartKind }),
   z.object({ type: z.literal("number") }),
 ]);
 
