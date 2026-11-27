@@ -94,6 +94,9 @@ test("shows each query as it was saved: a chart, a number or a table", async () 
   const number = await orders.findByRole("figure", { name: "Result number" });
   // The customers' first row's first column, their id.
   expect(within(number).getByText("id")).toBeDefined();
+  // One value, so its database rather than how many rows it had and how long they took.
+  expect(orders.queryByText("1 row in 12 ms")).toBeNull();
+  expect(orders.getByText(open!.connections[0]!.name)).toBeDefined();
   expect(orders.queryByRole("table")).toBeNull();
 });
 

@@ -65,6 +65,43 @@ export const ShownAsSaved = meta.story({
   },
 });
 
+// Numbers take a third of the width each: the first three share a row, the fourth starts the
+// next, and the chart after it has a row of its own, as does the number after that.
+export const Numbers = meta.story({
+  beforeEach({ msw }) {
+    const [signups, customers] = savedQueries;
+    const number = (name: string, index: number) =>
+      customers && {
+        id: `0199a1b2-0000-7000-8000-00000000040${index}`,
+        savedQueryId: customers.id,
+        savedQuery: { ...customers, name, display: { type: "number" as const } },
+      };
+    msw.use(
+      http.post("/api/explore/connections/:id/query", async ({ request }) => {
+        const { sql } = runQueryRequest.parse(await request.json());
+        return HttpResponse.json(sql === signups?.sql ? signupRows : queryRows);
+      }),
+      http.get("/api/dashboards/:id", () =>
+        HttpResponse.json({
+          ...overview,
+          items: [
+            number("Customers", 0),
+            number("Orders today", 1),
+            number("Waiting to ship", 2),
+            number("Refunds", 3),
+            signups && {
+              id: "0199a1b2-0000-7000-8000-000000000404",
+              savedQueryId: signups.id,
+              savedQuery: { ...signups, display: { type: "chart", kind: "line" } },
+            },
+            number("Open tickets", 5),
+          ],
+        }),
+      ),
+    );
+  },
+});
+
 export const Running = meta.story({
   beforeEach({ msw }) {
     msw.use(
