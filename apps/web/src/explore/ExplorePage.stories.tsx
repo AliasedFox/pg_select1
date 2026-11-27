@@ -6,6 +6,7 @@ import { RowsGrid } from "@/components/RowsGrid";
 import preview from "../../.storybook/preview";
 import { admin, customerRows, savedQueries, viewer } from "../../test/fixtures";
 import { ExplorePage } from "./ExplorePage";
+import { HistoryDialog } from "./HistoryDialog";
 
 const meta = preview.meta({
   title: "Explore/ExplorePage",
@@ -99,6 +100,33 @@ export const NoDatabasesForAViewer = meta.story({
   beforeEach({ msw }) {
     msw.use(http.get("/api/explore/connections", () => HttpResponse.json({ connections: [] })));
   },
+});
+
+// Versions of the SQL kept as it was written, the newest the one in the editor.
+const versions = [
+  {
+    id: 3,
+    sql: "select c.email, count(*) as orders\nfrom customers c\njoin orders o on o.customer_id = c.id\ngroup by c.email\norder by orders desc\nlimit 20",
+    at: new Date("2026-11-26T10:42:18"),
+  },
+  {
+    id: 2,
+    sql: "select c.email, count(*)\nfrom customers c\njoin orders o on o.customer_id = c.id\ngroup by c.email",
+    at: new Date("2026-11-26T10:40:03"),
+  },
+  { id: 1, sql: 'select * from "public"."customers"', at: new Date("2026-11-26T10:37:51") },
+];
+
+export const History = meta.story({
+  render: () => (
+    <HistoryDialog
+      entries={versions}
+      current={versions[0]?.sql ?? ""}
+      onRestore={() => undefined}
+      focusAfterRestore={() => undefined}
+      onOpenChange={() => undefined}
+    />
+  ),
 });
 
 // A customer's row of the wide table below, by its number from 1.

@@ -13,6 +13,7 @@ import { delay, http, HttpResponse } from "msw";
 import { connections, queryRows, savedQueries, viewer } from "../../test/fixtures";
 import { renderApp } from "../../test/render";
 import { server } from "../../test/server";
+import { SETTLE_MS } from "./history";
 
 const shop = connections.find((c) => c.name === "shop");
 
@@ -97,6 +98,57 @@ test("clears the SQL and the result", async () => {
   expect(screen.queryByRole("table", { name: "Result" })).toBeNull();
   expect(screen.queryByText("3 rows in 12 ms")).toBeNull();
   expect(screen.getByRole("button", { name: "Clear" })).toHaveProperty("disabled", true);
+});
+
+test("keeps a version of the SQL once typing stops, not one for each key", async () => {
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await screen.findByRole("navigation", { name: "Tables" });
+  const history = screen.getByRole("button", { name: "History" });
+  expect(history).toHaveProperty("disabled", true);
+  await user.type(screen.getByRole("textbox", { name: "SQL" }), "select 1");
+  await waitFor(
+    () => {
+      expect(history).toHaveProperty("disabled", false);
+    },
+    { timeout: SETTLE_MS * 2 },
+  );
+
+  await user.click(history);
+  const versions = within(await screen.findByRole("list", { name: "Versions" }));
+  expect(
+    versions.getAllByRole("listitem").map((li) => li.querySelector("pre")?.textContent),
+  ).toEqual(["select 1"]);
+  expect(versions.getByText("current")).toBeDefined();
+});
+
+test("restores an earlier version of the SQL from the history, keeping the one replaced", async () => {
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  const tables = await screen.findByRole("navigation", { name: "Tables" });
+  const sql = screen.getByRole("textbox", { name: "SQL" });
+  await user.type(sql, "select 1");
+  // Replacing the SQL keeps what was typed at once, without waiting for it to settle.
+  await user.click(within(tables).getByRole("button", { name: "customers" }));
+  expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
+
+  await user.click(screen.getByRole("button", { name: "History" }));
+  const versions = within(await screen.findByRole("list", { name: "Versions" }));
+  expect(
+    versions.getAllByRole("listitem").map((li) => li.querySelector("pre")?.textContent),
+  ).toEqual(['select * from "public"."customers"', "select 1"]);
+  const restores = versions.getAllByRole("button", { name: /^Restore/ });
+  expect(restores[0]).toHaveProperty("disabled", true);
+  await user.click(restores[1]!);
+
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(sqlOf(sql)).toBe("select 1");
+  // Compared as a boolean: a failing toBe on two elements prints the whole DOM.
+  await waitFor(() => {
+    expect(document.activeElement === sql).toBe(true);
+  });
 });
 
 test("copies a table's name with its schema, quoted, without running it", async () => {

@@ -1,5 +1,5 @@
 import { MAX_QUERY_ROWS, type Me, type QueryResult, type SavedQuery } from "@pg_select1/shared";
-import { PlayIcon, SaveIcon, SquareIcon, EraserIcon } from "lucide-react";
+import { EraserIcon, HistoryIcon, PlayIcon, SaveIcon, SquareIcon } from "lucide-react";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import { Loading } from "@/components/Loading";
@@ -18,6 +18,8 @@ import { navigate, useSearchParams } from "@/router";
 
 import { cancelQuery, fetchExplorableConnections, fetchTables, runQuery } from "./api";
 import { DatabaseSelect, NoDatabases } from "./DatabaseSelect";
+import { useSqlHistory } from "./history";
+import { HistoryDialog } from "./HistoryDialog";
 import { TableList } from "./TableList";
 
 type Answer = { kind: "done"; result: QueryResult } | { kind: "failed"; message: string };
@@ -103,6 +105,9 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * address (`?query=<id>`), with its SQL in the editor and its database picked, and run at once
  * on it. Changes to a saved query `user` can change are saved over it; any other is saved as a
  * new one.
+ *
+ * The versions of the SQL as it's written are kept in memory, until the page is left or
+ * reloaded, and one can be put back from the History dialog.
  */
 export function ExplorePage({ user }: { user: Me }) {
   const isAdmin = user.role === "admin";
@@ -116,6 +121,8 @@ export function ExplorePage({ user }: { user: Me }) {
   // The database in the address, else the open saved query's.
   const chosenName = params.get("connection") ?? savedQuery?.connections[0]?.name ?? null;
   const [sql, setSql] = useState("");
+  const history = useSqlHistory(sql);
+  const [historyDialog, setHistoryDialog] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | undefined>(undefined);
   const [status, setStatus] = useState<Status>("idle");
   const [paging, setPaging] = useState<Paging>({ kind: "idle" });
@@ -189,6 +196,7 @@ export function ExplorePage({ user }: { user: Me }) {
   // Runs `text`, the SQL as written unless given.
   const start = (text = sql) => {
     if (!connectionId || !text.trim() || current.current) return;
+    history.keep(text);
     // The next page of the last result won't be wanted once this one's in.
     cancelCurrent(page);
     setPaging({ kind: "idle" });
@@ -335,6 +343,7 @@ export function ExplorePage({ user }: { user: Me }) {
                 tables={tables.value}
                 onOpen={(t) => {
                   const text = `select * from ${sqlTableName(t)}`;
+                  history.keep(sql);
                   setSql(text);
                   // What's still running was for other SQL, which isn't there any more.
                   stop();
@@ -409,6 +418,7 @@ export function ExplorePage({ user }: { user: Me }) {
                   disabled={!sql && !shown && status === "idle" && !queryId}
                   onClick={() => {
                     stop();
+                    history.keep(sql);
                     setSql("");
                     setOutcome(undefined);
                     setStatus("idle");
@@ -420,6 +430,17 @@ export function ExplorePage({ user }: { user: Me }) {
                 >
                   <EraserIcon aria-hidden="true" />
                   Clear
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={history.entries.length === 0}
+                  onClick={() => {
+                    setHistoryDialog(true);
+                  }}
+                >
+                  <HistoryIcon aria-hidden="true" />
+                  History
                 </Button>
                 {/* Over the saved query open, when `user` can change it; else as a new one. */}
                 {savedQuery?.canEdit ? (
@@ -476,6 +497,20 @@ export function ExplorePage({ user }: { user: Me }) {
                 )}
               </div>
             </form>
+            {historyDialog && (
+              <HistoryDialog
+                entries={history.entries}
+                current={sql}
+                onOpenChange={setHistoryDialog}
+                onRestore={(entry) => {
+                  // What's there now is kept too, so the restore can be undone.
+                  history.keep(sql);
+                  setSql(entry.sql);
+                  setHistoryDialog(false);
+                }}
+                focusAfterRestore={() => editor.current?.focus()}
+              />
+            )}
             {saveDialog && connection && (
               <SaveQueryDialog
                 user={user}
