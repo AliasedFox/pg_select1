@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
 
-import { chartPoints, defaultAxes, MAX_CHART_ROWS, parseNumber } from "./chart";
+import {
+  chartPoints,
+  defaultAxes,
+  MAX_CHART_ROWS,
+  MAX_PIE_SLICES,
+  parseNumber,
+  pieSlices,
+} from "./chart";
 
 const column = (name: string, type: string) => ({ name, type });
 
@@ -48,4 +55,27 @@ test("makes a bar of each of the first rows, with NULL named along the bottom", 
   ]);
   const many = Array.from({ length: MAX_CHART_ROWS + 10 }, (_, i) => [String(i), String(i)]);
   expect(chartPoints(many, 0, 1, "integer")).toHaveLength(MAX_CHART_ROWS);
+});
+
+test("slices a pie largest first, leaving out what isn't more than 0", () => {
+  const points = [
+    { x: "paid", y: 3 },
+    { x: "NULL", y: null },
+    { x: "refunded", y: 0 },
+    { x: "credit", y: -2 },
+    { x: "pending", y: 5 },
+  ];
+  expect(pieSlices(points)).toEqual([
+    { x: "pending", y: 5 },
+    { x: "paid", y: 3 },
+  ]);
+});
+
+test("adds up the smallest slices past the most a pie has into Other", () => {
+  const points = Array.from({ length: MAX_PIE_SLICES + 2 }, (_, i) => ({ x: `s${i}`, y: i + 1 }));
+  const slices = pieSlices(points);
+  expect(slices).toHaveLength(MAX_PIE_SLICES);
+  expect(slices[0]).toEqual({ x: `s${MAX_PIE_SLICES + 1}`, y: MAX_PIE_SLICES + 2 });
+  // The three smallest, 1 + 2 + 3.
+  expect(slices.at(-1)).toEqual({ x: "Other", y: 6 });
 });

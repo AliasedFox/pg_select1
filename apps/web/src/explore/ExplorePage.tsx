@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { SqlEditor, type SqlEditorHandle } from "@/editor/SqlEditor";
 import { describeError } from "@/lib/api";
+import type { ChartKind } from "@/lib/chart";
 import { useLoaded } from "@/lib/loaded";
 import { modifierKey } from "@/lib/platform";
 import { sqlTableName } from "@/lib/sql";
@@ -137,8 +138,9 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * The database's tables are listed beside it. Clicking one replaces the SQL with `select * from`
  * it and runs that, and each has a button to copy its name. While a query runs, the last result
  * stays on screen until the new one fades in over it. A result can be switched from its grid to
- * a {@link ResultChart}, which stays switched for the runs after. A run can be cancelled, and is when the
- * person picks another database or leaves the page. The database is kept in the address, so a
+ * a {@link ResultChart}, of bars, a line, an area or a pie, which stays switched, and on the same
+ * kind, for the runs after. A run can be cancelled, and is when the person picks another
+ * database or leaves the page. The database is kept in the address, so a
  * reload or a link opens the same one.
  *
  * The SQL can be saved as a query, on the database picked, and a saved query opened from the
@@ -169,6 +171,7 @@ export function ExplorePage({ user }: { user: Me }) {
   // Kept from one run to the next. `switchedOn` is the run whose result was last switched, so the
   // view switched to fades in, but not again inside a new result as that fades in.
   const [view, setView] = useState<View>("table");
+  const [chartKind, setChartKind] = useState<ChartKind>("bar");
   const [switchedOn, setSwitchedOn] = useState<number | undefined>(undefined);
   const runs = useRef(0);
   // The run whose answer is still wanted, so a cancelled or replaced one's is dropped.
@@ -605,6 +608,8 @@ export function ExplorePage({ user }: { user: Me }) {
                       {view === "chart" ? (
                         <ResultChart
                           data={answer.result}
+                          kind={chartKind}
+                          onKindChange={setChartKind}
                           more={
                             answer.result.truncated && answer.result.rows.length < MAX_QUERY_ROWS
                           }

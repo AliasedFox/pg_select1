@@ -785,6 +785,52 @@ test("charts a result as bars, the first column along the bottom and the second 
   expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
 });
 
+test("charts a result as a line, an area or a pie, and keeps the kind for the next run", async () => {
+  server.use(
+    http.post("/api/explore/connections/:id/query", () => HttpResponse.json(ordersByStatus)),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  await screen.findByRole("table", { name: "Result" });
+  await user.click(screen.getByRole("button", { name: "Chart" }));
+  const chart = await screen.findByRole("figure", { name: "Result chart" });
+  const kinds = within(chart).getByRole("group", { name: "Chart" });
+  // The toggle's found again each time, since a run draws a new chart.
+  const pressed = () =>
+    within(screen.getByRole("group", { name: "Chart" }))
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-pressed") === "true")
+      .map((button) => button.getAttribute("aria-label"));
+  expect(
+    within(kinds)
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label")),
+  ).toEqual(["Bar", "Line", "Area", "Pie"]);
+  expect(pressed()).toEqual(["Bar"]);
+  await user.click(within(kinds).getByRole("button", { name: "Line" }));
+  expect(pressed()).toEqual(["Line"]);
+  await user.click(within(kinds).getByRole("button", { name: "Pie" }));
+
+  // A pie names its slices and sizes them, and lists them, the largest first, with their share.
+  expect(within(chart).getByRole("combobox", { name: "Slices" }).textContent).toBe("status");
+  expect(within(chart).getByRole("combobox", { name: "Values" }).textContent).toBe("orders");
+  const slices = within(chart).getByRole("list", { name: "Slices" });
+  expect(
+    within(slices)
+      .getAllByRole("listitem")
+      .map((item) => item.textContent),
+  ).toEqual(["paid1260%", "pending525%", "refunded315%"]);
+
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  await waitFor(() => {
+    expect(screen.getByText("3 rows in 4 ms")).toBeDefined();
+  });
+  expect(pressed()).toEqual(["Pie"]);
+});
+
 test("charts the first column of numbers when the second isn't one, and says when there's none", async () => {
   const user = userEvent.setup();
   renderApp("/explore?connection=shop");
