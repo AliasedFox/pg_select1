@@ -345,7 +345,7 @@ export const queryResult = tableRows.extend({ durationMs: z.number() });
 export type QueryResult = z.infer<typeof queryResult>;
 
 /**
- * Who sees a saved query: only the user who saved it (`personal`), or everyone signed in
+ * Who sees a saved query or a dashboard: only the user who saved it (`personal`), or everyone signed in
  * (`global`). Only editors and admins share queries with everyone.
  */
 export const queryScope = z.enum(["personal", "global"]);
@@ -422,3 +422,101 @@ export const updateSavedQueryRequest = z.object({
 
 /** A change to a saved query, as {@link updateSavedQueryRequest} takes it. */
 export type UpdateSavedQueryRequest = z.input<typeof updateSavedQueryRequest>;
+
+/** How a dashboard shows a saved query's result: as a table of its rows, for now the only way. */
+export const dashboardVisualization = z.enum(["table"]);
+
+/** One of the {@link dashboardVisualization}s. */
+export type DashboardVisualization = z.infer<typeof dashboardVisualization>;
+
+/** Every way a dashboard shows a query, for pickers. */
+export const dashboardVisualizations: readonly DashboardVisualization[] =
+  dashboardVisualization.options;
+
+/**
+ * A saved query on a dashboard, and how it's shown. `savedQuery` is `null` when the caller
+ * doesn't see it, as with someone else's personal query on a global dashboard; `savedQueryId`
+ * is there all the same, so the dashboard can be changed without losing it.
+ */
+export const dashboardItem = z.object({
+  id: z.string(),
+  savedQueryId: z.string(),
+  visualization: dashboardVisualization,
+  savedQuery: savedQuery.nullable(),
+});
+
+/** A saved query on a dashboard, as {@link dashboardItem} parses it. */
+export type DashboardItem = z.infer<typeof dashboardItem>;
+
+/**
+ * A dashboard as `GET /api/dashboards` answers it: its title, description and who sees it, as
+ * for a saved query, and how many queries are on it. `owner` is who made it, `null` once they've
+ * been deleted, and `canEdit` whether the caller can change or delete it.
+ */
+export const dashboardSummary = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  scope: queryScope,
+  itemCount: z.number().int(),
+  owner: z.object({ id: z.string(), name: z.string() }).nullable(),
+  canEdit: z.boolean(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+/** A dashboard in a list, as {@link dashboardSummary} parses it. */
+export type DashboardSummary = z.infer<typeof dashboardSummary>;
+
+/** What `GET /api/dashboards` answers: the dashboards the caller sees, by name. */
+export const dashboardList = z.object({ dashboards: z.array(dashboardSummary) });
+
+/** A dashboard as `GET /api/dashboards/:id` answers it: its summary and its queries, in order. */
+export const dashboard = dashboardSummary.extend({ items: z.array(dashboardItem) });
+
+/** A dashboard, as {@link dashboard} parses it. */
+export type Dashboard = z.infer<typeof dashboard>;
+
+/** The most queries a dashboard can have. */
+export const MAX_DASHBOARD_ITEMS = 50;
+
+const dashboardName = z.string().trim().min(1, "Give the dashboard a title").max(200);
+
+// The queries on a dashboard, first one first, each replacing what was there.
+const dashboardItems = z
+  .array(
+    z.object({
+      savedQueryId: z.uuid({ message: "There's no such saved query" }),
+      visualization: dashboardVisualization.default("table"),
+    }),
+  )
+  .max(MAX_DASHBOARD_ITEMS, `A dashboard has at most ${MAX_DASHBOARD_ITEMS} queries`);
+
+/**
+ * The body of `POST /api/dashboards`: a dashboard to make, personal unless `scope` says global,
+ * with the saved queries on it, if any yet, first one first.
+ */
+export const createDashboardRequest = z.object({
+  name: dashboardName,
+  description: savedQueryDescription,
+  scope: queryScope.default("personal"),
+  items: dashboardItems.default([]),
+});
+
+/** A dashboard to make, as {@link createDashboardRequest} takes it. */
+export type CreateDashboardRequest = z.input<typeof createDashboardRequest>;
+
+/**
+ * The body of `PATCH /api/dashboards/:id`: the fields to change. `items`, when given, replaces
+ * every query on it, in the order given, so it's how queries are added, removed and moved. A
+ * blank or `null` `description` removes it.
+ */
+export const updateDashboardRequest = z.object({
+  name: dashboardName.optional(),
+  description: savedQueryDescription,
+  scope: queryScope.optional(),
+  items: dashboardItems.optional(),
+});
+
+/** A change to a dashboard, as {@link updateDashboardRequest} takes it. */
+export type UpdateDashboardRequest = z.input<typeof updateDashboardRequest>;

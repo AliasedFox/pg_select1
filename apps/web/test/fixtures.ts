@@ -1,6 +1,10 @@
 import {
   type Connection,
   createConnectionRequest,
+  createDashboardRequest,
+  type Dashboard,
+  type DashboardSummary,
+  updateDashboardRequest,
   createSavedQueryRequest,
   type SavedQuery,
   updateSavedQueryRequest,
@@ -157,6 +161,62 @@ export const savedQueries: SavedQuery[] = [
   },
 ];
 
+// A dashboard's queries as the API answers them, from the saved queries above by id, and as
+// someone else's personal query for any other.
+function itemsOf(
+  items: { savedQueryId: string; visualization: "table" }[],
+  prefix: string,
+): Dashboard["items"] {
+  return items.map((item, index) => ({
+    id: `${prefix}${index}`,
+    ...item,
+    savedQuery: savedQueries.find((q) => q.id === item.savedQueryId) ?? null,
+  }));
+}
+
+/**
+ * The dashboards `GET /api/dashboards/:id` answers by default, by title: a global one with two
+ * saved queries and someone else's personal one, and the admin's own empty one.
+ */
+export const dashboards: Dashboard[] = [
+  {
+    id: "0199a1b2-0000-7000-8000-0000000000d1",
+    name: "Shop overview",
+    description: "How the shop's doing: who signs up, and what's waiting to ship",
+    scope: "global",
+    itemCount: 3,
+    owner: { id: admin.id, name: admin.name },
+    canEdit: true,
+    createdAt: "2026-01-08T09:00:00.000Z",
+    updatedAt: "2026-01-08T09:00:00.000Z",
+    items: itemsOf(
+      [
+        { savedQueryId: "0199a1b2-0000-7000-8000-0000000000a1", visualization: "table" },
+        { savedQueryId: "0199a1b2-0000-7000-8000-0000000000a2", visualization: "table" },
+        { savedQueryId: "0199a1b2-0000-7000-8000-0000000000af", visualization: "table" },
+      ],
+      "0199a1b2-0000-7000-8000-00000000010",
+    ),
+  },
+  {
+    id: "0199a1b2-0000-7000-8000-0000000000d2",
+    name: "Weekly review",
+    description: null,
+    scope: "personal",
+    itemCount: 0,
+    owner: { id: admin.id, name: admin.name },
+    canEdit: true,
+    createdAt: "2026-01-09T09:00:00.000Z",
+    updatedAt: "2026-01-09T09:00:00.000Z",
+    items: [],
+  },
+];
+
+/** The dashboards `GET /api/dashboards` answers by default, as summaries. */
+export const dashboardSummaries: DashboardSummary[] = dashboards.map(
+  ({ items: _items, ...summary }) => summary,
+);
+
 /** Answers `GET /api/me` as nobody signed in, for `server.use()` or `msw.use()`. */
 export const signedOut = http.get("/api/me", () =>
   HttpResponse.json({ error: "Sign in first" }, { status: 401 }),
@@ -240,6 +300,44 @@ export const handlers = [
     });
   }),
   http.delete("/api/saved-queries/:id", () => new HttpResponse(null, { status: 204 })),
+  http.get("/api/dashboards", () => HttpResponse.json({ dashboards: dashboardSummaries })),
+  http.get("/api/dashboards/:id", ({ params }) => {
+    const found = dashboards.find((d) => d.id === params.id);
+    if (!found) return HttpResponse.json({ error: "There's no such dashboard" }, { status: 404 });
+    return HttpResponse.json(found);
+  }),
+  http.post("/api/dashboards", async ({ request }) => {
+    const { description, items, ...body } = createDashboardRequest.parse(await request.json());
+    const created: Dashboard = {
+      id: "0199a1b2-0000-7000-8000-0000000000d9",
+      ...body,
+      description: description ?? null,
+      itemCount: items.length,
+      owner: { id: admin.id, name: admin.name },
+      canEdit: true,
+      createdAt: "2026-01-10T09:00:00.000Z",
+      updatedAt: "2026-01-10T09:00:00.000Z",
+      items: itemsOf(items, "0199a1b2-0000-7000-8000-00000000020"),
+    };
+    return HttpResponse.json(created, { status: 201 });
+  }),
+  http.patch("/api/dashboards/:id", async ({ params, request }) => {
+    const existing = dashboards.find((d) => d.id === params.id);
+    if (!existing) {
+      return HttpResponse.json({ error: "There's no such dashboard" }, { status: 404 });
+    }
+    const { items, ...changes } = updateDashboardRequest.parse(await request.json());
+    return HttpResponse.json({
+      ...existing,
+      ...Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined)),
+      ...(items && {
+        items: itemsOf(items, "0199a1b2-0000-7000-8000-00000000030"),
+        itemCount: items.length,
+      }),
+      updatedAt: "2026-01-10T09:00:00.000Z",
+    });
+  }),
+  http.delete("/api/dashboards/:id", () => new HttpResponse(null, { status: 204 })),
   http.get("/api/connections", () => HttpResponse.json({ connections })),
   http.post("/api/connections", async ({ request }) => {
     const { password, ...body } = createConnectionRequest.parse(await request.json());

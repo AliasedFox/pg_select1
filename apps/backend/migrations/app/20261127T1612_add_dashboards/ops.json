@@ -1,0 +1,400 @@
+[
+  {
+    "id": "table.dashboard_items",
+    "label": "Create table \"dashboard_items\"",
+    "summary": "Creates table \"dashboard_items\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "dashboard_items"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"dashboard_items\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"dashboard_items\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "table \"dashboard_items\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"dashboard_items\"",
+        "sql": "CREATE TABLE \"public\".\"dashboard_items\" (\n  \"dashboard_id\" uuid NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"position\" int4 NOT NULL,\n  \"saved_query_id\" uuid NOT NULL,\n  \"visualization\" text DEFAULT 'table' NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"dashboard_items_visualization_check_58801661\" CHECK (\"visualization\" IN ('table'))\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"dashboard_items\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3))) AS \"result\"",
+        "params": [
+          "\"public\".\"dashboard_items\"",
+          "r",
+          "p"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "table \"dashboard_items\""
+        }
+      }
+    ]
+  },
+  {
+    "id": "table.dashboards",
+    "label": "Create table \"dashboards\"",
+    "summary": "Creates table \"dashboards\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "dashboards"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"dashboards\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"dashboards\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "table \"dashboards\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"dashboards\"",
+        "sql": "CREATE TABLE \"public\".\"dashboards\" (\n  \"created_at\" timestamptz(3) NOT NULL,\n  \"description\" text,\n  \"id\" uuid NOT NULL,\n  \"name\" text NOT NULL,\n  \"owner_id\" uuid,\n  \"scope\" text DEFAULT 'personal' NOT NULL,\n  \"updated_at\" timestamptz(3) NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"dashboards_scope_check_2736efd0\" CHECK (\"scope\" IN ('personal', 'global'))\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"dashboards\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3))) AS \"result\"",
+        "params": [
+          "\"public\".\"dashboards\"",
+          "r",
+          "p"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "table \"dashboards\""
+        }
+      }
+    ]
+  },
+  {
+    "id": "index.dashboard_items.dashboard_items_dashboard_id_idx_115aeb8e",
+    "label": "Create index \"dashboard_items_dashboard_id_idx_115aeb8e\" on \"dashboard_items\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "dashboard_items_dashboard_id_idx_115aeb8e",
+        "table": "dashboard_items"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"dashboard_items_dashboard_id_idx_115aeb8e\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"dashboard_items_dashboard_id_idx_115aeb8e\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "index \"dashboard_items_dashboard_id_idx_115aeb8e\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"dashboard_items_dashboard_id_idx_115aeb8e\"",
+        "sql": "CREATE INDEX \"dashboard_items_dashboard_id_idx_115aeb8e\" ON \"public\".\"dashboard_items\" (\"dashboard_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"dashboard_items_dashboard_id_idx_115aeb8e\" exists on \"dashboard_items\" with the planned definition",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" INNER JOIN \"pg_index\" AS \"i\" ON \"i\".\"indexrelid\" = \"c\".\"oid\" INNER JOIN \"pg_am\" AS \"m\" ON \"m\".\"oid\" = \"c\".\"relam\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3) AND \"i\".\"indrelid\" = to_regclass($4) AND NOT (\"i\".\"indisunique\") AND \"m\".\"amname\" = $5 AND (\"i\".\"indexprs\" IS NULL AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"i\".\"indkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"i\".\"indrelid\" AND key_attribute.attnum = key_column.attnum) = ($6)::jsonb) AND \"i\".\"indpred\" IS NULL)) AS \"result\"",
+        "params": [
+          "\"public\".\"dashboard_items_dashboard_id_idx_115aeb8e\"",
+          "i",
+          "I",
+          "\"public\".\"dashboard_items\"",
+          "btree",
+          "[\"dashboard_id\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.dashboard_items.dashboard_items_saved_query_id_idx_05dd5900",
+    "label": "Create index \"dashboard_items_saved_query_id_idx_05dd5900\" on \"dashboard_items\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "dashboard_items_saved_query_id_idx_05dd5900",
+        "table": "dashboard_items"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"dashboard_items_saved_query_id_idx_05dd5900\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"dashboard_items_saved_query_id_idx_05dd5900\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "index \"dashboard_items_saved_query_id_idx_05dd5900\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"dashboard_items_saved_query_id_idx_05dd5900\"",
+        "sql": "CREATE INDEX \"dashboard_items_saved_query_id_idx_05dd5900\" ON \"public\".\"dashboard_items\" (\"saved_query_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"dashboard_items_saved_query_id_idx_05dd5900\" exists on \"dashboard_items\" with the planned definition",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" INNER JOIN \"pg_index\" AS \"i\" ON \"i\".\"indexrelid\" = \"c\".\"oid\" INNER JOIN \"pg_am\" AS \"m\" ON \"m\".\"oid\" = \"c\".\"relam\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3) AND \"i\".\"indrelid\" = to_regclass($4) AND NOT (\"i\".\"indisunique\") AND \"m\".\"amname\" = $5 AND (\"i\".\"indexprs\" IS NULL AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"i\".\"indkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"i\".\"indrelid\" AND key_attribute.attnum = key_column.attnum) = ($6)::jsonb) AND \"i\".\"indpred\" IS NULL)) AS \"result\"",
+        "params": [
+          "\"public\".\"dashboard_items_saved_query_id_idx_05dd5900\"",
+          "i",
+          "I",
+          "\"public\".\"dashboard_items\"",
+          "btree",
+          "[\"saved_query_id\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.dashboards.dashboards_owner_id_idx_ade9f347",
+    "label": "Create index \"dashboards_owner_id_idx_ade9f347\" on \"dashboards\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "dashboards_owner_id_idx_ade9f347",
+        "table": "dashboards"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"dashboards_owner_id_idx_ade9f347\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"dashboards_owner_id_idx_ade9f347\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "index \"dashboards_owner_id_idx_ade9f347\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"dashboards_owner_id_idx_ade9f347\"",
+        "sql": "CREATE INDEX \"dashboards_owner_id_idx_ade9f347\" ON \"public\".\"dashboards\" (\"owner_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"dashboards_owner_id_idx_ade9f347\" exists on \"dashboards\" with the planned definition",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_class\" AS \"c\" INNER JOIN \"pg_index\" AS \"i\" ON \"i\".\"indexrelid\" = \"c\".\"oid\" INNER JOIN \"pg_am\" AS \"m\" ON \"m\".\"oid\" = \"c\".\"relam\" WHERE (\"c\".\"oid\" = to_regclass($1) AND (\"c\".\"relkind\" = $2 OR \"c\".\"relkind\" = $3) AND \"i\".\"indrelid\" = to_regclass($4) AND NOT (\"i\".\"indisunique\") AND \"m\".\"amname\" = $5 AND (\"i\".\"indexprs\" IS NULL AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"i\".\"indkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"i\".\"indrelid\" AND key_attribute.attnum = key_column.attnum) = ($6)::jsonb) AND \"i\".\"indpred\" IS NULL)) AS \"result\"",
+        "params": [
+          "\"public\".\"dashboards_owner_id_idx_ade9f347\"",
+          "i",
+          "I",
+          "\"public\".\"dashboards\"",
+          "btree",
+          "[\"owner_id\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.dashboard_items.dashboard_items_dashboard_id_fkey",
+    "label": "Add foreign key \"dashboard_items_dashboard_id_fkey\" on \"dashboard_items\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "dashboard_items_dashboard_id_fkey",
+        "table": "dashboard_items"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"dashboard_items_dashboard_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "dashboard_items_dashboard_id_fkey",
+          "public",
+          "\"public\".\"dashboard_items\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "FK \"dashboard_items_dashboard_id_fkey\" on \"dashboard_items\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"dashboard_items_dashboard_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"dashboard_items\"\nADD CONSTRAINT \"dashboard_items_dashboard_id_fkey\"\nFOREIGN KEY (\"dashboard_id\")\nREFERENCES \"public\".\"dashboards\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"dashboard_items_dashboard_id_fkey\" exists with the planned columns, referenced table and actions",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3) AND \"c\".\"contype\" = $4 AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"conkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"conrelid\" AND key_attribute.attnum = key_column.attnum) = ($5)::jsonb AND \"c\".\"confrelid\" = to_regclass($6) AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"confkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"confrelid\" AND key_attribute.attnum = key_column.attnum) = ($7)::jsonb AND \"c\".\"confdeltype\" = $8 AND \"c\".\"confupdtype\" = $9)) AS \"result\"",
+        "params": [
+          "dashboard_items_dashboard_id_fkey",
+          "public",
+          "\"public\".\"dashboard_items\"",
+          "f",
+          "[\"dashboard_id\"]",
+          "\"public\".\"dashboards\"",
+          "[\"id\"]",
+          "c",
+          "a"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.dashboard_items.dashboard_items_saved_query_id_fkey",
+    "label": "Add foreign key \"dashboard_items_saved_query_id_fkey\" on \"dashboard_items\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "dashboard_items_saved_query_id_fkey",
+        "table": "dashboard_items"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"dashboard_items_saved_query_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "dashboard_items_saved_query_id_fkey",
+          "public",
+          "\"public\".\"dashboard_items\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "FK \"dashboard_items_saved_query_id_fkey\" on \"dashboard_items\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"dashboard_items_saved_query_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"dashboard_items\"\nADD CONSTRAINT \"dashboard_items_saved_query_id_fkey\"\nFOREIGN KEY (\"saved_query_id\")\nREFERENCES \"public\".\"saved_queries\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"dashboard_items_saved_query_id_fkey\" exists with the planned columns, referenced table and actions",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3) AND \"c\".\"contype\" = $4 AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"conkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"conrelid\" AND key_attribute.attnum = key_column.attnum) = ($5)::jsonb AND \"c\".\"confrelid\" = to_regclass($6) AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"confkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"confrelid\" AND key_attribute.attnum = key_column.attnum) = ($7)::jsonb AND \"c\".\"confdeltype\" = $8 AND \"c\".\"confupdtype\" = $9)) AS \"result\"",
+        "params": [
+          "dashboard_items_saved_query_id_fkey",
+          "public",
+          "\"public\".\"dashboard_items\"",
+          "f",
+          "[\"saved_query_id\"]",
+          "\"public\".\"saved_queries\"",
+          "[\"id\"]",
+          "c",
+          "a"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.dashboards.dashboards_owner_id_fkey",
+    "label": "Add foreign key \"dashboards_owner_id_fkey\" on \"dashboards\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "dashboards_owner_id_fkey",
+        "table": "dashboards"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"dashboards_owner_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "dashboards_owner_id_fkey",
+          "public",
+          "\"public\".\"dashboards\""
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "FK \"dashboards_owner_id_fkey\" on \"dashboards\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"dashboards_owner_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"dashboards\"\nADD CONSTRAINT \"dashboards_owner_id_fkey\"\nFOREIGN KEY (\"owner_id\")\nREFERENCES \"public\".\"users\" (\"id\")\nON DELETE SET NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"dashboards_owner_id_fkey\" exists with the planned columns, referenced table and actions",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3) AND \"c\".\"contype\" = $4 AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"conkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"conrelid\" AND key_attribute.attnum = key_column.attnum) = ($5)::jsonb AND \"c\".\"confrelid\" = to_regclass($6) AND (SELECT coalesce(jsonb_agg(key_attribute.attname ORDER BY key_column.position), '[]'::jsonb) FROM unnest(\"c\".\"confkey\"::int2[]) WITH ORDINALITY AS key_column(attnum, position) JOIN pg_attribute key_attribute ON key_attribute.attrelid = \"c\".\"confrelid\" AND key_attribute.attnum = key_column.attnum) = ($7)::jsonb AND \"c\".\"confdeltype\" = $8 AND \"c\".\"confupdtype\" = $9)) AS \"result\"",
+        "params": [
+          "dashboards_owner_id_fkey",
+          "public",
+          "\"public\".\"dashboards\"",
+          "f",
+          "[\"owner_id\"]",
+          "\"public\".\"users\"",
+          "[\"id\"]",
+          "n",
+          "a"
+        ]
+      }
+    ]
+  }
+]
