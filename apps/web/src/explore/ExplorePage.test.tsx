@@ -750,7 +750,7 @@ const ordersByStatus = {
   durationMs: 4,
 };
 
-test("charts a result as bars, the first column along the bottom and the second up the side", async () => {
+test("charts a result as bars, its columns read from their order, with none to pick", async () => {
   server.use(
     http.post("/api/explore/connections/:id/query", () => HttpResponse.json(ordersByStatus)),
   );
@@ -768,16 +768,7 @@ test("charts a result as bars, the first column along the bottom and the second 
 
   const chart = await screen.findByRole("figure", { name: "Result chart" });
   expect(screen.queryByRole("table", { name: "Result" })).toBeNull();
-  expect(within(chart).getByRole("combobox", { name: "X axis" }).textContent).toBe("status");
-  expect(within(chart).getByRole("combobox", { name: "Y axis" }).textContent).toBe("orders");
-  // Neither axis offers the column the other has.
-  await user.click(within(chart).getByRole("combobox", { name: "X axis" }));
-  expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
-    "status",
-  ]);
-  await user.keyboard("{Escape}");
-  // status isn't a number, so it can't go up the side.
-  expect(within(chart).getByRole("button", { name: "Swap axes" })).toHaveProperty("disabled", true);
+  expect(within(chart).queryByRole("combobox")).toBeNull();
 
   // Still a chart for the next run.
   await user.click(screen.getByRole("button", { name: "Run" }));
@@ -819,9 +810,7 @@ test("charts a result as a line, an area or a pie, and keeps the kind for the ne
   expect(pressed()).toEqual(["Line"]);
   await user.click(within(kinds).getByRole("button", { name: "Pie" }));
 
-  // A pie names its slices and sizes them, and lists them, the largest first, with their share.
-  expect(within(chart).getByRole("combobox", { name: "Slices" }).textContent).toBe("status");
-  expect(within(chart).getByRole("combobox", { name: "Values" }).textContent).toBe("orders");
+  // A pie lists its slices, the largest first, with their share.
   const slices = within(chart).getByRole("list", { name: "Slices" });
   expect(
     within(slices)
@@ -836,7 +825,7 @@ test("charts a result as a line, an area or a pie, and keeps the kind for the ne
   expect(pressed()).toEqual(["Pie"]);
 });
 
-test("charts the first column of numbers when the second isn't one, and says when there's none", async () => {
+test("says when there's no column of numbers after the first to chart", async () => {
   const user = userEvent.setup();
   renderApp("/explore?connection=shop");
 
@@ -845,7 +834,7 @@ test("charts the first column of numbers when the second isn't one, and says whe
   await screen.findByRole("table", { name: "Result" });
   await user.click(screen.getByRole("button", { name: "Chart" }));
   // The customers have no column of numbers but their id, the first.
-  expect(await screen.findByText(/There's no column of numbers to chart/)).toBeDefined();
+  expect(await screen.findByText(/There's no column of numbers after the first/)).toBeDefined();
 
   server.use(
     http.post("/api/explore/connections/:id/query", () =>
@@ -860,36 +849,9 @@ test("charts the first column of numbers when the second isn't one, and says whe
       }),
     ),
   );
+  // A column of names after the first splits the numbers into series instead.
   await user.click(screen.getByRole("button", { name: "Run" }));
-  const chart = await screen.findByRole("figure", { name: "Result chart" });
-  expect(within(chart).getByRole("combobox", { name: "X axis" }).textContent).toBe("day");
-  expect(within(chart).getByRole("combobox", { name: "Y axis" }).textContent).toBe("total");
-  await user.click(within(chart).getByRole("combobox", { name: "X axis" }));
-  expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
-    "day",
-    "status",
-  ]);
-  await user.keyboard("{Escape}");
-  // A query whose first column holds numbers too can have its axes swapped.
-  server.use(
-    http.post("/api/explore/connections/:id/query", () =>
-      HttpResponse.json({
-        ...ordersByStatus,
-        columns: [
-          { name: "hour", type: "integer" },
-          { name: "orders", type: "bigint" },
-        ],
-        rows: [["9", "4"]],
-      }),
-    ),
-  );
-  await user.click(screen.getByRole("button", { name: "Run" }));
-  await waitFor(() => {
-    expect(screen.getByRole("button", { name: "Swap axes" })).toHaveProperty("disabled", false);
-  });
-  await user.click(screen.getByRole("button", { name: "Swap axes" }));
-  expect(screen.getByRole("combobox", { name: "X axis" }).textContent).toBe("orders");
-  expect(screen.getByRole("combobox", { name: "Y axis" }).textContent).toBe("hour");
+  expect(await screen.findByRole("figure", { name: "Result chart" })).toBeDefined();
 });
 
 test("shows a result as the number in its first row's first column, and keeps it for the next run", async () => {
@@ -932,7 +894,7 @@ test("shows a result as the number in its first row's first column, and keeps it
 test("opens a saved query shown as it was saved, and saves how it's shown", async () => {
   const daily = {
     ...savedQueries[0]!,
-    display: { type: "chart", kind: "pie", x: "status", y: "orders" } as const,
+    display: { type: "chart", kind: "pie" } as const,
   };
   const sent: unknown[] = [];
   server.use(
@@ -948,14 +910,13 @@ test("opens a saved query shown as it was saved, and saves how it's shown", asyn
   renderApp(`/explore?query=${daily.id}`);
 
   const chart = await screen.findByRole("figure", { name: "Result chart" });
-  expect(within(chart).getByRole("combobox", { name: "Slices" }).textContent).toBe("status");
   expect(within(chart).getByRole("button", { name: "Pie" }).getAttribute("aria-pressed")).toBe(
     "true",
   );
   const save = screen.getByRole("button", { name: "Save" });
   expect(save).toHaveProperty("disabled", true);
 
-  // A chart of another kind is a change to save, with its columns by name.
+  // A chart of another kind is a change to save.
   await user.click(within(chart).getByRole("button", { name: "Bar" }));
   expect(save).toHaveProperty("disabled", false);
   await user.click(save);
@@ -966,26 +927,13 @@ test("opens a saved query shown as it was saved, and saves how it's shown", asyn
   await waitFor(() => {
     expect(sent).toHaveLength(2);
   });
-  expect(sent).toEqual([
-    { type: "chart", kind: "bar", x: "status", y: "orders" },
-    { type: "number" },
-  ]);
+  expect(sent).toEqual([{ type: "chart", kind: "bar" }, { type: "number" }]);
 });
 
-test("saves a new query shown as its result is, with the chart's columns", async () => {
+test("saves a new query shown as its result is, with the chart's kind", async () => {
   let sent: unknown;
   server.use(
-    http.post("/api/explore/connections/:id/query", () =>
-      HttpResponse.json({
-        ...ordersByStatus,
-        columns: [
-          ordersByStatus.columns[0],
-          { name: "total", type: "numeric" },
-          ...ordersByStatus.columns.slice(1),
-        ],
-        rows: [["paid", "120.50", "4"]],
-      }),
-    ),
+    http.post("/api/explore/connections/:id/query", () => HttpResponse.json(ordersByStatus)),
     http.post("/api/saved-queries", async ({ request }) => {
       sent = createSavedQueryRequest.parse(await request.json()).display;
       return HttpResponse.json(
@@ -1000,9 +948,7 @@ test("saves a new query shown as its result is, with the chart's columns", async
   await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
   await user.click(screen.getByRole("button", { name: "Run" }));
   await user.click(await screen.findByRole("button", { name: "Chart" }));
-  await user.click(await screen.findByRole("combobox", { name: "Y axis" }));
-  await user.click(await screen.findByRole("option", { name: "orders" }));
-  await user.click(screen.getByRole("button", { name: "Line" }));
+  await user.click(await screen.findByRole("button", { name: "Line" }));
   await user.click(screen.getByRole("button", { name: "Save…" }));
   const form = within(await screen.findByRole("form", { name: "Save query" }));
   await user.type(form.getByLabelText("Name"), "By status");
@@ -1011,10 +957,5 @@ test("saves a new query shown as its result is, with the chart's columns", async
   await waitFor(() => {
     expect(sent).toBeDefined();
   });
-  expect(sent).toEqual({
-    type: "chart",
-    kind: "line",
-    x: "status",
-    y: "orders",
-  });
+  expect(sent).toEqual({ type: "chart", kind: "line" });
 });

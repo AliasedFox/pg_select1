@@ -36,6 +36,27 @@ test("lists saved queries with their database, scope and who saved them", async 
   );
 });
 
+test("says how each query's result is shown", async () => {
+  server.use(
+    http.get("/api/saved-queries", () =>
+      HttpResponse.json({
+        savedQueries: [
+          { ...daily, display: { type: "chart", kind: "line" } },
+          { ...open, display: { type: "number" } },
+          unpaid,
+        ],
+      }),
+    ),
+  );
+  renderApp("/queries");
+
+  const shownAs = async (name: string) =>
+    (await screen.findByRole("link", { name })).closest("tr")?.cells[2]?.textContent;
+  expect(await shownAs("Daily signups")).toBe("Line chart");
+  expect(await shownAs("Open orders")).toBe("Number");
+  expect(await shownAs("Unpaid invoices")).toBe("Table");
+});
+
 test("says so when there are none", async () => {
   server.use(http.get("/api/saved-queries", () => HttpResponse.json({ savedQueries: [] })));
   renderApp("/queries");

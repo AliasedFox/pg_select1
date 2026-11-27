@@ -20,6 +20,24 @@ export const Empty = meta.story({
   },
 });
 
+// Each query's result shown its own way: as a line chart, a number and a table.
+export const ShownAs = meta.story({
+  beforeEach({ msw }) {
+    const [daily, open, unpaid] = savedQueries;
+    msw.use(
+      http.get("/api/saved-queries", () =>
+        HttpResponse.json({
+          savedQueries: [
+            { ...daily, display: { type: "chart", kind: "line" } },
+            { ...open, display: { type: "number" } },
+            unpaid,
+          ],
+        }),
+      ),
+    );
+  },
+});
+
 // A viewer can change only their own queries, here none.
 export const ForAViewer = meta.story({
   args: { user: viewer },

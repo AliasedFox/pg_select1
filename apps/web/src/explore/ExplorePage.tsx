@@ -1,4 +1,5 @@
 import {
+  type ChartKind,
   MAX_QUERY_ROWS,
   type Me,
   type QueryDisplay,
@@ -26,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { SqlEditor, type SqlEditorHandle } from "@/editor/SqlEditor";
 import { describeError } from "@/lib/api";
-import { type ChartSettings, DEFAULT_CHART } from "@/lib/chart";
+import { DEFAULT_CHART_KIND } from "@/lib/chart";
 import { useLoaded } from "@/lib/loaded";
 import { modifierKey } from "@/lib/platform";
 import { sqlTableName } from "@/lib/sql";
@@ -71,14 +72,14 @@ type Saving =
 // first column.
 type View = QueryDisplayType;
 
-// How a saved query keeps the view, with the chart's settings when it's a chart.
-function displayOf(view: View, chart: ChartSettings): QueryDisplay {
-  return view === "chart" ? { type: "chart", ...chart } : { type: view };
+// How a saved query keeps the view, with the chart's kind when it's a chart.
+function displayOf(view: View, chartKind: ChartKind): QueryDisplay {
+  return view === "chart" ? { type: "chart", kind: chartKind } : { type: view };
 }
 
 function sameDisplay(a: QueryDisplay, b: QueryDisplay): boolean {
   if (a.type !== "chart" || b.type !== "chart") return a.type === b.type;
-  return a.kind === b.kind && a.x === b.x && a.y === b.y;
+  return a.kind === b.kind;
 }
 
 // Switches a result between its grid, its chart and its number, with a button of each's icon, named on hover.
@@ -150,8 +151,8 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * it and runs that, and each has a button to copy its name. While a query runs, the last result
  * stays on screen until the new one fades in over it. A result can be switched from its grid to
  * a {@link ResultChart}, of bars, a line, an area or a pie, or to a {@link ResultNumber}, the
- * value in its first row's first column, which stays switched, and on the same chart, for the
- * runs after. A run can be cancelled, and is when the person picks another
+ * value in its first row's first column, which stays switched, and on the same kind of chart,
+ * for the runs after. A run can be cancelled, and is when the person picks another
  * database or leaves the page. The database is kept in the address, so a
  * reload or a link opens the same one.
  *
@@ -184,7 +185,7 @@ export function ExplorePage({ user }: { user: Me }) {
   // Kept from one run to the next. `switchedOn` is the run whose result was last switched, so the
   // view switched to fades in, but not again inside a new result as that fades in.
   const [view, setView] = useState<View>("table");
-  const [chart, setChart] = useState<ChartSettings>(DEFAULT_CHART);
+  const [chartKind, setChartKind] = useState<ChartKind>(DEFAULT_CHART_KIND);
   const [switchedOn, setSwitchedOn] = useState<number | undefined>(undefined);
   const runs = useRef(0);
   // The run whose answer is still wanted, so a cancelled or replaced one's is dropped.
@@ -229,9 +230,7 @@ export function ExplorePage({ user }: { user: Me }) {
         setSql(query.sql);
         const { display: shown } = query;
         setView(shown.type);
-        setChart(
-          shown.type === "chart" ? { kind: shown.kind, x: shown.x, y: shown.y } : DEFAULT_CHART,
-        );
+        setChartKind(shown.type === "chart" ? shown.kind : DEFAULT_CHART_KIND);
         runOnOpen.current = query.id;
       },
       (error: unknown) => {
@@ -290,7 +289,7 @@ export function ExplorePage({ user }: { user: Me }) {
     );
   };
 
-  const display = displayOf(view, chart);
+  const display = displayOf(view, chartKind);
   // Saves the SQL, database and how the result is shown over the open saved query.
   const saveChanges = () => {
     if (!savedQuery || !connectionId) return;
@@ -636,8 +635,8 @@ export function ExplorePage({ user }: { user: Me }) {
                       {view === "chart" ? (
                         <ResultChart
                           data={answer.result}
-                          settings={chart}
-                          onChange={setChart}
+                          kind={chartKind}
+                          onKindChange={setChartKind}
                           more={
                             answer.result.truncated && answer.result.rows.length < MAX_QUERY_ROWS
                           }

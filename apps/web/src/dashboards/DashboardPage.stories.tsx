@@ -1,8 +1,16 @@
+import { runQueryRequest } from "@pg_select1/shared";
 import { delay, http, HttpResponse } from "msw";
 import { fn } from "storybook/test";
 
 import preview from "../../.storybook/preview";
-import { admin, dashboards, viewer } from "../../test/fixtures";
+import {
+  admin,
+  dashboards,
+  queryRows,
+  savedQueries,
+  signupRows,
+  viewer,
+} from "../../test/fixtures";
 import { AddQueryDialog } from "./DashboardDialogs";
 import { DashboardPage } from "./DashboardPage";
 
@@ -28,10 +36,15 @@ export const ForAViewer = meta.story({
   },
 });
 
-// Each query shown as it was saved: a line chart of the customers' ids, and the first one's id.
+// Each query shown as it was saved: a line chart of the daily signups, and the first customer's
+// id.
 export const ShownAsSaved = meta.story({
   beforeEach({ msw }) {
     msw.use(
+      http.post("/api/explore/connections/:id/query", async ({ request }) => {
+        const { sql } = runQueryRequest.parse(await request.json());
+        return HttpResponse.json(sql === savedQueries[0]?.sql ? signupRows : queryRows);
+      }),
       http.get("/api/dashboards/:id", () =>
         HttpResponse.json({
           ...overview,
@@ -41,10 +54,7 @@ export const ShownAsSaved = meta.story({
                   ...item,
                   savedQuery: {
                     ...item.savedQuery,
-                    display:
-                      index === 0
-                        ? { type: "chart", kind: "line", x: "email", y: "id" }
-                        : { type: "number" },
+                    display: index === 0 ? { type: "chart", kind: "line" } : { type: "number" },
                   },
                 }
               : item,

@@ -5,7 +5,6 @@ import { useState } from "react";
 import { ResultChart } from "@/components/ResultChart";
 import { ResultNumber } from "@/components/ResultNumber";
 import { RowsGrid } from "@/components/RowsGrid";
-import { DEFAULT_CHART } from "@/lib/chart";
 
 import preview from "../../.storybook/preview";
 import { admin, customerRows, savedQueries, viewer } from "../../test/fixtures";
@@ -192,29 +191,58 @@ export const ManyRows = meta.story({
   },
 });
 
-// Signups on each day of November, with their revenue, which the chart's side can switch to.
+// Signups and churned customers on each day of November: a series for each column of numbers.
 const signups: TableRows = {
   columns: [
     { name: "day", type: "date" },
     { name: "signups", type: "bigint" },
-    { name: "revenue", type: "numeric(10,2)" },
+    { name: "churned", type: "bigint" },
   ],
   rows: Array.from({ length: 30 }, (_, i) => {
     const count = 40 + Math.round(30 * Math.sin(i / 3)) + (i % 7) * 4;
-    return [`2026-11-${String(i + 1).padStart(2, "0")}`, String(count), (count * 19.5).toFixed(2)];
+    const churned = 12 + Math.round(6 * Math.cos(i / 4)) + (i % 5);
+    return [`2026-11-${String(i + 1).padStart(2, "0")}`, String(count), String(churned)];
   }),
   truncated: false,
   rowCap: 200,
 };
 
-// A chart of `data`, starting as `initial`, whose selects and toggle change it.
+// What was paid each month of 2026 by each method, a row for each, as `group by 1, 2` has it:
+// the methods split the totals into series, stacked. Checks stop in October, so they're 0 after.
+const paymentsByMethod: TableRows = {
+  columns: [
+    { name: "month", type: "date" },
+    { name: "method", type: "text" },
+    { name: "total", type: "numeric(12,2)" },
+  ],
+  rows: Array.from({ length: 11 }, (_, i) => {
+    const month = `2026-${String(i + 1).padStart(2, "0")}-01`;
+    const rows = [
+      [month, "card", (42000 + i * 2600).toFixed(2)],
+      [month, "transfer", (18000 + 900 * Math.sin(i)).toFixed(2)],
+    ];
+    return i < 9 ? [...rows, [month, "check", (6000 - i * 500).toFixed(2)]] : rows;
+  }).flat(),
+  truncated: false,
+  rowCap: 200,
+};
+
+// A chart of `data`, starting as `initial`, whose toggle changes its kind.
 function ChartOf({ data, initial = "bar" }: { data: TableRows; initial?: ChartKind }) {
-  const [settings, setSettings] = useState({ ...DEFAULT_CHART, kind: initial });
-  return <ResultChart data={data} settings={settings} onChange={setSettings} />;
+  const [kind, setKind] = useState(initial);
+  return <ResultChart data={data} kind={kind} onKindChange={setKind} />;
 }
 
 export const Chart = meta.story({
   render: () => <ChartOf data={signups} />,
+});
+
+export const StackedChart = meta.story({
+  render: () => <ChartOf data={paymentsByMethod} />,
+});
+
+export const StackedAreaChart = meta.story({
+  render: () => <ChartOf data={paymentsByMethod} initial="area" />,
 });
 
 export const LineChart = meta.story({
@@ -251,7 +279,7 @@ export const PieChart = meta.story({
   render: () => <ChartOf data={ordersByStatus} initial="pie" />,
 });
 
-// The customers have no column of numbers but their id, the first, so there's nothing to chart.
+// The customers have no column of numbers after their id, the first, so there's nothing to chart.
 export const ChartWithoutNumbers = meta.story({
   render: () => <ChartOf data={customerRows} />,
 });

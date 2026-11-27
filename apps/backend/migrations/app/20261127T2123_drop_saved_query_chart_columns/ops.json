@@ -1,0 +1,102 @@
+[
+  {
+    "id": "dropColumn.saved_queries.chart_x",
+    "label": "Drop column \"chart_x\" from \"saved_queries\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "chart_x",
+        "table": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"chart_x\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_x"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "column \"chart_x\" on \"saved_queries\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"chart_x\"",
+        "sql": "ALTER TABLE \"public\".\"saved_queries\" DROP COLUMN \"chart_x\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"chart_x\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_x"
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "column \"chart_x\" on \"saved_queries\""
+        }
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.saved_queries.chart_y",
+    "label": "Drop column \"chart_y\" from \"saved_queries\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "chart_y",
+        "table": "saved_queries"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"chart_y\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_y"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "column \"chart_y\" on \"saved_queries\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"chart_y\"",
+        "sql": "ALTER TABLE \"public\".\"saved_queries\" DROP COLUMN \"chart_y\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"chart_y\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "saved_queries",
+          "chart_y"
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "column \"chart_y\" on \"saved_queries\""
+        }
+      }
+    ]
+  }
+]

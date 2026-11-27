@@ -23,7 +23,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'805b7f664aa74aab988cb618ab66691574d316d2896195cf4240d850a3c3f30b'>;
+  StorageHashBase<'5e05024350a46c468507619ad6ba4c0281b627b33a1ba8efca4266f49e4cc265'>;
 export type ExecutionHash =
   ExecutionHashBase<'a4b48d411158f1183a65ee96f1fa288fb35c4f4c0d84cf8b582fe9bdad5e60f4'>;
 export type ProfileHash =
@@ -442,8 +442,6 @@ export namespace Models {
   };
   export type public_SavedQuery = {
     chartKind: FieldOutputTypes['public']['SavedQuery']['chartKind'];
-    chartX: FieldOutputTypes['public']['SavedQuery']['chartX'];
-    chartY: FieldOutputTypes['public']['SavedQuery']['chartY'];
     createdAt: FieldOutputTypes['public']['SavedQuery']['createdAt'];
     description: FieldOutputTypes['public']['SavedQuery']['description'];
     display: FieldOutputTypes['public']['SavedQuery']['display'];
@@ -874,18 +872,6 @@ type ContractBase = Omit<
             readonly saved_queries: {
               columns: {
                 readonly chart_kind: {
-                  readonly dataType: 'pg/text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: true;
-                  readonly many: false;
-                };
-                readonly chart_x: {
-                  readonly dataType: 'pg/text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: true;
-                  readonly many: false;
-                };
-                readonly chart_y: {
                   readonly dataType: 'pg/text';
                   readonly codecId: 'pg/text@1';
                   readonly nullable: true;
@@ -1625,14 +1611,6 @@ type ContractBase = Omit<
                 readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
-              readonly chartX: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-              readonly chartY: {
-                readonly nullable: true;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
               readonly createdAt: {
                 readonly nullable: false;
                 readonly type: {
@@ -1694,8 +1672,6 @@ type ContractBase = Omit<
               readonly namespaceId: 'public';
               readonly fields: {
                 readonly chartKind: { readonly column: 'chart_kind' };
-                readonly chartX: { readonly column: 'chart_x' };
-                readonly chartY: { readonly column: 'chart_y' };
                 readonly createdAt: { readonly column: 'created_at' };
                 readonly description: { readonly column: 'description' };
                 readonly display: { readonly column: 'display' };

@@ -158,7 +158,7 @@ function ItemButtons({ name, controls }: { name: string; controls: ItemControls 
 // one number in its first row's first column.
 function ResultOf({ query, result }: { query: SavedQuery; result: QueryResult }) {
   const { display } = query;
-  if (display.type === "chart") return <ResultChart data={result} settings={display} />;
+  if (display.type === "chart") return <ResultChart data={result} kind={display.kind} />;
   if (display.type === "number") return <ResultNumber data={result} />;
   return <RowsGrid data={result} label={`${query.name}'s rows`} sql={query.sql} />;
 }
