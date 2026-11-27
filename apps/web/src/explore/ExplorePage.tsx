@@ -17,7 +17,15 @@ import {
   SquareIcon,
   TableIcon,
 } from "lucide-react";
-import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { Loading } from "@/components/Loading";
 import { ResultChart } from "@/components/ResultChart";
@@ -25,6 +33,7 @@ import { ResultNumber } from "@/components/ResultNumber";
 import { RowsGrid } from "@/components/RowsGrid";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import type { Paste } from "@/editor/paste";
 import { SqlEditor, type SqlEditorHandle } from "@/editor/SqlEditor";
 import { describeError } from "@/lib/api";
 import { DEFAULT_CHART_KIND } from "@/lib/chart";
@@ -193,6 +202,11 @@ export function ExplorePage({ user }: { user: Me }) {
   // The same for the next page's run.
   const page = useRef<string | undefined>(undefined);
   const editor = useRef<SqlEditorHandle>(null);
+  // A column's clause copied from the result gets the SQL ready to paste it. The same function
+  // every render, so the grid's headers don't render again for it.
+  const readyForPaste = useCallback((paste: Paste) => {
+    editor.current?.readyFor(paste);
+  }, []);
   // The saved query asked for last, so it's loaded once, not again after it's saved.
   const asked = useRef<string | undefined>(undefined);
   const [saving, setSaving] = useState<Saving>({ kind: "idle" });
@@ -651,6 +665,7 @@ export function ExplorePage({ user }: { user: Me }) {
                           onNearEnd={() => {
                             loadMore();
                           }}
+                          onCopy={readyForPaste}
                         />
                       )}
                     </div>

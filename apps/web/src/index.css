@@ -95,10 +95,37 @@
       opacity: 0;
     }
   }
+
+  /* A glow that pulses once around a box with a border, in the highlight, to show where focus
+     just went, like the SQL editor once a clause copied from a result is ready to paste. It ends
+     on the focus ring of shadcn/ui's inputs, so a focused box settles into it rather than jumping.
+     Quickly lit, slowly faded. */
+  --animate-glow: glow 1.2s ease-out;
+  @keyframes glow {
+    0% {
+      border-color: var(--highlight);
+      box-shadow:
+        0 0 0 0 var(--highlight),
+        0 0 0 0 transparent;
+    }
+    12% {
+      border-color: var(--highlight);
+      box-shadow:
+        0 0 0 3px var(--highlight),
+        0 0 24px 6px color-mix(in oklab, var(--highlight) 60%, transparent);
+    }
+    100% {
+      border-color: var(--ring);
+      box-shadow:
+        0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent),
+        0 0 0 0 transparent;
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-fade-in {
+  .animate-fade-in,
+  .animate-glow {
     animation: none;
   }
 }

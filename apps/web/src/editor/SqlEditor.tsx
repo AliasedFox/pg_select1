@@ -5,15 +5,25 @@ import { type Ref, useEffect, useImperativeHandle, useLayoutEffect, useRef } fro
 
 import { cn } from "@/lib/utils";
 
+import { type Paste, readyForPaste } from "./paste";
 import { editorSetup, sqlLanguage } from "./sql";
 
 // One empty list, so an editor with no tables isn't reconfigured on every render.
 const NO_TABLES: readonly TargetTable[] = [];
 
+// The glow the editor pulses once it's ready for a paste, so it's plain where focus went.
+const GLOW = "animate-glow";
+
 /** What a page can do to a {@link SqlEditor} besides giving it its SQL. */
 export interface SqlEditorHandle {
   /** Puts the cursor back in the SQL. */
   focus: () => void;
+  /**
+   * Gets the SQL ready for what was just copied to be pasted: puts the cursor back in it where
+   * that goes, or selects what it replaces, with {@link readyForPaste}, and pulses a glow around
+   * the editor so it's plain where focus went.
+   */
+  readyFor: (paste: Paste) => void;
 }
 
 /**
@@ -92,11 +102,29 @@ export function SqlEditor({
 
   useImperativeHandle(ref, () => ({
     focus: () => view.current?.focus(),
+    readyFor: (paste) => {
+      const editor = view.current;
+      if (!editor) return;
+      editor.dispatch({ ...readyForPaste(editor.state, paste), scrollIntoView: true });
+      // The glow goes on in the same frame as the focus, so the focus ring, which it covers, never
+      // shows first. On the element itself rather than through a render, which would be a frame
+      // later; React leaves it, since the class it renders doesn't change. Taken off and put back,
+      // a reflow between, to start again when it's glowing already.
+      const glowing = host.current;
+      glowing?.classList.remove(GLOW);
+      void glowing?.offsetWidth;
+      glowing?.classList.add(GLOW);
+      editor.focus();
+    },
   }));
 
   return (
     <div
       ref={host}
+      onAnimationEnd={(event) => {
+        // Not CodeMirror's own, like its cursor's blink, which end inside it.
+        if (event.target === event.currentTarget) event.currentTarget.classList.remove(GLOW);
+      }}
       className={cn(
         "min-w-0 overflow-hidden rounded-md border border-input text-base shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 md:text-xs dark:bg-input/30",
         className,
