@@ -157,12 +157,12 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * in the {@link SqlEditor} and run it there, read-only, to see its rows, a page at a time as the
  * person scrolls down, up to {@link MAX_QUERY_ROWS}.
  * The database's tables are listed beside it. Clicking one replaces the SQL with `select * from`
- * it and runs that, and each has a button to copy its name. While a query runs, the last result
- * stays on screen until the new one fades in over it. A result can be switched from its grid to
+ * it and runs that, shown in the grid, and each has a button to copy its name. While a query
+ * runs, the last result stays on screen until the new one fades in over it. A result can be switched from its grid to
  * a {@link ResultChart}, of bars, a line, an area or a pie, or to a {@link ResultNumber}, the
  * value in its first row's first column, which stays switched, and on the same kind of chart,
- * for the runs after. A run can be cancelled, and is when the person picks another
- * database or leaves the page. The database is kept in the address, so a
+ * for the runs after, until a table is clicked. A run can be cancelled, and is when the person
+ * picks another database or leaves the page. The database is kept in the address, so a
  * reload or a link opens the same one.
  *
  * The SQL can be saved as a query, on the database picked and shown as its result is now, which
@@ -428,6 +428,8 @@ export function ExplorePage({ user }: { user: Me }) {
                   const text = `select * from ${sqlTableName(t)}`;
                   history.keep(sql);
                   setSql(text);
+                  // A table's rows are for reading, whatever the last result was switched to.
+                  setView("table");
                   // What's still running was for other SQL, which isn't there any more.
                   stop();
                   start(text);
