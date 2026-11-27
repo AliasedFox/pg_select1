@@ -1,14 +1,14 @@
-// Light or dark: the one picked in the header's switch, or the system's (the default), light when
-// the system doesn't say. It's kept on the device, so the script in index.html can apply it before
-// the first paint; keep the two in step.
+// Light or dark: the one picked in the account menu, or the system's (the default), light when
+// the system doesn't say. It's kept on the user's account, and a copy on the device, so the script
+// in index.html can apply it before the first paint and before anyone has signed in; keep the two
+// in step.
+
+import { type Theme, theme as themeSchema } from "@pg_select1/shared";
 
 /** The themes to pick from, the system's first since it's the default. */
-export const THEMES = ["system", "light", "dark"] as const;
+export const THEMES: readonly Theme[] = themeSchema.options;
 
-/** A theme to pick: the system's, or light or dark whatever the system says. */
-export type Theme = (typeof THEMES)[number];
-
-/** Where the picked theme is kept on the device. */
+/** Where the copy of the picked theme is kept on the device. */
 export const THEME_STORAGE_KEY = "pg_select1.theme";
 
 // The page's background in each theme (--background in index.css), for the browser's own UI.

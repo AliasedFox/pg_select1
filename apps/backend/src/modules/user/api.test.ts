@@ -28,7 +28,12 @@ describe("signing in", () => {
 
     expect(res.status).toBe(200);
     const body = me.parse(await res.json());
-    expect(body).toMatchObject({ id: viewer.id, email: viewer.email, role: "viewer" });
+    expect(body).toMatchObject({
+      id: viewer.id,
+      email: viewer.email,
+      role: "viewer",
+      theme: "system",
+    });
   });
 
   test("nobody can sign up", async () => {
@@ -255,9 +260,24 @@ describe("one's own profile", () => {
       email: viewer.email,
       name: "New Name",
       role: "viewer",
+      theme: "system",
     });
     const meRes = await request("/api/me", { headers: { cookie: viewer.cookie } });
     expect(me.parse(await meRes.json()).name).toBe("New Name");
+  });
+
+  test("anyone signed in saves their theme on their account, and only one there is", async () => {
+    const viewer = await signedInAs("viewer");
+
+    const res = await request("/api/me", json({ theme: "dark" }, viewer.cookie, "PATCH"));
+    const sepia = await request("/api/me", json({ theme: "sepia" }, viewer.cookie, "PATCH"));
+
+    expect(res.status).toBe(200);
+    expect(me.parse(await res.json())).toMatchObject({ id: viewer.id, theme: "dark" });
+    expect(sepia.status).toBe(400);
+    const elsewhere = await signIn(viewer.email, viewer.password);
+    const meRes = await request("/api/me", { headers: { cookie: elsewhere ?? "" } });
+    expect(me.parse(await meRes.json()).theme).toBe("dark");
   });
 
   test("a name can't be blank, and nobody signed out can change one", async () => {

@@ -1,12 +1,14 @@
 import { afterEach, expect, test } from "bun:test";
 
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 
 import { THEME_STORAGE_KEY, showTheme } from "@/lib/theme";
 
 import { admin } from "../../test/fixtures";
 import { renderApp } from "../../test/render";
+import { server } from "../../test/server";
 
 afterEach(() => {
   showTheme("system");
@@ -31,7 +33,14 @@ test("shows who's signed in", async () => {
   expect(within(menu).getByText(admin.email)).toBeDefined();
 });
 
-test("switches the theme, keeps it on the device, and stays open", async () => {
+test("switches the theme, saves it on the account and the device, and stays open", async () => {
+  const sent: unknown[] = [];
+  server.use(
+    http.patch("/api/me", async ({ request }) => {
+      sent.push(await request.json());
+      return HttpResponse.json(admin);
+    }),
+  );
   const user = userEvent.setup();
   renderApp("/connections");
 
@@ -47,12 +56,18 @@ test("switches the theme, keeps it on the device, and stays open", async () => {
   expect(document.documentElement.classList.contains("dark")).toBe(false);
   expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
   expect(screen.getByRole("menu")).toBeDefined();
+  await waitFor(() => {
+    expect(sent).toEqual([{ theme: "dark" }, { theme: "light" }]);
+  });
 });
 
-test("shows the theme picked before", async () => {
-  localStorage.setItem(THEME_STORAGE_KEY, "dark");
+test("shows the theme saved on the account, over the one kept on the device", async () => {
+  localStorage.setItem(THEME_STORAGE_KEY, "light");
+  server.use(http.get("/api/me", () => HttpResponse.json({ ...admin, theme: "dark" })));
   const user = userEvent.setup();
   renderApp("/connections");
 
   expect(checked(await openThemes(user), "Dark")).toBe(true);
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
+  expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
 });

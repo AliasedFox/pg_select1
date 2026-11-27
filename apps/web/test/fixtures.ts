@@ -26,6 +26,7 @@ export const admin: Me = {
   email: "ada@example.com",
   name: "Ada Admin",
   role: "admin",
+  theme: "system",
 };
 
 /** A viewer, for a test or story signed in as someone who isn't an admin. */
@@ -34,6 +35,7 @@ export const viewer: Me = {
   email: "vic@example.com",
   name: "Vic Viewer",
   role: "viewer",
+  theme: "system",
 };
 
 /** The users `GET /api/users` answers by default: the admin, an editor, and someone invited. */
@@ -228,8 +230,8 @@ export const handlers = [
   http.post("/api/auth/sign-in/email", () => HttpResponse.json({ redirect: false, token: "t" })),
   http.post("/api/auth/sign-out", () => HttpResponse.json({ success: true })),
   http.patch("/api/me", async ({ request }) => {
-    const { name } = updateMeRequest.parse(await request.json());
-    return HttpResponse.json({ ...admin, name });
+    const changes = updateMeRequest.parse(await request.json());
+    return HttpResponse.json({ ...admin, ...changes });
   }),
   http.post("/api/auth/reset-password", () => HttpResponse.json({ status: true })),
   http.post("/api/auth/change-password", () => HttpResponse.json({ token: "t2", user: admin })),

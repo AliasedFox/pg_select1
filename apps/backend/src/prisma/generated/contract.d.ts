@@ -23,7 +23,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'2c55bf481508c6c0cc1c40e2fc7568c1e18028329a9373621b78e0340bf8426f'>;
+  StorageHashBase<'9d167ea7ddff1afc00680a370a310f8808198a6f082f58e7e7ca5f7da346dd2c'>;
 export type ExecutionHash =
   ExecutionHashBase<'a4b48d411158f1183a65ee96f1fa288fb35c4f4c0d84cf8b582fe9bdad5e60f4'>;
 export type ProfileHash =
@@ -304,6 +304,10 @@ type FieldTypeOverrides = {
           readonly output: 'admin' | 'editor' | 'viewer';
           readonly input: 'admin' | 'editor' | 'viewer';
         };
+        readonly theme: {
+          readonly output: 'system' | 'light' | 'dark';
+          readonly input: 'system' | 'light' | 'dark';
+        };
       };
     };
   };
@@ -351,6 +355,10 @@ type ColumnTypeOverrides = {
       readonly role: {
         readonly output: 'admin' | 'editor' | 'viewer';
         readonly input: 'admin' | 'editor' | 'viewer';
+      };
+      readonly theme: {
+        readonly output: 'system' | 'light' | 'dark';
+        readonly input: 'system' | 'light' | 'dark';
       };
     };
   };
@@ -463,6 +471,7 @@ export namespace Models {
     image: FieldOutputTypes['public']['User']['image'];
     name: FieldOutputTypes['public']['User']['name'];
     role: FieldOutputTypes['public']['User']['role'];
+    theme: FieldOutputTypes['public']['User']['theme'];
     updatedAt: FieldOutputTypes['public']['User']['updatedAt'];
     readonly [RelationKeys]?: never;
   };
@@ -1137,6 +1146,16 @@ type ContractBase = Omit<
                   };
                   readonly many: false;
                 };
+                readonly theme: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'system'>;
+                  };
+                  readonly many: false;
+                };
                 readonly updated_at: {
                   readonly dataType: 'pg/timestamptz';
                   readonly codecId: 'pg/timestamptz-date@1';
@@ -1221,6 +1240,10 @@ type ContractBase = Omit<
             readonly SslMode: {
               readonly kind: 'valueSet';
               readonly values: readonly ['disable', 'require', 'verify-full'];
+            };
+            readonly Theme: {
+              readonly kind: 'valueSet';
+              readonly values: readonly ['system', 'light', 'dark'];
             };
           };
         };
@@ -1793,6 +1816,10 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
+              readonly theme: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
               readonly updatedAt: {
                 readonly nullable: false;
                 readonly type: {
@@ -1814,6 +1841,7 @@ type ContractBase = Omit<
                 readonly image: { readonly column: 'image' };
                 readonly name: { readonly column: 'name' };
                 readonly role: { readonly column: 'role' };
+                readonly theme: { readonly column: 'theme' };
                 readonly updatedAt: { readonly column: 'updated_at' };
               };
             };
@@ -1900,6 +1928,14 @@ type ContractBase = Omit<
               { readonly name: 'verify-full'; readonly value: 'verify-full' },
             ];
           };
+          readonly Theme: {
+            readonly codecId: 'pg/text@1';
+            readonly members: readonly [
+              { readonly name: 'system'; readonly value: 'system' },
+              { readonly name: 'light'; readonly value: 'light' },
+              { readonly name: 'dark'; readonly value: 'dark' },
+            ];
+          };
         };
         readonly enumMemberTypes?: {
           readonly DashboardVisualization: readonly [
@@ -1918,6 +1954,11 @@ type ContractBase = Omit<
             { readonly name: 'disable'; readonly value: 'disable' },
             { readonly name: 'require'; readonly value: 'require' },
             { readonly name: 'verify-full'; readonly value: 'verify-full' },
+          ];
+          readonly Theme: readonly [
+            { readonly name: 'system'; readonly value: 'system' },
+            { readonly name: 'light'; readonly value: 'light' },
+            { readonly name: 'dark'; readonly value: 'dark' },
           ];
         };
       };

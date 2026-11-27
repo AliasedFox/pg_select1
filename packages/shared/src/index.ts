@@ -32,12 +32,19 @@ export type Role = z.infer<typeof role>;
 /** Every role, most powerful first, for pickers and labels. */
 export const roles: readonly Role[] = role.options;
 
-/** Who's signed in, as `GET /api/me` answers. */
+/** Light or dark for a user's pages: the system's (the default), or light or dark whatever it says. */
+export const theme = z.enum(["system", "light", "dark"]);
+
+/** One of the {@link theme}s. */
+export type Theme = z.infer<typeof theme>;
+
+/** Who's signed in, as `GET /api/me` answers, with the theme they picked. */
 export const me = z.object({
   id: z.string(),
   email: z.string(),
   name: z.string(),
   role,
+  theme,
 });
 
 /** The signed-in user, as {@link me} parses it. */
@@ -49,8 +56,8 @@ export const MIN_PASSWORD_LENGTH = 12;
 // A user's name, as an admin or they themselves give it.
 const userName = z.string().trim().min(1, "Give a name").max(200);
 
-/** The body of `PATCH /api/me`: the signed-in user's new name. Their email and role stay. */
-export const updateMeRequest = z.object({ name: userName });
+/** The body of `PATCH /api/me`: the signed-in user's new name or theme. Their email and role stay. */
+export const updateMeRequest = z.object({ name: userName.optional(), theme: theme.optional() });
 
 /** A change to the signed-in user, as {@link updateMeRequest} parses it. */
 export type UpdateMeRequest = z.infer<typeof updateMeRequest>;

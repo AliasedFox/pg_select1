@@ -1,4 +1,4 @@
-import type { Me } from "@pg_select1/shared";
+import type { Me, Theme } from "@pg_select1/shared";
 import {
   LogOutIcon,
   type LucideIcon,
@@ -11,7 +11,7 @@ import {
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { useState } from "react";
 
-import { signOut } from "@/auth/api";
+import { signOut, updateMe } from "@/auth/api";
 import { useSession } from "@/auth/session";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { avatarGradient } from "@/lib/avatar";
-import { isTheme, showTheme, storedTheme, type Theme } from "@/lib/theme";
+import { isTheme, showTheme } from "@/lib/theme";
 import { navigate } from "@/router";
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: LucideIcon }[] = [
@@ -36,12 +36,12 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: LucideIcon }[] = [
 /**
  * The signed-in user's menu, opened from their initial, on a gradient of two hues picked from
  * their id (see {@link avatarGradient}), at the right of the header: who they are,
- * their profile, the theme and signing out. The theme shows as soon as it's picked and is kept on this device,
- * not on the account.
+ * their profile, the theme and signing out. The theme shows as soon as it's picked, and is saved
+ * on their account for wherever they sign in next.
  */
 export function AccountMenu({ user }: { user: Me }) {
   const { refresh } = useSession();
-  const [theme, setTheme] = useState(storedTheme);
+  const [theme, setTheme] = useState(user.theme);
   const initial = (user.name || user.email).charAt(0).toUpperCase();
 
   async function onSignOut() {
@@ -92,6 +92,9 @@ export function AccountMenu({ user }: { user: Me }) {
               if (!isTheme(value)) return;
               setTheme(value);
               showTheme(value);
+              // It's shown and kept on this device either way. The menu has nowhere to say it wasn't
+              // saved on the account, which then shows the theme saved before at the next sign-in.
+              updateMe({ theme: value }).catch(() => undefined);
             }}
             className="flex items-center rounded-full bg-muted p-0.5"
           >

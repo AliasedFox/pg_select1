@@ -2,12 +2,19 @@ import { inviteUserRequest, updateMeRequest, updateUserRequest } from "@pg_selec
 import { z } from "zod";
 
 import { type Endpoint, parseRequest } from "../../endpoint";
-import { createSetPasswordLink, deleteUser, inviteUser, listUsers, updateUser } from "./service";
+import {
+  createSetPasswordLink,
+  deleteUser,
+  inviteUser,
+  listUsers,
+  updateMe,
+  updateUser,
+} from "./service";
 
 const userParams = z.object({ id: z.uuid({ message: "There's no such user" }) });
 
 /**
- * Who's signed in (`GET /api/me`) and changing their own name (`PATCH /api/me`), and managing
+ * Who's signed in (`GET /api/me`) and changing their own name or theme (`PATCH /api/me`), and managing
  * users, for admins only: listing, inviting, changing, deleting, and making a new set-password
  * link. Changing one's own password is Better Auth's (`POST /api/auth/change-password`).
  */
@@ -25,9 +32,7 @@ export const endpoints: Endpoint[] = [
     path: "/api/me",
     access: "user",
     handler: async (req, res, user) => {
-      const { name } = parseRequest(updateMeRequest, req.body);
-      const updated = await updateUser(user.id, { name });
-      res.json({ id: updated.id, email: updated.email, name: updated.name, role: updated.role });
+      res.json(await updateMe(user.id, parseRequest(updateMeRequest, req.body)));
     },
   },
   {

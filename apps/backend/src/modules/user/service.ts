@@ -2,8 +2,10 @@ import { randomBytes } from "node:crypto";
 
 import type {
   InviteUserRequest,
+  Me,
   Role,
   SetPasswordLink,
+  UpdateMeRequest,
   UpdateUserRequest,
   User,
 } from "@pg_select1/shared";
@@ -115,6 +117,22 @@ export async function inviteUser(
   });
   const link = await createSetPasswordLink(row.id);
   return { user: toUser(row, false), link };
+}
+
+/**
+ * Changes the signed-in user's own name or theme, answering them as they are now.
+ *
+ * @throws {HttpError} a 404 when they've been deleted meanwhile.
+ */
+export async function updateMe(id: string, changes: UpdateMeRequest): Promise<Me> {
+  const updated = await db.orm.public.User.where({ id })
+    .select("id", "email", "name", "role", "theme")
+    .update({
+      ...(changes.name === undefined ? {} : { name: changes.name }),
+      ...(changes.theme === undefined ? {} : { theme: changes.theme }),
+    });
+  if (!updated) throw new HttpError(404, "There's no such user");
+  return updated;
 }
 
 /**
