@@ -1,8 +1,17 @@
 import { MAX_QUERY_ROWS, type Me, type QueryResult, type SavedQuery } from "@pg_select1/shared";
-import { EraserIcon, HistoryIcon, PlayIcon, SaveIcon, SquareIcon } from "lucide-react";
-import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChartColumnIcon,
+  EraserIcon,
+  HistoryIcon,
+  PlayIcon,
+  SaveIcon,
+  SquareIcon,
+  TableIcon,
+} from "lucide-react";
+import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import { Loading } from "@/components/Loading";
+import { ResultChart } from "@/components/ResultChart";
 import { RowsGrid } from "@/components/RowsGrid";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -47,6 +56,36 @@ type Saving =
   | { kind: "saving" }
   | { kind: "saved"; n: number }
   | { kind: "failed"; message: string };
+
+// How a result is shown: its rows in a grid, or as a chart.
+type View = "table" | "chart";
+
+// Switches a result between its grid and its chart, with a button of each's icon, named on hover.
+function ViewToggle({ value, onChange }: { value: View; onChange: (view: View) => void }) {
+  const option = (view: View, label: string, icon: ReactNode) => (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      aria-pressed={value === view}
+      onClick={() => {
+        onChange(view);
+      }}
+      className={cn(
+        "flex size-7 items-center justify-center rounded-sm transition-colors [&_svg]:size-4",
+        value === view ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {icon}
+    </button>
+  );
+  return (
+    <fieldset aria-label="View" className="flex min-w-0 rounded-md border p-0.5">
+      {option("table", "Table", <TableIcon aria-hidden="true" />)}
+      {option("chart", "Chart", <ChartColumnIcon aria-hidden="true" />)}
+    </fieldset>
+  );
+}
 
 // How long a run goes before it says it's running and offers to cancel, so a quick one doesn't
 // flash a Cancel button and a spinner.
@@ -97,7 +136,8 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * person scrolls down, up to {@link MAX_QUERY_ROWS}.
  * The database's tables are listed beside it. Clicking one replaces the SQL with `select * from`
  * it and runs that, and each has a button to copy its name. While a query runs, the last result
- * stays on screen until the new one fades in over it. A run can be cancelled, and is when the
+ * stays on screen until the new one fades in over it. A result can be switched from its grid to
+ * a {@link ResultChart}, which stays switched for the runs after. A run can be cancelled, and is when the
  * person picks another database or leaves the page. The database is kept in the address, so a
  * reload or a link opens the same one.
  *
@@ -126,6 +166,10 @@ export function ExplorePage({ user }: { user: Me }) {
   const [outcome, setOutcome] = useState<Outcome | undefined>(undefined);
   const [status, setStatus] = useState<Status>("idle");
   const [paging, setPaging] = useState<Paging>({ kind: "idle" });
+  // Kept from one run to the next. `switchedOn` is the run whose result was last switched, so the
+  // view switched to fades in, but not again inside a new result as that fades in.
+  const [view, setView] = useState<View>("table");
+  const [switchedOn, setSwitchedOn] = useState<number | undefined>(undefined);
   const runs = useRef(0);
   // The run whose answer is still wanted, so a cancelled or replaced one's is dropped.
   const current = useRef<string | undefined>(undefined);
@@ -495,6 +539,22 @@ export function ExplorePage({ user }: { user: Me }) {
                     Couldn't save: {saving.message}
                   </span>
                 )}
+                {/* The result's size and how it's shown, at the right of the buttons to save room
+                    above it. Keyed by the run, so each one's fades in with its rows. */}
+                {answer?.kind === "done" && (
+                  <div key={shown?.n} className="ml-auto flex animate-fade-in items-center gap-3">
+                    <p className="text-xs text-muted-foreground">{describeResult(answer.result)}</p>
+                    {answer.result.columns.length > 0 && (
+                      <ViewToggle
+                        value={view}
+                        onChange={(next) => {
+                          setView(next);
+                          setSwitchedOn(shown?.n);
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             </form>
             {historyDialog && (
@@ -537,16 +597,29 @@ export function ExplorePage({ user }: { user: Me }) {
               )}
               {answer?.kind === "done" && (
                 <div key={shown?.n} className="grid min-w-0 animate-fade-in gap-3">
-                  <p className="text-sm text-muted-foreground">{describeResult(answer.result)}</p>
                   {answer.result.columns.length > 0 && (
-                    <RowsGrid
-                      data={answer.result}
-                      label="Result"
-                      sql={sql}
-                      onNearEnd={() => {
-                        loadMore();
-                      }}
-                    />
+                    <div
+                      key={view}
+                      className={cn("grid min-w-0", switchedOn === shown?.n && "animate-fade-in")}
+                    >
+                      {view === "chart" ? (
+                        <ResultChart
+                          data={answer.result}
+                          more={
+                            answer.result.truncated && answer.result.rows.length < MAX_QUERY_ROWS
+                          }
+                        />
+                      ) : (
+                        <RowsGrid
+                          data={answer.result}
+                          label="Result"
+                          sql={sql}
+                          onNearEnd={() => {
+                            loadMore();
+                          }}
+                        />
+                      )}
+                    </div>
                   )}
                   {paging.kind === "loading" && (
                     <p className="flex animate-fade-in items-center gap-2 text-xs text-muted-foreground">
