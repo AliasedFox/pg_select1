@@ -3,13 +3,18 @@ import type { MouseEvent, ReactNode } from "react";
 
 import { Brand } from "@/Brand";
 import { cn } from "@/lib/utils";
+import { RESOURCES } from "@/resources/resources";
 import { navigate } from "@/router";
 
 const REPO_URL = "https://github.com/AliasedFox/pg_select1";
 const ALIASEDFOX_URL = "https://aliasedfox.com";
 
 // The pages everyone signed in sees, as in the header.
-const MAIN_LINKS = [{ path: "/explore", label: "Explore" }];
+const MAIN_LINKS = [
+  { path: "/explore", label: "Explore" },
+  { path: "/queries", label: "Queries" },
+  { path: "/dashboards", label: "Dashboards" },
+];
 
 // The pages only admins see, as in the header's Admin menu.
 const ADMIN_LINKS = [
@@ -35,7 +40,8 @@ const footerLinkClass =
 
 /**
  * The footer under every page: links to the pages the signed-in user can open, their profile among
- * them, to pg_select1's repository, and who makes it. Nobody signed in sees only the repository's links.
+ * them, to the pages about pg_select1, to its repository, and who makes it. Nobody signed in sees
+ * only the pages about pg_select1 and the repository's links.
  */
 export function Footer({ user }: { user?: Me }) {
   return (
@@ -66,6 +72,11 @@ export function Footer({ user }: { user?: Me }) {
               ))}
             </FooterColumn>
           )}
+          <FooterColumn title="Resources">
+            {RESOURCES.map(({ path, label }) => (
+              <PageLink key={path} path={path} label={label} />
+            ))}
+          </FooterColumn>
           <FooterColumn title="Project">
             {PROJECT_LINKS.map(({ href, label }) => (
               <a

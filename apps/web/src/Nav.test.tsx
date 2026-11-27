@@ -26,3 +26,23 @@ test("goes to the admins' pages from the Admin menu", async () => {
   });
   expect(screen.getByRole("button", { name: "Admin" }).getAttribute("aria-current")).toBe("page");
 });
+
+test("goes to the pages about pg_select1 from the Resources menu", async () => {
+  const user = userEvent.setup();
+  renderApp("/explore");
+
+  await user.click(await screen.findByRole("button", { name: "Resources" }));
+  const menu = await screen.findByRole("menu");
+  expect(
+    within(menu)
+      .getAllByRole("menuitem")
+      .map((item) => item.querySelector(".font-medium")?.textContent),
+  ).toEqual(["FAQ", "Support", "Careers", "About pg_select1"]);
+
+  await user.click(within(menu).getByRole("menuitem", { name: /FAQ/ }));
+  expect(await screen.findByRole("heading", { name: "FAQ" })).toBeDefined();
+  expect(window.location.pathname).toBe("/faq");
+  expect(screen.getByRole("button", { name: "Resources" }).getAttribute("aria-current")).toBe(
+    "page",
+  );
+});

@@ -17,6 +17,8 @@ import { Footer } from "@/Footer";
 import { cn } from "@/lib/utils";
 import { Nav } from "@/Nav";
 import { SavedQueriesPage } from "@/queries/SavedQueriesPage";
+import { ResourcePage } from "@/resources/ResourcePage";
+import { findResource } from "@/resources/resources";
 import { redirect, usePath } from "@/router";
 import { UsersPage } from "@/users/UsersPage";
 
@@ -40,6 +42,7 @@ function Shell() {
   const params = new URLSearchParams(window.location.search);
   // Who the header shows as signed in: nobody on the set-password page, which anyone can open.
   const user = session.kind === "signedIn" && path !== "/set-password" ? session.user : undefined;
+  const resource = findResource(path);
 
   let page: ReactNode;
   if (path === "/set-password") {
@@ -49,6 +52,9 @@ function Shell() {
     // Only a spinner until it's known who's signed in, rather than a header and footer that then
     // change around the page.
     return <Loading className="min-h-svh" />;
+  } else if (resource) {
+    // Anyone can read about pg_select1, signed in or not.
+    page = <ResourcePage resource={resource} />;
   } else if (session.kind === "failed") {
     page = (
       <p role="alert" className="animate-fade-in text-sm text-destructive">
