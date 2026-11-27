@@ -163,9 +163,11 @@ function ResultOf({ query, result }: { query: SavedQuery; result: QueryResult })
   return <RowsGrid data={result} label={`${query.name}'s rows`} sql={query.sql} />;
 }
 
-// One saved query on the dashboard, the whole width of it: its name, which opens it in the
-// explorer, its database and description, then its result, run on its first database and shown
-// as the query says.
+// One saved query on the dashboard: its name, which opens it in the explorer, its database and
+// description, then its result, run on its first database and shown as the query says. A number
+// takes a third of the dashboard's width, so up to three in a row sit side by side; anything
+// else takes the whole of it. A number has its database under its name, where there's room,
+// and doesn't say how many rows it had or how long they took, being one value.
 function QueryItem({
   query,
   refresh,
@@ -178,9 +180,13 @@ function QueryItem({
   const connection = query.connections[0];
   const { running, answer } = useRun(connection?.id, query.sql, refresh);
   const shown = answer?.outcome;
+  const isNumber = query.display.type === "number";
 
   return (
-    <section aria-label={query.name} className="grid min-w-0 gap-3">
+    <section
+      aria-label={query.name}
+      className={`grid min-w-0 content-start gap-3 ${isNumber ? "sm:col-span-1" : "sm:col-span-3"}`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 font-medium">
@@ -194,7 +200,7 @@ function QueryItem({
             >
               {query.name}
             </a>
-            {connection && (
+            {connection && !isNumber && (
               <span className="font-mono text-xs font-normal text-muted-foreground">
                 {connection.name}
               </span>
@@ -208,6 +214,9 @@ function QueryItem({
           </h2>
           {query.description && (
             <p className="text-sm text-muted-foreground">{query.description}</p>
+          )}
+          {connection && isNumber && (
+            <p className="truncate font-mono text-xs text-muted-foreground">{connection.name}</p>
           )}
         </div>
         {controls && <ItemButtons name={query.name} controls={controls} />}
@@ -226,7 +235,9 @@ function QueryItem({
       )}
       {shown?.kind === "done" && (
         <div key={answer?.n} className="grid min-w-0 animate-fade-in gap-2">
-          <p className="text-xs text-muted-foreground">{describeResult(shown.result)}</p>
+          {(!isNumber || shown.result.columns.length === 0) && (
+            <p className="text-xs text-muted-foreground">{describeResult(shown.result)}</p>
+          )}
           {shown.result.columns.length > 0 && <ResultOf query={query} result={shown.result} />}
         </div>
       )}
@@ -239,7 +250,7 @@ function HiddenItem({ controls }: { controls?: ItemControls }) {
   return (
     <section
       aria-label="A query you can't see"
-      className="flex items-center justify-between gap-4 rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
+      className="flex items-center justify-between gap-4 rounded-lg border border-dashed p-4 text-sm text-muted-foreground sm:col-span-3"
     >
       Someone's personal query, which only they see.
       {controls && <ItemButtons name="this query" controls={controls} />}
@@ -254,7 +265,8 @@ function itemsInput(items: readonly DashboardItem[]) {
 
 /**
  * A dashboard: its title and description, then each of its saved queries, one under another, the
- * whole width of the page, each run on its database when the page opens, read-only as in the
+ * whole width of the page but for numbers, which take a third of it so that two or three in a row
+ * sit side by side, each run on its database when the page opens, read-only as in the
  * explorer, and shown as the query was saved to be: as a table of its rows, a chart or a number.
  * Running them again keeps their results on screen until the new ones fade in, and leaving the
  * page cancels what's still running. Those who can change the dashboard add queries to it, move
@@ -425,15 +437,19 @@ export function DashboardPage({ id, user }: { id: string; user: Me }) {
             : "No queries on this dashboard yet."}
         </div>
       )}
-      {dashboard.items.map((item, index) => {
-        const key = keys[index];
-        const controls = controlsOf(index);
-        return item.savedQuery ? (
-          <QueryItem key={key} query={item.savedQuery} refresh={refresh} controls={controls} />
-        ) : (
-          <HiddenItem key={key} controls={controls} />
-        );
-      })}
+      {dashboard.items.length > 0 && (
+        <div className="grid gap-6 sm:grid-cols-3">
+          {dashboard.items.map((item, index) => {
+            const key = keys[index];
+            const controls = controlsOf(index);
+            return item.savedQuery ? (
+              <QueryItem key={key} query={item.savedQuery} refresh={refresh} controls={controls} />
+            ) : (
+              <HiddenItem key={key} controls={controls} />
+            );
+          })}
+        </div>
+      )}
 
       {open === "add" && (
         <AddQueryDialog
