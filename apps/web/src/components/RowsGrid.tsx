@@ -30,6 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { Paste } from "@/editor/paste";
 import { useCopy } from "@/lib/clipboard";
 import { columnFilters } from "@/lib/filters";
 import { columnGroups } from "@/lib/groups";
@@ -153,25 +154,49 @@ const menuLabel = (text: string) => (
 const copyLabel = menuLabel("Copy, to paste in the SQL");
 const groupLabel = menuLabel("Copy a query that counts each group");
 
+// What a header's menus call once they copy, with what they copied.
+type OnCopy = ((paste: Paste) => void) | undefined;
+
+// Calls `onCopy` as soon as a header's menu copies, rather than once it's faded out, and keeps
+// the menu from putting focus back on its button when it's gone, so whatever `onCopy` puts focus
+// on, like the SQL, keeps it. The menus aren't modal, or they'd hold on to focus till they close.
+function useOnCopied(onCopy: OnCopy) {
+  const copied = useRef(false);
+  return {
+    copied: (paste: Paste) => {
+      if (!onCopy) return;
+      copied.current = true;
+      onCopy(paste);
+    },
+    onCloseAutoFocus: (event: Event) => {
+      if (!copied.current) return;
+      copied.current = false;
+      event.preventDefault();
+    },
+  };
+}
+
 // Copies an `order by` on a column, ascending or descending, to paste into the SQL, and says so
 // for a moment after. It doesn't sort the rows here: there may be more than the grid has.
-function SortMenu({ column }: { column: string }) {
+function SortMenu({ column, onCopy }: { column: string; onCopy: OnCopy }) {
   const { copied, copy } = useCopy();
+  const after = useOnCopied(onCopy);
   const orderBy = (direction: "asc" | "desc") => `order by ${sqlIdentifier(column)} ${direction}`;
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         aria-label={copied ? "Copied" : `Sort by ${column}`}
         className={headButton(copied)}
       >
         <HeadButtonContent copied={copied} icon={<ArrowUpDownIcon className="size-3.5" />} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" onCloseAutoFocus={after.onCloseAutoFocus}>
         {copyLabel}
         <DropdownMenuItem
           className="font-mono text-xs"
           onSelect={() => {
             copy(orderBy("asc"));
+            after.copied("order by");
           }}
         >
           <ArrowUpIcon />
@@ -181,6 +206,7 @@ function SortMenu({ column }: { column: string }) {
           className="font-mono text-xs"
           onSelect={() => {
             copy(orderBy("desc"));
+            after.copied("order by");
           }}
         >
           <ArrowDownIcon />
@@ -193,25 +219,30 @@ function SortMenu({ column }: { column: string }) {
 
 // Copies the SQL of one of a column's clauses, listed in groups by what they do, and says so for
 // a moment after. `label` names the button until it copies, and `hint` says what's copied. Each
-// shows its `clause` when the SQL it copies is more than that.
+// shows its `clause` when the SQL it copies is more than that, and `paste` is what it copies.
 function ClauseMenu({
   label,
   icon,
   hint = copyLabel,
   clauses,
+  paste,
+  onCopy,
 }: {
   label: string;
   icon: ReactNode;
   hint?: ReactNode;
   clauses: { name: string; sql: string; clause?: string }[][];
+  paste: Paste;
+  onCopy: OnCopy;
 }) {
   const { copied, copy } = useCopy();
+  const after = useOnCopied(onCopy);
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger aria-label={copied ? "Copied" : label} className={headButton(copied)}>
         <HeadButtonContent copied={copied} icon={icon} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" onCloseAutoFocus={after.onCloseAutoFocus}>
         {hint}
         {clauses.map((group, index) => (
           // By position: a type's groups never change.
@@ -223,6 +254,7 @@ function ClauseMenu({
                 className="text-xs"
                 onSelect={() => {
                   copy(clause.sql);
+                  after.copied(paste);
                 }}
               >
                 <span className="w-28 shrink-0 text-muted-foreground">{clause.name}</span>
@@ -243,10 +275,12 @@ const ColumnHead = memo(function ColumnHead({
   name,
   type,
   sql,
+  onCopy,
 }: {
   name: string;
   type: string;
   sql: string;
+  onCopy: OnCopy;
 }) {
   return (
     <th
@@ -261,14 +295,18 @@ const ColumnHead = memo(function ColumnHead({
           label={`Filter by ${name}`}
           icon={<FilterIcon className="size-3.5" />}
           clauses={columnFilters(name, type, sql)}
+          paste="where"
+          onCopy={onCopy}
         />
         <ClauseMenu
           label={`Group by ${name}`}
           icon={<GroupIcon className="size-3.5" />}
           hint={groupLabel}
           clauses={columnGroups(name, type, sql)}
+          paste="query"
+          onCopy={onCopy}
         />
-        <SortMenu column={name} />
+        <SortMenu column={name} onCopy={onCopy} />
       </div>
     </th>
   );
@@ -284,13 +322,16 @@ const ColumnHead = memo(function ColumnHead({
  * on hover; `NULL` stands out from text. Each column's header copies an `order by` on it, a
  * `where` that fits its type, like `ilike` on text, which is an `and` when `sql`, the query in the
  * editor, has a `where` already, or a query that counts the rows of `sql` in each group of it,
- * like a timestamp's day.
+ * like a timestamp's day. `onCopy`, when given, is called with what one of them copied once its
+ * menu has closed, and focus is left to it rather than going back to the menu's button. It
+ * should be the same function from one render to the next, or every header renders again.
  */
 export function RowsGrid({
   data,
   label,
   sql = "",
   onNearEnd,
+  onCopy,
   className,
 }: {
   data: TableRows;
@@ -298,6 +339,7 @@ export function RowsGrid({
   /** The query in the editor, which the columns' filters go in and their groups wrap. */
   sql?: string;
   onNearEnd?: () => void;
+  onCopy?: (paste: Paste) => void;
   className?: string;
 }) {
   const headRef = useRef<HTMLTableSectionElement>(null);
@@ -373,7 +415,13 @@ export function RowsGrid({
         <tr aria-rowindex={1} className="grid" style={{ ...rowStyle, width }}>
           {data.columns.map((column, index) => (
             // By position: a query's columns can share a name.
-            <ColumnHead key={index} name={column.name} type={column.type} sql={sql} />
+            <ColumnHead
+              key={index}
+              name={column.name}
+              type={column.type}
+              sql={sql}
+              onCopy={onCopy}
+            />
           ))}
           <th aria-hidden="true" className="border-b p-0" />
         </tr>

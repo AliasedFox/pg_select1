@@ -22,6 +22,17 @@ function sqlOf(editor: HTMLElement): string {
   return EditorView.findFromDOM(editor)?.state.doc.toString() ?? "";
 }
 
+// The SQL with its selection in it as `[` and `]`, or its cursor as `|`.
+function selectionOf(editor: HTMLElement): string {
+  const state = EditorView.findFromDOM(editor)?.state;
+  if (!state) return "";
+  const { from, to } = state.selection.main;
+  const doc = state.doc.toString();
+  return from === to
+    ? `${doc.slice(0, from)}|${doc.slice(from)}`
+    : `${doc.slice(0, from)}[${doc.slice(from, to)}]${doc.slice(to)}`;
+}
+
 test("picks a database, runs a query on it and shows its rows", async () => {
   const asked: { id: string; body: unknown }[] = [];
   server.use(
@@ -329,7 +340,8 @@ test("copies an order by on a column, to paste in the SQL", async () => {
   const user = userEvent.setup();
   renderApp("/explore?connection=shop");
 
-  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  const sql = await screen.findByRole("textbox", { name: "SQL" });
+  await user.type(sql, "select 1");
   await user.click(screen.getByRole("button", { name: "Run" }));
   const grid = await screen.findByRole("table", { name: "Result" });
   await user.click(within(grid).getByRole("button", { name: "Sort by created_at" }));
@@ -337,6 +349,21 @@ test("copies an order by on a column, to paste in the SQL", async () => {
 
   expect(await navigator.clipboard.readText()).toBe('order by "created_at" desc');
   expect(within(grid).getByRole("button", { name: "Copied" }).textContent).toBe("Copied");
+
+  // The cursor goes back in the SQL, on a new line at its end, to paste it there.
+  await waitFor(() => {
+    expect(document.activeElement).toBe(sql);
+  });
+  expect(selectionOf(sql)).toBe("select 1\n|");
+  await user.keyboard('order by "id"');
+
+  // An order by on the last line already is selected, to replace it.
+  await user.click(within(grid).getByRole("button", { name: "Sort by email" }));
+  await user.click(await screen.findByRole("menuitem", { name: 'order by "email" asc' }));
+  await waitFor(() => {
+    expect(document.activeElement).toBe(sql);
+  });
+  expect(selectionOf(sql)).toBe('select 1\n[order by "id"]');
 });
 
 test("copies a where on a column, of those that fit its type", async () => {
@@ -352,6 +379,13 @@ test("copies a where on a column, of those that fit its type", async () => {
 
   expect(await navigator.clipboard.readText()).toBe(`where "email" ilike '%value%'`);
   expect(within(grid).getByRole("button", { name: "Copied" }).textContent).toBe("Copied");
+
+  // The cursor goes back in the SQL, at the end of its first line, after a space.
+  const sql = screen.getByRole("textbox", { name: "SQL" });
+  await waitFor(() => {
+    expect(document.activeElement).toBe(sql);
+  });
+  expect(selectionOf(sql)).toBe("select 1 |");
 
   await user.click(within(grid).getByRole("button", { name: "Filter by id" }));
   expect(await screen.findByRole("menuitem", { name: /between/ })).toBeDefined();
@@ -391,6 +425,13 @@ test("copies a query that counts each group of a column, of those that fit its t
     ].join("\n"),
   );
   expect(within(grid).getByRole("button", { name: "Copied" }).textContent).toBe("Copied");
+
+  // Focus goes back to the SQL, all of it selected, for the query to replace it.
+  const sql = screen.getByRole("textbox", { name: "SQL" });
+  await waitFor(() => {
+    expect(document.activeElement).toBe(sql);
+  });
+  expect(selectionOf(sql)).toBe("[select * from customers]");
 
   await user.click(within(grid).getByRole("button", { name: "Group by email" }));
   expect(await screen.findByRole("menuitem", { name: /ignoring case/ })).toBeDefined();
