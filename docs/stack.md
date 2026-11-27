@@ -103,20 +103,20 @@ Each module has the same shape: `api.ts` (its `endpoints` list), `service.ts` (t
 
 The web app is a single-page app:
 
-| Tool                                                       | Used for                                                                                      |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| **React 19**                                               | UI.                                                                                           |
-| **Vite 8**                                                 | Dev server and build, with `@vitejs/plugin-react` and `@tailwindcss/vite`.                    |
-| **Tailwind CSS v4**                                        | Styling, themed in `src/index.css`, light and dark, picked in `src/lib/theme.ts`.             |
-| **shadcn/ui**                                              | Components, copied into `components/ui/` and kept close to stock, on **Radix UI** primitives. |
-| **CodeMirror 6** + `@codemirror/lang-sql`                  | The SQL editor, with autocomplete fed by the connection's schema.                             |
-| **TanStack Table** + **TanStack Virtual**                  | Result grids and table browsing, virtualized so large results scroll smoothly.                |
-| **Recharts**, through shadcn/ui's `chart`                  | Charting a result, as a bar chart, in the theme's colors. Bars don't grow in; charts fade in. |
-| **cmdk**                                                   | The command palette and searchable pickers (tables, connections, saved queries).              |
-| **lucide-react**                                           | Icons.                                                                                        |
-| **Fontsource**                                             | Self-hosted Geist and Geist Mono, so nothing loads from Google.                               |
-| **class-variance-authority**, **clsx**, **tailwind-merge** | Component variants and `cn()`.                                                                |
-| A small History API router                                 | `src/router.tsx`, with the connection, table and filters in the URL. No routing library.      |
+| Tool                                                       | Used for                                                                                                                                 |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **React 19**                                               | UI.                                                                                                                                      |
+| **Vite 8**                                                 | Dev server and build, with `@vitejs/plugin-react` and `@tailwindcss/vite`.                                                               |
+| **Tailwind CSS v4**                                        | Styling, themed in `src/index.css`, light and dark, picked in `src/lib/theme.ts`.                                                        |
+| **shadcn/ui**                                              | Components, copied into `components/ui/` and kept close to stock, on **Radix UI** primitives.                                            |
+| **CodeMirror 6** + `@codemirror/lang-sql`                  | The SQL editor, with autocomplete fed by the connection's schema.                                                                        |
+| **TanStack Table** + **TanStack Virtual**                  | Result grids and table browsing, virtualized so large results scroll smoothly.                                                           |
+| **Recharts**, through shadcn/ui's `chart`                  | Charting a result, as bars, a line, an area or a pie, in the theme's colors (a pie's slices in greys). Nothing grows in; charts fade in. |
+| **cmdk**                                                   | The command palette and searchable pickers (tables, connections, saved queries).                                                         |
+| **lucide-react**                                           | Icons.                                                                                                                                   |
+| **Fontsource**                                             | Self-hosted Geist and Geist Mono, so nothing loads from Google.                                                                          |
+| **class-variance-authority**, **clsx**, **tailwind-merge** | Component variants and `cn()`.                                                                                                           |
+| A small History API router                                 | `src/router.tsx`, with the connection, table and filters in the URL. No routing library.                                                 |
 
 The web app is served by the API on the same origin, so there's no CORS and sign-in is a session cookie.
 

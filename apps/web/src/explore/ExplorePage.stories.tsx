@@ -1,8 +1,10 @@
 import { runQueryRequest, type TableRows } from "@pg_select1/shared";
 import { delay, http, HttpResponse } from "msw";
+import { useState } from "react";
 
 import { ResultChart } from "@/components/ResultChart";
 import { RowsGrid } from "@/components/RowsGrid";
+import type { ChartKind } from "@/lib/chart";
 
 import preview from "../../.storybook/preview";
 import { admin, customerRows, savedQueries, viewer } from "../../test/fixtures";
@@ -204,11 +206,51 @@ const signups: TableRows = {
   rowCap: 200,
 };
 
+// A chart of `data`, starting as `initial`, whose select switches its kind.
+function ChartOf({ data, initial = "bar" }: { data: TableRows; initial?: ChartKind }) {
+  const [kind, setKind] = useState(initial);
+  return <ResultChart data={data} kind={kind} onKindChange={setKind} />;
+}
+
 export const Chart = meta.story({
-  render: () => <ResultChart data={signups} />,
+  render: () => <ChartOf data={signups} />,
+});
+
+export const LineChart = meta.story({
+  render: () => <ChartOf data={signups} initial="line" />,
+});
+
+export const AreaChart = meta.story({
+  render: () => <ChartOf data={signups} initial="area" />,
+});
+
+// Orders by status, more of them than a pie has slices, so the smallest are added up as Other.
+const ordersByStatus: TableRows = {
+  columns: [
+    { name: "status", type: "text" },
+    { name: "orders", type: "bigint" },
+  ],
+  rows: [
+    ["paid", "412"],
+    ["shipped", "268"],
+    ["pending", "131"],
+    ["refunded", "54"],
+    ["cancelled", "37"],
+    ["on_hold", "22"],
+    ["disputed", "9"],
+    ["failed", "6"],
+    ["draft", "3"],
+    [null, "2"],
+  ],
+  truncated: false,
+  rowCap: 200,
+};
+
+export const PieChart = meta.story({
+  render: () => <ChartOf data={ordersByStatus} initial="pie" />,
 });
 
 // The customers have no column of numbers but their id, the first, so there's nothing to chart.
 export const ChartWithoutNumbers = meta.story({
-  render: () => <ResultChart data={customerRows} />,
+  render: () => <ChartOf data={customerRows} />,
 });
