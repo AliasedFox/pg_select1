@@ -30,7 +30,10 @@ test("lists saved queries with their database, scope and who saved them", async 
   // Its database was deleted.
   expect(within(unpaidRow!).getByText("none")).toBeDefined();
   expect(within(unpaidRow!).getByText("Eddie Editor")).toBeDefined();
-  expect(screen.getByRole("link", { name: "Queries" }).getAttribute("aria-current")).toBe("page");
+  const nav = screen.getByRole("navigation", { name: "Main" });
+  expect(within(nav).getByRole("link", { name: "Queries" }).getAttribute("aria-current")).toBe(
+    "page",
+  );
 });
 
 test("says so when there are none", async () => {

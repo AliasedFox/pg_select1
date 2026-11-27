@@ -886,3 +886,40 @@ test("charts the first column of numbers when the second isn't one, and says whe
   expect(screen.getByRole("combobox", { name: "X axis" }).textContent).toBe("orders");
   expect(screen.getByRole("combobox", { name: "Y axis" }).textContent).toBe("hour");
 });
+
+test("shows a result as the number in its first row's first column, and keeps it for the next run", async () => {
+  server.use(
+    http.post("/api/explore/connections/:id/query", () =>
+      HttpResponse.json({
+        ...ordersByStatus,
+        columns: [
+          { name: "revenue", type: "numeric" },
+          { name: "orders", type: "bigint" },
+        ],
+        rows: [
+          ["1234567.50", "20"],
+          ["8", "9"],
+        ],
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  await screen.findByRole("table", { name: "Result" });
+  await user.click(screen.getByRole("button", { name: "Number" }));
+
+  const number = await screen.findByRole("figure", { name: "Result number" });
+  expect(screen.queryByRole("table", { name: "Result" })).toBeNull();
+  expect(number.textContent).toBe("revenue1,234,567.50");
+
+  server.use(
+    http.post("/api/explore/connections/:id/query", () =>
+      HttpResponse.json({ ...ordersByStatus, rows: [] }),
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  expect(await screen.findByText("There's no row to show a number of.")).toBeDefined();
+});

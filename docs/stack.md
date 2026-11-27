@@ -138,7 +138,7 @@ Black, white and greys, with a chartreuse yellow for small marks and green for t
 | **Success** (green)        | `#16a34a` (`oklch(0.627 0.17 149.214)`) | `#22c55e` (`oklch(0.723 0.192 149.579)`) | Things that are fine: an alert that's ok or resolved, a connection that works. In the SQL editor, values: strings and numbers.                                               |
 | Destructive (red)          | `oklch(0.577 0.245 27.325)`             | `oklch(0.704 0.191 22.216)`              | Errors, a triggered alert, deleting.                                                                                                                                         |
 
-No other accents: no blue links, no gold. shadcn's `accent` is the grey of hovered items, not a brand color. The SQL editor highlights with these too: keywords bold, types, punctuation and comments (slanted) in muted grey, and what Postgres can't read in red.
+No other accents: no blue links, no gold. The one exception is a user's avatar, their initial in black on a gradient of two light hues picked from a hash of their id (`apps/web/src/lib/avatar.ts`), so people can be told apart at a glance. shadcn's `accent` is the grey of hovered items, not a brand color. The SQL editor highlights with these too: keywords bold, types, punctuation and comments (slanted) in muted grey, and what Postgres can't read in red.
 
 ### Motion
 

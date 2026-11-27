@@ -21,7 +21,8 @@ test("lists dashboards with how many queries are on them, their scope and who ma
   expect(within(overviewRow!).getByText("You")).toBeDefined();
   expect(within(overviewRow!).getByText(overview!.description!)).toBeDefined();
   expect(within(weeklyRow!).getByText("personal")).toBeDefined();
-  expect(screen.getByRole("link", { name: "Dashboards" }).getAttribute("aria-current")).toBe(
+  const nav = screen.getByRole("navigation", { name: "Main" });
+  expect(within(nav).getByRole("link", { name: "Dashboards" }).getAttribute("aria-current")).toBe(
     "page",
   );
 });
