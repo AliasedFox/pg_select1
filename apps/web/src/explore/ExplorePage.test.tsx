@@ -932,6 +932,26 @@ test("shows a result as the number in its first row's first column, and keeps it
   expect(await screen.findByText("There's no row to show a number of.")).toBeDefined();
 });
 
+test("shows a table clicked in the grid, whatever the last result was switched to", async () => {
+  server.use(
+    http.post("/api/explore/connections/:id/query", () => HttpResponse.json(ordersByStatus)),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select 1");
+  await user.click(screen.getByRole("button", { name: "Run" }));
+  await screen.findByRole("table", { name: "Result" });
+  await user.click(screen.getByRole("button", { name: "Chart" }));
+  await screen.findByRole("figure", { name: "Result chart" });
+
+  const tables = screen.getByRole("navigation", { name: "Tables" });
+  await user.click(within(tables).getByRole("button", { name: "customers" }));
+  expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
+  expect(screen.queryByRole("figure", { name: "Result chart" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Table" }).getAttribute("aria-pressed")).toBe("true");
+});
+
 test("opens a saved query shown as it was saved, and saves how it's shown", async () => {
   const daily = {
     ...savedQueries[0]!,
