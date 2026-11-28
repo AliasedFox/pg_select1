@@ -277,11 +277,38 @@ export const targetTable = z.object({ schema: z.string(), name: z.string(), kind
 export type TargetTable = z.infer<typeof targetTable>;
 
 /**
- * What `GET /api/explore/connections/:id/tables` answers: the tables, views, materialized views
- * and partitioned tables in a connection's database outside Postgres's own schemas, by schema
- * then name. Partitions aren't listed apart from their parent.
+ * A function in a target database, by schema and name, with its arguments as
+ * `pg_get_function_identity_arguments` writes them, like `a integer, b text`, which tell
+ * overloads of one name apart.
  */
-export const targetTableList = z.object({ tables: z.array(targetTable) });
+export const targetFunction = z.object({
+  schema: z.string(),
+  name: z.string(),
+  arguments: z.string(),
+});
+
+/** A function in a target database, as {@link targetFunction} parses it. */
+export type TargetFunction = z.infer<typeof targetFunction>;
+
+/**
+ * What `GET /api/explore/connections/:id/tables` answers: the tables, views, materialized views,
+ * partitioned and foreign tables in a connection's database outside Postgres's own schemas, by
+ * schema then name, and its functions, but those of extensions, the same way. Partitions aren't
+ * listed apart from their parent.
+ */
+export const targetTableList = z.object({
+  tables: z.array(targetTable),
+  functions: z.array(targetFunction),
+});
+
+/** What {@link targetTableList} parses: a connection's tables and functions. */
+export type TargetTableList = z.infer<typeof targetTableList>;
+
+/**
+ * What `GET /api/explore/connections/:id/function` answers: a function's definition, as the
+ * `CREATE OR REPLACE FUNCTION` statement `pg_get_functiondef` writes.
+ */
+export const functionDefinition = z.object({ definition: z.string() });
 
 /**
  * What `GET /api/explore/connections/:id/structure` answers: how a table is made, as Postgres

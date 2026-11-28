@@ -1,12 +1,15 @@
 import {
   type ExplorableConnection,
   explorableConnectionList,
+  functionDefinition,
   type QueryResult,
   queryResult,
   type TableStructure,
   tableStructure,
+  type TargetFunction,
   type TargetTable,
   targetTableList,
+  type TargetTableList,
 } from "@pg_select1/shared";
 
 import { callApi, sendApi } from "@/lib/api";
@@ -21,14 +24,26 @@ export async function fetchExplorableConnections(): Promise<ExplorableConnection
   return connections;
 }
 
-/** Asks the API for the tables and views in a connection's database, by schema then name. */
-export async function fetchTables(connectionId: string): Promise<TargetTable[]> {
-  const { tables } = await callApi(
+/**
+ * Asks the API for the tables, views and functions in a connection's database, by schema then
+ * name.
+ */
+export function fetchTables(connectionId: string): Promise<TargetTableList> {
+  return callApi("GET", `/api/explore/connections/${connectionId}/tables`, targetTableList);
+}
+
+/** Asks the API for a function's definition, as a `CREATE OR REPLACE FUNCTION` statement. */
+export async function fetchFunctionDefinition(
+  connectionId: string,
+  fn: TargetFunction,
+): Promise<string> {
+  const query = new URLSearchParams({ schema: fn.schema, name: fn.name, arguments: fn.arguments });
+  const { definition } = await callApi(
     "GET",
-    `/api/explore/connections/${connectionId}/tables`,
-    targetTableList,
+    `/api/explore/connections/${connectionId}/function?${query.toString()}`,
+    functionDefinition,
   );
-  return tables;
+  return definition;
 }
 
 /**

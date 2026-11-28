@@ -13,6 +13,7 @@ import { delay, http, HttpResponse } from "msw";
 import {
   connections,
   customerStructure,
+  orderTotalDefinition,
   queryRows,
   savedQueries,
   viewer,
@@ -99,6 +100,109 @@ test("runs select * from a table clicked, in place of the SQL written", async ()
   expect(asked).toEqual(['select * from "public"."customers"']);
 });
 
+test("lists each schema's tables, then its views, materialized views and functions, each by name", async () => {
+  server.use(
+    http.get("/api/explore/connections/:id/tables", () =>
+      HttpResponse.json({
+        tables: [
+          // By name, as the API answers them.
+          { schema: "public", name: "accounts", kind: "table" },
+          { schema: "public", name: "active", kind: "view" },
+          { schema: "public", name: "big_events", kind: "partitioned table" },
+          { schema: "public", name: "clicks", kind: "view" },
+          { schema: "public", name: "daily", kind: "materialized view" },
+          { schema: "public", name: "zebras", kind: "table" },
+        ],
+        functions: [
+          { schema: "public", name: "add", arguments: "a integer, b integer" },
+          { schema: "public", name: "add", arguments: "a numeric, b numeric" },
+        ],
+      }),
+    ),
+  );
+  renderApp("/explore?connection=shop");
+
+  const tables = await screen.findByRole("navigation", { name: "Tables" });
+  // Each row's kind, from its tooltip, which a plain table has none of, and its name.
+  const rows = within(tables)
+    .getAllByRole("listitem")
+    .map((li) => {
+      const open = li.querySelector("button");
+      return `${open?.getAttribute("title") ?? "table"}: ${open?.textContent ?? ""}`;
+    });
+  expect(rows).toEqual([
+    "table: accounts",
+    "partitioned table: big_events",
+    "table: zebras",
+    "view: active",
+    "view: clicks",
+    "materialized view: daily",
+    "function add(a integer, b integer): add",
+    "function add(a numeric, b numeric): add",
+  ]);
+});
+
+test("puts a function's definition in the editor, without running it, and clears the result", async () => {
+  const asked: string[] = [];
+  const definitions: string[] = [];
+  server.use(
+    http.post("/api/explore/connections/:id/query", async ({ request }) => {
+      asked.push(runQueryRequest.parse(await request.json()).sql);
+      return HttpResponse.json(queryRows);
+    }),
+    http.get("/api/explore/connections/:id/function", ({ request }) => {
+      definitions.push(new URL(request.url).search);
+      return HttpResponse.json({ definition: orderTotalDefinition });
+    }),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  const tables = await screen.findByRole("navigation", { name: "Tables" });
+  await user.click(within(tables).getByRole("button", { name: "customers" }));
+  expect(await screen.findByRole("table", { name: "Result" })).toBeDefined();
+  await user.click(within(tables).getByRole("button", { name: "order_total" }));
+
+  const sql = screen.getByRole("textbox", { name: "SQL" });
+  await waitFor(() => {
+    expect(sqlOf(sql)).toBe(orderTotalDefinition);
+  });
+  expect(definitions).toEqual(["?schema=public&name=order_total&arguments=order_id+bigint"]);
+  // Not with the button, nor with the keys, until the SQL is changed.
+  expect(screen.getByRole("button", { name: "Run" })).toHaveProperty("disabled", true);
+  await user.click(sql);
+  await user.keyboard("{Control>}{Enter}{/Control}");
+  expect(asked).toEqual(['select * from "public"."customers"']);
+  expect(screen.queryByRole("table", { name: "Result" })).toBeNull();
+  // A function has no structure to show, only a name to copy.
+  expect(within(tables).queryByRole("button", { name: "Structure of order_total" })).toBeNull();
+  await user.click(within(tables).getByRole("button", { name: "Copy order_total" }));
+  expect(await navigator.clipboard.readText()).toBe('"public"."order_total"');
+
+  await user.type(sql, "-- changed");
+  expect(screen.getByRole("button", { name: "Run" })).toHaveProperty("disabled", false);
+});
+
+test("says why a function's definition couldn't be loaded", async () => {
+  server.use(
+    http.get("/api/explore/connections/:id/function", () =>
+      HttpResponse.json(
+        { error: "There's no function public.order_total(order_id bigint)" },
+        { status: 404 },
+      ),
+    ),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  const tables = await screen.findByRole("navigation", { name: "Tables" });
+  await user.click(within(tables).getByRole("button", { name: "order_total" }));
+
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "Couldn't load the function: There's no function public.order_total(order_id bigint)",
+  );
+});
+
 test("clears the SQL and the result", async () => {
   const user = userEvent.setup();
   renderApp("/explore?connection=shop");
@@ -182,6 +286,7 @@ test("copies a table's name with its schema, quoted, without running it", async 
           { schema: "Sales", name: 'odd "name"', kind: "view" },
           { schema: "user", name: "order", kind: "table" },
         ],
+        functions: [],
       }),
     ),
   );
@@ -859,7 +964,7 @@ test("picks the first database, by name, when none is in the address", async () 
   server.use(
     http.get("/api/explore/connections/:id/tables", ({ params }) => {
       asked.push(String(params.id));
-      return HttpResponse.json({ tables: [] });
+      return HttpResponse.json({ tables: [], functions: [] });
     }),
   );
   renderApp("/explore");
@@ -878,7 +983,7 @@ test("waits for a saved query to say its database before picking the first", asy
   server.use(
     http.get("/api/explore/connections/:id/tables", ({ params }) => {
       asked.push(String(params.id));
-      return HttpResponse.json({ tables: [] });
+      return HttpResponse.json({ tables: [], functions: [] });
     }),
   );
   renderApp(`/explore?query=${daily.id}`);

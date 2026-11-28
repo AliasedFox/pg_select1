@@ -4,7 +4,7 @@ import type {
   TableKind,
   TableRows,
   TableStructure,
-  TargetTable,
+  TargetTableList,
 } from "@pg_select1/shared";
 import { DatabaseError, escapeIdentifier, type FieldDef, type PoolClient } from "pg";
 import Cursor from "pg-cursor";
@@ -80,15 +80,20 @@ async function readTarget<T>(
 
 /**
  * Answers the tables, views, materialized views, partitioned and foreign tables in a
- * connection's database, outside Postgres's own schemas, by schema then name. Partitions are
- * left out, since their parent holds their rows.
+ * connection's database, outside Postgres's own schemas, by schema then name, and its functions
+ * the same way. Partitions are left out, since their parent holds their rows, and so are the
+ * functions of extensions, which can be hundreds (PostGIS's) and aren't the database's own.
+ * Aggregates, window functions and procedures aren't functions here.
  *
  * @throws {HttpError} a 404 when `user` can't explore the connection, and as {@link readTarget}.
  */
-export async function listTables(connectionId: string, user: SessionUser): Promise<TargetTable[]> {
+export async function listTables(
+  connectionId: string,
+  user: SessionUser,
+): Promise<TargetTableList> {
   const connection = await explorableTarget(connectionId, user);
   return readTarget(connection, user, async (client) => {
-    const { rows } = await client.query<{ schema: string; name: string; relkind: string }>(
+    const tables = await client.query<{ schema: string; name: string; relkind: string }>(
       `SELECT n.nspname AS schema, c.relname AS name, c.relkind::text AS relkind
          FROM pg_catalog.pg_class c
          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
@@ -99,11 +104,58 @@ export async function listTables(connectionId: string, user: SessionUser): Promi
         ORDER BY n.nspname, c.relname`,
       [relkinds],
     );
-    return rows.map(({ schema, name, relkind }) => ({
-      schema,
-      name,
-      kind: kinds[relkind] ?? "table",
-    }));
+    const functions = await client.query<TargetTableList["functions"][number]>(
+      `SELECT n.nspname AS schema, p.proname AS name,
+              pg_catalog.pg_get_function_identity_arguments(p.oid) AS arguments
+         FROM pg_catalog.pg_proc p
+         JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+        WHERE p.prokind = 'f'
+          AND n.nspname !~ '^pg_'
+          AND n.nspname <> 'information_schema'
+          AND NOT EXISTS (SELECT FROM pg_catalog.pg_depend d
+                           WHERE d.classid = 'pg_catalog.pg_proc'::regclass
+                             AND d.objid = p.oid AND d.deptype = 'e')
+        ORDER BY n.nspname, p.proname, arguments`,
+    );
+    return {
+      tables: tables.rows.map(({ schema, name, relkind }) => ({
+        schema,
+        name,
+        kind: kinds[relkind] ?? "table",
+      })),
+      functions: functions.rows,
+    };
+  });
+}
+
+/**
+ * Answers how one of the functions {@link listTables} lists is defined, as the
+ * `CREATE OR REPLACE FUNCTION` statement `pg_get_functiondef` writes, telling overloads apart by
+ * their `args`, as {@link listTables} writes them.
+ *
+ * @throws {HttpError} a 404 when `user` can't explore the connection or there's no such
+ *   function, and as {@link readTarget}.
+ */
+export async function defineFunction(
+  connectionId: string,
+  schema: string,
+  name: string,
+  args: string,
+  user: SessionUser,
+): Promise<{ definition: string }> {
+  const connection = await explorableTarget(connectionId, user);
+  return readTarget(connection, user, async (client) => {
+    const { rows } = await client.query<{ definition: string }>(
+      `SELECT pg_catalog.pg_get_functiondef(p.oid) AS definition
+         FROM pg_catalog.pg_proc p
+         JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = $1 AND p.proname = $2 AND p.prokind = 'f'
+          AND pg_catalog.pg_get_function_identity_arguments(p.oid) = $3`,
+      [schema, name, args],
+    );
+    const found = rows[0];
+    if (!found) throw new HttpError(404, `There's no function ${schema}.${name}(${args})`);
+    return found;
   });
 }
 

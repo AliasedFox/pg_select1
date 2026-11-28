@@ -11,6 +11,7 @@ import {
   updateSavedQueryRequest,
   type TableRows,
   type TableStructure,
+  type TargetFunction,
   type TargetTable,
   inviteUserRequest,
   type Me,
@@ -98,9 +99,22 @@ export const connections: Connection[] = [
 export const tables: TargetTable[] = [
   { schema: "public", name: "customers", kind: "table" },
   { schema: "public", name: "orders", kind: "table" },
+  { schema: "public", name: "recent_customers", kind: "view" },
   { schema: "reporting", name: "daily_sales", kind: "materialized view" },
   { schema: "reporting", name: "open_orders", kind: "view" },
 ];
+
+/** The functions `GET /api/explore/connections/:id/tables` answers beside its tables. */
+export const functions: TargetFunction[] = [
+  { schema: "public", name: "order_total", arguments: "order_id bigint" },
+];
+
+/** What `GET /api/explore/connections/:id/function` answers for any function: order_total's. */
+export const orderTotalDefinition = `CREATE OR REPLACE FUNCTION public.order_total(order_id bigint)
+ RETURNS numeric
+ LANGUAGE sql
+AS $function$ SELECT sum(price) FROM order_items WHERE order_items.order_id = order_total.order_id $function$
+`;
 
 /** A table's rows: the customers'. */
 export const customerRows: TableRows = {
@@ -387,7 +401,10 @@ export const handlers = [
   http.get("/api/explore/connections", () =>
     HttpResponse.json({ connections: connections.map(({ id, name }) => ({ id, name })) }),
   ),
-  http.get("/api/explore/connections/:id/tables", () => HttpResponse.json({ tables })),
+  http.get("/api/explore/connections/:id/tables", () => HttpResponse.json({ tables, functions })),
+  http.get("/api/explore/connections/:id/function", () =>
+    HttpResponse.json({ definition: orderTotalDefinition }),
+  ),
   http.get("/api/explore/connections/:id/structure", () => HttpResponse.json(customerStructure)),
   http.post("/api/explore/connections/:id/query", () => HttpResponse.json(queryRows)),
   http.post("/api/explore/queries/:runId/cancel", () => new HttpResponse(null, { status: 204 })),

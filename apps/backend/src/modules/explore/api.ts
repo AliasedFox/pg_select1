@@ -3,7 +3,14 @@ import { z } from "zod";
 
 import { type Endpoint, parseRequest } from "../../endpoint";
 import { listExplorableConnections } from "../connection/service";
-import { cancelQuery, describeTable, listTables, readTable, runQuery } from "./service";
+import {
+  cancelQuery,
+  defineFunction,
+  describeTable,
+  listTables,
+  readTable,
+  runQuery,
+} from "./service";
 
 const connectionParams = z.object({ id: z.uuid({ message: "There's no such connection" }) });
 
@@ -14,11 +21,19 @@ const tableQuery = z.object({
   table: z.string({ message: "Name a table" }).min(1, "Name a table"),
 });
 
+// A function's arguments can be none, so only their being there is checked.
+const functionQuery = z.object({
+  schema: z.string({ message: "Name a schema" }).min(1, "Name a schema"),
+  name: z.string({ message: "Name a function" }).min(1, "Name a function"),
+  arguments: z.string({ message: "Give the function's arguments" }),
+});
+
 /**
  * Exploring connections, for anyone signed in: the connections they can explore (every one for
- * an admin, the visible ones for anyone else), a connection's tables, a table's rows and how it's
- * made (its columns, constraints, indexes and triggers), and running a query of their own on one,
- * and cancelling it. It all runs directly on the connection's database, read-only.
+ * an admin, the visible ones for anyone else), a connection's tables and functions, a table's
+ * rows and how it's made (its columns, constraints, indexes and triggers), a function's
+ * definition, and running a query of their own on one, and cancelling it. It all runs directly
+ * on the connection's database, read-only.
  */
 export const endpoints: Endpoint[] = [
   {
@@ -35,7 +50,7 @@ export const endpoints: Endpoint[] = [
     access: "user",
     handler: async (req, res, user) => {
       const { id } = parseRequest(connectionParams, req.params);
-      res.json({ tables: await listTables(id, user) });
+      res.json(await listTables(id, user));
     },
   },
   {
@@ -56,6 +71,16 @@ export const endpoints: Endpoint[] = [
       const { id } = parseRequest(connectionParams, req.params);
       const { schema, table } = parseRequest(tableQuery, req.query);
       res.json(await describeTable(id, schema, table, user));
+    },
+  },
+  {
+    method: "get",
+    path: "/api/explore/connections/:id/function",
+    access: "user",
+    handler: async (req, res, user) => {
+      const { id } = parseRequest(connectionParams, req.params);
+      const { schema, name, arguments: args } = parseRequest(functionQuery, req.query);
+      res.json(await defineFunction(id, schema, name, args, user));
     },
   },
   {
