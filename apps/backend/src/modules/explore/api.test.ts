@@ -4,6 +4,7 @@ import {
   connection,
   errorResponse,
   explorableConnectionList,
+  functionDefinition,
   MAX_QUERY_ROWS,
   queryResult,
   tableRows,
@@ -72,6 +73,15 @@ await owner.query(`
   CREATE FUNCTION public.write_one() RETURNS int LANGUAGE plpgsql AS
     $$ BEGIN INSERT INTO public.writes VALUES (1); RETURN 1; END $$;
   CREATE VIEW public.sneaky AS SELECT public.write_one() AS n;
+
+  -- Overloads of one name, and an aggregate, which isn't listed. citext's functions, in public,
+  -- aren't either, being an extension's; it's trusted, so the database's owner can create it.
+  CREATE FUNCTION shop.price_of(id int8) RETURNS numeric LANGUAGE sql
+    AS $$ SELECT price FROM shop.products WHERE products.id = price_of.id $$;
+  CREATE FUNCTION shop.price_of(name text) RETURNS numeric LANGUAGE sql
+    AS $$ SELECT price FROM shop.products WHERE products.name = price_of.name $$;
+  CREATE AGGREGATE shop.total(numeric) (SFUNC = numeric_add, STYPE = numeric);
+  CREATE EXTENSION citext;
 `);
 await owner.end();
 
@@ -99,6 +109,11 @@ function get(path: string, cookie: string): Promise<Response> {
 function rowsPath(id: string, schema: string, table: string): string {
   const query = new URLSearchParams({ schema, table });
   return `/api/explore/connections/${id}/rows?${query.toString()}`;
+}
+
+function functionPath(id: string, schema: string, name: string, args: string): string {
+  const query = new URLSearchParams({ schema, name, arguments: args });
+  return `/api/explore/connections/${id}/function?${query.toString()}`;
 }
 
 function structurePath(id: string, schema: string, table: string): string {
@@ -169,6 +184,53 @@ describe("tables", () => {
       { schema: "shop", name: "orders", kind: "table" },
       { schema: "shop", name: "products", kind: "table" },
     ]);
+  });
+
+  test("lists functions by schema, name and arguments, without aggregates or extensions'", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await get(`/api/explore/connections/${visible.id}/tables`, viewer.cookie);
+
+    const { functions } = targetTableList.parse(await res.json());
+    expect(functions).toEqual([
+      { schema: "public", name: "write_one", arguments: "" },
+      { schema: "shop", name: "price_of", arguments: "id bigint" },
+      { schema: "shop", name: "price_of", arguments: "name text" },
+      { schema: "shop", name: "touch", arguments: "" },
+    ]);
+  });
+
+  test("answers a function's definition, telling overloads apart by their arguments", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await get(functionPath(visible.id, "shop", "price_of", "name text"), viewer.cookie);
+
+    expect(res.status).toBe(200);
+    const { definition } = functionDefinition.parse(await res.json());
+    expect(definition).toStartWith("CREATE OR REPLACE FUNCTION shop.price_of(name text)");
+    expect(definition).toContain("products.name = price_of.name");
+  });
+
+  test("answers 404 for a function that isn't there, or isn't one", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const missing = await get(
+      functionPath(visible.id, "shop", "price_of", "x date"),
+      viewer.cookie,
+    );
+    const aggregate = await get(
+      functionPath(visible.id, "shop", "total", "numeric"),
+      viewer.cookie,
+    );
+
+    expect(missing.status).toBe(404);
+    expect(errorResponse.parse(await missing.json()).error).toBe(
+      "There's no function shop.price_of(x date)",
+    );
+    expect(aggregate.status).toBe(404);
   });
 
   test("a database that can't be reached says why to an admin", async () => {

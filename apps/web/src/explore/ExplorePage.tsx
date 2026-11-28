@@ -46,7 +46,14 @@ import { fetchSavedQuery, updateSavedQuery } from "@/queries/api";
 import { SaveQueryDialog, ScopeBadge } from "@/queries/SavedQueryDialogs";
 import { navigate, useSearchParams } from "@/router";
 
-import { cancelQuery, fetchExplorableConnections, fetchTables, newRunId, runQuery } from "./api";
+import {
+  cancelQuery,
+  fetchExplorableConnections,
+  fetchFunctionDefinition,
+  fetchTables,
+  newRunId,
+  runQuery,
+} from "./api";
 import { DatabaseSelect, NoDatabases } from "./DatabaseSelect";
 import { useSqlHistory } from "./history";
 import { HistoryDialog } from "./HistoryDialog";
@@ -158,9 +165,11 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * another is picked), write a SQL statement
  * in the {@link SqlEditor} and run it there, read-only, to see its rows, a page at a time as the
  * person scrolls down, up to {@link MAX_QUERY_ROWS}.
- * The database's tables are listed beside it. Clicking one replaces the SQL with `select * from`
- * it and runs that, shown in the grid, and each has a button to show its structure, its columns,
- * constraints, indexes and triggers, in a {@link TableStructureDialog}, and one to copy its name.
+ * The database's tables, views and functions are listed beside it. Clicking a table or view
+ * replaces the SQL with `select * from` it and runs that, shown in the grid, and each has a
+ * button to show its structure, its columns, constraints, indexes and triggers, in a
+ * {@link TableStructureDialog}, and one to copy its name. Clicking a function replaces the SQL
+ * with its definition and clears the result; Run is disabled until the SQL is changed from it.
  * While a query runs, the last result stays on screen until the new one fades in over it. A
  * result can be switched from its grid to a {@link ResultChart}, of bars, a line, an area or a pie, or to a {@link ResultNumber}, the
  * value in its first row's first column, which stays switched, and on the same kind of chart,
@@ -193,6 +202,14 @@ export function ExplorePage({ user }: { user: Me }) {
   const [historyDialog, setHistoryDialog] = useState(false);
   // The table whose structure is shown, if any.
   const [described, setDescribed] = useState<TargetTable | undefined>(undefined);
+  // Why the function clicked last couldn't be loaded, if it couldn't.
+  const [functionError, setFunctionError] = useState<string | undefined>(undefined);
+  // The definition of the function opened last, which isn't run: a `CREATE FUNCTION` would only
+  // fail in a read-only transaction. Once the SQL is changed from it, it runs as any other.
+  const [functionSql, setFunctionSql] = useState<string | undefined>(undefined);
+  // Counts what's been opened from the list, so a function's definition that comes in after
+  // something else has been opened doesn't replace that one's SQL.
+  const openings = useRef(0);
   const [outcome, setOutcome] = useState<Outcome | undefined>(undefined);
   const [status, setStatus] = useState<Status>("idle");
   const [paging, setPaging] = useState<Paging>({ kind: "idle" });
@@ -279,7 +296,7 @@ export function ExplorePage({ user }: { user: Me }) {
 
   // Runs `text`, the SQL as written unless given.
   const start = (text = sql) => {
-    if (!connectionId || !text.trim() || current.current) return;
+    if (!connectionId || !text.trim() || text === functionSql || current.current) return;
     history.keep(text);
     // The next page of the last result won't be wanted once this one's in.
     cancelCurrent(page);
@@ -413,6 +430,8 @@ export function ExplorePage({ user }: { user: Me }) {
                 stop();
                 // A saved query opened without its database isn't run on the one picked instead.
                 runOnOpen.current = undefined;
+                openings.current += 1;
+                setFunctionError(undefined);
                 setOutcome(undefined);
                 setStatus("idle");
                 navigate(explorePath(name, queryId));
@@ -428,8 +447,11 @@ export function ExplorePage({ user }: { user: Me }) {
             {tables.kind === "loaded" && connection && (
               <TableList
                 connection={connection.name}
-                tables={tables.value}
+                tables={tables.value.tables}
+                functions={tables.value.functions}
                 onOpen={(t) => {
+                  openings.current += 1;
+                  setFunctionError(undefined);
                   const text = `select * from ${sqlTableName(t)}`;
                   history.keep(sql);
                   setSql(text);
@@ -438,6 +460,27 @@ export function ExplorePage({ user }: { user: Me }) {
                   // What's still running was for other SQL, which isn't there any more.
                   stop();
                   start(text);
+                }}
+                onOpenFunction={(fn) => {
+                  openings.current += 1;
+                  const thisOpening = openings.current;
+                  // A function has no rows to show, so neither the last result nor what's
+                  // running for it is wanted.
+                  stop();
+                  setOutcome(undefined);
+                  setStatus("idle");
+                  setFunctionError(undefined);
+                  fetchFunctionDefinition(connection.id, fn).then(
+                    (definition) => {
+                      if (openings.current !== thisOpening) return;
+                      history.keep(sql);
+                      setSql(definition);
+                      setFunctionSql(definition);
+                    },
+                    (error: unknown) => {
+                      if (openings.current === thisOpening) setFunctionError(describeError(error));
+                    },
+                  );
                 }}
                 onDescribe={setDescribed}
               />
@@ -488,7 +531,7 @@ export function ExplorePage({ user }: { user: Me }) {
                 value={sql}
                 onChange={setSql}
                 onRun={start}
-                tables={tables.kind === "loaded" ? tables.value : undefined}
+                tables={tables.kind === "loaded" ? tables.value.tables : undefined}
                 placeholder="select * from …, or choose a table"
               />
               <div className="flex flex-wrap items-center gap-3">
@@ -505,7 +548,10 @@ export function ExplorePage({ user }: { user: Me }) {
                     Cancel
                   </Button>
                 ) : (
-                  <Button type="submit" disabled={!connection || !sql.trim()}>
+                  <Button
+                    type="submit"
+                    disabled={!connection || !sql.trim() || sql === functionSql}
+                  >
                     <PlayIcon aria-hidden="true" />
                     Run
                   </Button>
@@ -520,6 +566,8 @@ export function ExplorePage({ user }: { user: Me }) {
                     stop();
                     history.keep(sql);
                     setSql("");
+                    openings.current += 1;
+                    setFunctionError(undefined);
                     setOutcome(undefined);
                     setStatus("idle");
                     setSaving({ kind: "idle" });
@@ -651,6 +699,11 @@ export function ExplorePage({ user }: { user: Me }) {
             )}
 
             <section aria-label="Result" className="grid min-w-0 content-start gap-3">
+              {functionError !== undefined && (
+                <p role="alert" className="animate-fade-in text-sm text-destructive">
+                  Couldn't load the function: {functionError}
+                </p>
+              )}
               {answer?.kind === "failed" && (
                 <p key={shown?.n} role="alert" className="animate-fade-in text-sm text-destructive">
                   Couldn't run the query: {answer.message}
