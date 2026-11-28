@@ -383,13 +383,13 @@ export type CatalogTable = z.infer<typeof catalogTable>;
 /**
  * What `GET /api/explore/connections/:id/catalog` answers: the tables and functions
  * `GET /api/explore/connections/:id/tables` lists, each table with its columns, as the API last
- * read them, at `refreshedAt`. The API keeps them in memory and reads them again every 15
- * minutes, so the SQL editor can complete their names without asking the database each time.
+ * read them. The API keeps them in memory and reads them again every 15 minutes, so the SQL
+ * editor can complete their names without asking the database each time. Both are empty for a
+ * connection added or changed since the last read.
  */
 export const targetCatalog = z.object({
   tables: z.array(catalogTable),
   functions: z.array(targetFunction),
-  refreshedAt: z.iso.datetime(),
 });
 
 /** What {@link targetCatalog} parses: a connection's tables, their columns and its functions. */

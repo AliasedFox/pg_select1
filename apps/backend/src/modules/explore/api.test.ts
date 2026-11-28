@@ -267,6 +267,7 @@ describe("catalog", () => {
   test("answers the tables with their columns in order, and the functions", async () => {
     const visible = await addConnection(true);
     const viewer = await signedInAs("viewer");
+    await refreshCatalogs();
 
     const res = await get(`/api/explore/connections/${visible.id}/catalog`, viewer.cookie);
 
@@ -317,6 +318,7 @@ describe("catalog", () => {
     const path = `/api/explore/connections/${visible.id}/catalog`;
     const listed = async () =>
       targetCatalog.parse(await (await get(path, viewer.cookie)).json()).tables.map((t) => t.name);
+    await refreshCatalogs();
     expect(await listed()).not.toContain("added_later");
 
     const changer = new Client({ ...target, user: target.username });
@@ -332,26 +334,24 @@ describe("catalog", () => {
     }
   });
 
-  test("is read again as the explorer lists the connection's tables", async () => {
+  test("is empty for a connection the job hasn't read yet, or changed since", async () => {
     const visible = await addConnection(true);
     const viewer = await signedInAs("viewer");
+    const admin = await signedInAs("admin");
     const path = `/api/explore/connections/${visible.id}/catalog`;
-    const listed = async () =>
-      targetCatalog.parse(await (await get(path, viewer.cookie)).json()).tables.map((t) => t.name);
-    expect(await listed()).not.toContain("listed_later");
+    const catalog = async () => targetCatalog.parse(await (await get(path, viewer.cookie)).json());
+    expect(await catalog()).toEqual({ tables: [], functions: [] });
 
-    const changer = new Client({ ...target, user: target.username });
-    await changer.connect();
-    await changer.query("CREATE TABLE public.listed_later (id int)");
-    try {
-      const res = await get(`/api/explore/connections/${visible.id}/tables`, viewer.cookie);
-      const { tables } = targetTableList.parse(await res.json());
-      expect(tables).toContainEqual({ schema: "public", name: "listed_later", kind: "table" });
-      expect(await listed()).toContain("listed_later");
-    } finally {
-      await changer.query("DROP TABLE public.listed_later");
-      await changer.end();
-    }
+    await refreshCatalogs();
+    expect((await catalog()).tables).not.toEqual([]);
+
+    const res = await request(`/api/connections/${visible.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ visible: true }),
+      headers: { cookie: admin.cookie },
+    });
+    expect(res.status).toBe(200);
+    expect(await catalog()).toEqual({ tables: [], functions: [] });
   });
 
   test("a hidden connection's answers 404 to anyone but an admin", async () => {
@@ -364,13 +364,15 @@ describe("catalog", () => {
     expect((await get(path, admin.cookie)).status).toBe(200);
   });
 
-  test("a database that can't be reached says so, as for its tables", async () => {
+  test("a database that can't be reached has nothing to complete", async () => {
     const unreachable = await addConnection(true, { host: "127.0.0.1", port: 1 });
     const viewer = await signedInAs("viewer");
+    await refreshCatalogs();
 
     const res = await get(`/api/explore/connections/${unreachable.id}/catalog`, viewer.cookie);
 
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(200);
+    expect(targetCatalog.parse(await res.json())).toEqual({ tables: [], functions: [] });
   });
 });
 

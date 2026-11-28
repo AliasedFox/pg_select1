@@ -131,7 +131,6 @@ export const catalog: TargetCatalog = {
           : [{ name: "id", type: "bigint" }],
   })),
   functions,
-  refreshedAt: "2026-01-05T09:00:00.000Z",
 };
 
 /** What `GET /api/explore/connections/:id/function` answers for any function: order_total's. */
