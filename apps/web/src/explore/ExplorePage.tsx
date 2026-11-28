@@ -10,6 +10,7 @@ import {
 } from "@pg_select1/shared";
 import {
   ChartColumnIcon,
+  CopyPlusIcon,
   EraserIcon,
   HashIcon,
   HistoryIcon,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { IconButton } from "@/components/IconButton";
 import { Loading } from "@/components/Loading";
 import { ResultChart } from "@/components/ResultChart";
 import { ResultNumber } from "@/components/ResultNumber";
@@ -521,21 +523,21 @@ export function ExplorePage({ user }: { user: Me }) {
                 functions={catalog.kind === "loaded" ? catalog.value.functions : undefined}
                 placeholder="select * from …, or choose a table"
               />
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
+              <div className="flex flex-wrap items-center gap-2">
+                <IconButton
+                  label="Run"
+                  icon={<PlayIcon />}
                   type="submit"
+                  primary
                   disabled={
                     !connection || !sql.trim() || sql === functionSql || status === "running"
                   }
-                >
-                  <PlayIcon aria-hidden="true" />
-                  Run
-                </Button>
+                />
                 {/* Starts over: no SQL, no result and no saved query open, with what's running
                     dropped. */}
-                <Button
-                  type="button"
-                  variant="outline"
+                <IconButton
+                  label="Clear"
+                  icon={<EraserIcon />}
                   disabled={!sql && !shown && status === "idle" && !queryId}
                   onClick={() => {
                     drop();
@@ -550,44 +552,32 @@ export function ExplorePage({ user }: { user: Me }) {
                     if (queryId) navigate(explorePath(connection?.name, null));
                     editor.current?.focus();
                   }}
-                >
-                  <EraserIcon aria-hidden="true" />
-                  Clear
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
+                />
+                <IconButton
+                  label="History"
+                  icon={<HistoryIcon />}
                   disabled={history.entries.length === 0}
                   onClick={() => {
                     setHistoryDialog(true);
                   }}
-                >
-                  <HistoryIcon aria-hidden="true" />
-                  History
-                </Button>
+                />
                 {/* Over the saved query open, when `user` can change it; else as a new one. */}
                 {savedQuery?.canEdit ? (
-                  <Button
-                    type="button"
-                    variant="outline"
+                  <IconButton
+                    label="Save"
+                    icon={<SaveIcon />}
                     disabled={!unsaved || !connection || !sql.trim() || saving.kind === "saving"}
                     onClick={saveChanges}
-                  >
-                    <SaveIcon aria-hidden="true" />
-                    Save
-                  </Button>
+                  />
                 ) : null}
-                <Button
-                  type="button"
-                  variant="outline"
+                <IconButton
+                  label={savedQuery ? "Save as…" : "Save…"}
+                  icon={savedQuery ? <CopyPlusIcon /> : <SaveIcon />}
                   disabled={!connection || !sql.trim()}
                   onClick={() => {
                     setSaveDialog(true);
                   }}
-                >
-                  {!savedQuery && <SaveIcon aria-hidden="true" />}
-                  {savedQuery ? "Save as…" : "Save…"}
-                </Button>
+                />
                 {/* Keyed by what it says, so each change fades in; the hint as the page opens
                     fades in with the page. */}
                 <span

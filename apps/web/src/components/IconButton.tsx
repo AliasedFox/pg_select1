@@ -6,26 +6,32 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 /**
  * An outlined button with only an icon, named by `label`, which also shows as its tooltip. A
- * `destructive` one's icon is red, as for deleting.
+ * `primary` one is filled, for a page's main action, and a `destructive` one's icon is red, as for
+ * deleting. A `submit` one submits its form, so it needs no `onClick`.
  */
 export function IconButton({
   label,
   icon,
+  type = "button",
+  primary = false,
   destructive = false,
   disabled = false,
   onClick,
 }: {
   label: string;
   icon: ReactNode;
+  type?: "button" | "submit";
+  primary?: boolean;
   destructive?: boolean;
   disabled?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant="outline"
+          type={type}
+          variant={primary ? "default" : "outline"}
           size="icon"
           aria-label={label}
           disabled={disabled}
