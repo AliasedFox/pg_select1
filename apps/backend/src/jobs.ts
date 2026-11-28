@@ -10,8 +10,8 @@ let boss: PgBoss | undefined;
 
 /**
  * Starts pg-boss on pg_select1's database and works every job's queue: creates its `pgboss`
- * schema or migrates it on first start, creates the queues that don't exist yet, and sets or
- * removes schedules so they match `jobs`.
+ * schema or migrates it on first start, creates the queues that don't exist yet, sets or
+ * removes schedules so they match `jobs`, and sends a job for each that runs on start.
  *
  * A queue's options apply only when it's created; changing them later takes `updateQueue`.
  *
@@ -44,6 +44,8 @@ export async function startJobs(jobs: readonly Job[]): Promise<void> {
     if (!schedules.has(existing.name)) await instance.unschedule(existing.name, existing.key);
   }
   for (const [name, cron] of schedules) await instance.schedule(name, cron);
+
+  for (const job of jobs) if (job.runOnStart) await instance.send(job.name, null);
 }
 
 /**

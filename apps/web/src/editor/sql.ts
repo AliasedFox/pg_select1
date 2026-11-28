@@ -6,6 +6,7 @@ import {
   type Completion,
   type CompletionContext,
   type CompletionResult,
+  type CompletionSource,
 } from "@codemirror/autocomplete";
 import {
   defaultKeymap,
@@ -45,7 +46,7 @@ import {
   rectangularSelection,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import type { TargetTable } from "@pg_select1/shared";
+import type { CatalogTable, TargetFunction } from "@pg_select1/shared";
 
 // Keywords people write all the time, ranked above Postgres's hundreds of others, so `se` offers
 // `select` before `security`.
@@ -114,13 +115,120 @@ export function completePhrases(context: CompletionContext): CompletionResult | 
   return { from: word?.from ?? context.pos, options: phraseOptions, validFor: /^[a-z]*$/i };
 }
 
+// A name as it's written in SQL: quoted when it has capitals, spaces or the like, which lang-sql
+// leaves to whoever gives it a completion of their own.
+function nameCompletion(name: string, type: string, detail: string, boost = 0): Completion {
+  const plain = /^[a-z_][a-z_\d$]*$/.test(name);
+  return {
+    label: name,
+    type,
+    detail,
+    boost,
+    ...(!plain && { apply: `"${name.replaceAll('"', '""')}"` }),
+  };
+}
+
+// A name in SQL, quoted or not.
+const NAME = String.raw`(?:"(?:[^"]|"")+"|[a-z_][\w$]*)`;
+
+// A table named where a statement reads or writes one: after `from`, `join`, `update` or `into`,
+// with its schema or without.
+const TABLE_REFERENCE = new RegExp(
+  String.raw`\b(?:from|join|update|into)\s+(${NAME}(?:\s*\.\s*${NAME})?)`,
+  "gi",
+);
+
+// A name as Postgres reads it: without its quotes, or, unquoted, in lower case.
+function unquote(name: string): string {
+  return name.startsWith('"') ? name.slice(1, -1).replaceAll('""', '"') : name.toLowerCase();
+}
+
 /**
- * Answers the tables to complete, by schema; lang-sql offers those in `public` without their
- * schema too, and quotes a name with capitals or spaces as it writes it in.
+ * Answers the tables a statement names after `from`, `join`, `update` or `into`, looked up in
+ * `byName` by `schema.name`, or by name alone for one in `public`. Others it names, as in a
+ * list after `from` (`from a, b`), aren't found.
  */
-export function tableNamespace(tables: readonly TargetTable[]): SQLNamespace {
+export function tablesIn(
+  statement: string,
+  byName: ReadonlyMap<string, CatalogTable>,
+): CatalogTable[] {
+  const found = new Set<CatalogTable>();
+  for (const [, reference = ""] of statement.matchAll(TABLE_REFERENCE)) {
+    const parts = reference.match(new RegExp(NAME, "gi")) ?? [];
+    const table = byName.get(parts.map(unquote).join("."));
+    if (table) found.add(table);
+  }
+  return [...found];
+}
+
+/**
+ * Completes the columns of the tables the statement at the cursor reads, as {@link tablesIn}
+ * finds them, without a table's name or alias before them, which lang-sql's completion needs.
+ * Those of one name are offered once. Above keywords, since a column is what's written most.
+ */
+export function completeColumns(tables: readonly CatalogTable[]): CompletionSource {
+  const byName = new Map<string, CatalogTable>();
+  for (const table of tables) {
+    byName.set(`${table.schema}.${table.name}`, table);
+    if (table.schema === "public") byName.set(table.name, table);
+  }
+  return (context) => {
+    if (byName.size === 0) return null;
+    if (QUIET.has(syntaxTree(context.state).resolveInner(context.pos, -1).name)) return null;
+    const word = context.matchBefore(/[\w$]+$/);
+    if (!word && !context.explicit) return null;
+    const from = word?.from ?? context.pos;
+    // After a dot, lang-sql completes the columns of the table or alias before it.
+    if (context.state.sliceDoc(from - 1, from) === ".") return null;
+    const doc = context.state.doc.toString();
+    const start = doc.lastIndexOf(";", from - 1) + 1;
+    const end = doc.indexOf(";", from);
+    const statement = doc.slice(start, end === -1 ? undefined : end);
+    const seen = new Set<string>();
+    const options: Completion[] = [];
+    for (const table of tablesIn(statement, byName)) {
+      for (const column of table.columns) {
+        if (seen.has(column.name)) continue;
+        seen.add(column.name);
+        options.push(nameCompletion(column.name, "property", column.type, 1));
+      }
+    }
+    return options.length > 0 ? { from, options, validFor: /^[\w$]*$/ } : null;
+  };
+}
+
+/**
+ * Answers the tables, their columns and the functions to complete, by schema: lang-sql offers
+ * those in `public` without their schema too, a table's columns after its name or alias and a
+ * dot, and the columns of the tables in the statement as it's written. Each says what it is: a
+ * table's kind, a column's type, a function's arguments. A function with a table's name in the
+ * same schema is left out, since a schema holds one of each name.
+ */
+export function catalogNamespace(
+  tables: readonly CatalogTable[],
+  functions: readonly TargetFunction[] = [],
+): SQLNamespace {
   const namespace: Record<string, Record<string, SQLNamespace>> = {};
-  for (const { schema, name } of tables) (namespace[schema] ??= {})[name] = [];
+  for (const { schema, name, kind, columns } of tables) {
+    (namespace[schema] ??= {})[name] = {
+      self: nameCompletion(name, "type", kind),
+      children: columns.map((c) => nameCompletion(c.name, "property", c.type)),
+    };
+  }
+  // A function's overloads, which come one after another, are offered once.
+  const overloads = new Map<string, TargetFunction[]>();
+  for (const fn of functions) {
+    const key = `${fn.schema}\0${fn.name}`;
+    overloads.set(key, [...(overloads.get(key) ?? []), fn]);
+  }
+  for (const [first, ...more] of overloads.values()) {
+    if (!first) continue;
+    const schema = (namespace[first.schema] ??= {});
+    if (first.name in schema) continue;
+    const detail = more.length > 0 ? `${more.length + 1} overloads` : `(${first.arguments})`;
+    // Below tables, which are wanted more often where both could go.
+    schema[first.name] = { self: nameCompletion(first.name, "function", detail, -1), children: [] };
+  }
   return namespace;
 }
 
@@ -191,15 +299,22 @@ export function sqlIndentation(context: IndentContext, pos: number): number {
   return indentOf(previous.text);
 }
 
-/** The SQL language with completion of Postgres's keywords, {@link PHRASES} and `tables`. */
-export function sqlLanguage(tables: readonly TargetTable[]): Extension {
+/**
+ * The SQL language with completion of Postgres's keywords, {@link PHRASES}, and `tables`, their
+ * columns and `functions`, as {@link catalogNamespace} and {@link completeColumns} offer them.
+ */
+export function sqlLanguage(
+  tables: readonly CatalogTable[],
+  functions: readonly TargetFunction[] = [],
+): Extension {
   return [
     sql({
       dialect: PostgreSQL,
-      schema: tableNamespace(tables),
+      schema: catalogNamespace(tables, functions),
       defaultSchema: "public",
       keywordCompletion: (label, type) => ({ label, type, boost: COMMON.has(label) ? 1 : -1 }),
     }),
+    PostgreSQL.language.data.of({ autocomplete: completeColumns(tables) }),
     PostgreSQL.language.data.of({
       autocomplete: completePhrases,
       // Moves a line back out when it turns out to start a clause, as its keyword's space is

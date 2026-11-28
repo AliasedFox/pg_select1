@@ -28,7 +28,8 @@ const kinds: Record<string, TableKind> = {
   p: "partitioned table",
   f: "foreign table",
 };
-const relkinds = Object.keys(kinds);
+/** The `pg_class.relkind`s of the tables, views and the like the explorer lists. */
+export const relkinds = Object.keys(kinds);
 
 // Every value as Postgres prints it, rather than as `pg` would parse it (dates into `Date`s in
 // the API's time zone, `bytea` into `Buffer`s), so the explorer shows what's in the database.
@@ -36,25 +37,39 @@ const asText = { getTypeParser: () => (value: string) => value };
 
 /**
  * Runs `work` on a connection's database, in a `READ ONLY` transaction with a statement timeout
- * that is rolled back after, whatever `work` sends.
+ * that is rolled back after, whatever `work` sends, for work nobody is waiting on, like a
+ * background job's. {@link readTarget} says what went wrong in words for someone who is.
+ *
+ * @throws {ConnectError} when the database can't be reached or refuses, and as `pg` does when
+ *   a statement fails.
+ */
+export function readOnly<T>(
+  connection: PooledTarget,
+  work: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  return withTarget(connection, async (client) => {
+    await client.query("BEGIN READ ONLY");
+    await client.query(`SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MS}`);
+    const answer = await work(client);
+    await client.query("ROLLBACK");
+    return answer;
+  });
+}
+
+/**
+ * Runs `work` as {@link readOnly} does, for `user`, saying what went wrong as an HTTP error.
  *
  * @throws {HttpError} a 502 when the database can't be reached or refuses (saying why to an
  *   admin only, since why names its host, port and user), and a 504 when it takes longer than
  *   {@link STATEMENT_TIMEOUT_MS}.
  */
-async function readTarget<T>(
+export async function readTarget<T>(
   connection: PooledTarget,
   user: SessionUser,
   work: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   try {
-    return await withTarget(connection, async (client) => {
-      await client.query("BEGIN READ ONLY");
-      await client.query(`SET LOCAL statement_timeout = ${STATEMENT_TIMEOUT_MS}`);
-      const answer = await work(client);
-      await client.query("ROLLBACK");
-      return answer;
-    });
+    return await readOnly(connection, work);
   } catch (error) {
     if (error instanceof HttpError) throw error;
     if (error instanceof ConnectError) {
@@ -81,20 +96,14 @@ async function readTarget<T>(
 /**
  * Answers the tables, views, materialized views, partitioned and foreign tables in a
  * connection's database, outside Postgres's own schemas, by schema then name, and its functions
- * the same way. Partitions are left out, since their parent holds their rows, and so are the
- * functions of extensions, which can be hundreds (PostGIS's) and aren't the database's own.
- * Aggregates, window functions and procedures aren't functions here.
- *
- * @throws {HttpError} a 404 when `user` can't explore the connection, and as {@link readTarget}.
+ * the same way, on a client already in a transaction on it. Partitions are left out, since their
+ * parent holds their rows, and so are the functions of extensions, which can be hundreds
+ * (PostGIS's) and aren't the database's own. Aggregates, window functions and procedures aren't
+ * functions here.
  */
-export async function listTables(
-  connectionId: string,
-  user: SessionUser,
-): Promise<TargetTableList> {
-  const connection = await explorableTarget(connectionId, user);
-  return readTarget(connection, user, async (client) => {
-    const tables = await client.query<{ schema: string; name: string; relkind: string }>(
-      `SELECT n.nspname AS schema, c.relname AS name, c.relkind::text AS relkind
+export async function readTableList(client: PoolClient): Promise<TargetTableList> {
+  const tables = await client.query<{ schema: string; name: string; relkind: string }>(
+    `SELECT n.nspname AS schema, c.relname AS name, c.relkind::text AS relkind
          FROM pg_catalog.pg_class c
          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind::text = ANY($1)
@@ -102,10 +111,10 @@ export async function listTables(
           AND n.nspname !~ '^pg_'
           AND n.nspname <> 'information_schema'
         ORDER BY n.nspname, c.relname`,
-      [relkinds],
-    );
-    const functions = await client.query<TargetTableList["functions"][number]>(
-      `SELECT n.nspname AS schema, p.proname AS name,
+    [relkinds],
+  );
+  const functions = await client.query<TargetTableList["functions"][number]>(
+    `SELECT n.nspname AS schema, p.proname AS name,
               pg_catalog.pg_get_function_identity_arguments(p.oid) AS arguments
          FROM pg_catalog.pg_proc p
          JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
@@ -116,22 +125,21 @@ export async function listTables(
                            WHERE d.classid = 'pg_catalog.pg_proc'::regclass
                              AND d.objid = p.oid AND d.deptype = 'e')
         ORDER BY n.nspname, p.proname, arguments`,
-    );
-    return {
-      tables: tables.rows.map(({ schema, name, relkind }) => ({
-        schema,
-        name,
-        kind: kinds[relkind] ?? "table",
-      })),
-      functions: functions.rows,
-    };
-  });
+  );
+  return {
+    tables: tables.rows.map(({ schema, name, relkind }) => ({
+      schema,
+      name,
+      kind: kinds[relkind] ?? "table",
+    })),
+    functions: functions.rows,
+  };
 }
 
 /**
- * Answers how one of the functions {@link listTables} lists is defined, as the
+ * Answers how one of the functions {@link readTableList} lists is defined, as the
  * `CREATE OR REPLACE FUNCTION` statement `pg_get_functiondef` writes, telling overloads apart by
- * their `args`, as {@link listTables} writes them.
+ * their `args`, as {@link readTableList} writes them.
  *
  * @throws {HttpError} a 404 when `user` can't explore the connection or there's no such
  *   function, and as {@link readTarget}.
@@ -159,7 +167,7 @@ export async function defineFunction(
   });
 }
 
-// Answers the oid and `relkind` of one of the tables {@link listTables} lists.
+// Answers the oid and `relkind` of one of the tables {@link readTableList} lists.
 async function findTable(
   client: PoolClient,
   schema: string,

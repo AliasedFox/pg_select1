@@ -282,6 +282,22 @@ export async function explorableTarget(id: string, user: SessionUser): Promise<P
 }
 
 /**
+ * Answers every connection with its password decrypted to open its pool, for work done for
+ * nobody in particular, like a background job's. Those whose password can't be decrypted, since
+ * `PG_SELECT1_SECRET_KEY` has changed, are left out.
+ */
+export async function listTargets(): Promise<PooledTarget[]> {
+  const rows = await db.orm.public.Connection.select(...connectionFields).all();
+  return rows.flatMap((row) => {
+    try {
+      return [{ id: row.id, name: row.name, target: targetOf(row), updatedAt: row.updatedAt }];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/**
  * Tests a saved connection with its saved settings and password.
  *
  * @throws {HttpError} a 404 when there's no such connection.

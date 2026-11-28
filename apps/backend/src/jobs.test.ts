@@ -18,12 +18,16 @@ let done: () => void;
 const ran = new Promise<void>((resolve) => {
   done = resolve;
 });
+let started: () => void;
+const ranOnStart = new Promise<void>((resolve) => {
+  started = resolve;
+});
 
 afterAll(async () => {
   await stopJobs();
 });
 
-test("startJobs installs pg-boss in pgboss, works queues and keeps schedules to the jobs'", async () => {
+test("startJobs installs pg-boss in pgboss, works queues, keeps schedules to the jobs' and runs those that run on start", async () => {
   // A schedule left by a job that's gone, which starting should remove.
   const other = inspector();
   await other.start();
@@ -41,7 +45,17 @@ test("startJobs installs pg-boss in pgboss, works queues and keeps schedules to 
       },
     },
     { name: "test-hourly", schedule: "0 * * * *", handler: () => Promise.resolve() },
+    {
+      name: "test-on-start",
+      runOnStart: true,
+      handler: () => {
+        started();
+        return Promise.resolve();
+      },
+    },
   ]);
+  // Sent as jobs start, without anyone sending it.
+  await ranOnStart;
 
   expect(await sendJob("test-echo", { hello: "world" })).toBeString();
   await ran;
