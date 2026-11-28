@@ -283,6 +283,64 @@ export type TargetTable = z.infer<typeof targetTable>;
  */
 export const targetTableList = z.object({ tables: z.array(targetTable) });
 
+/**
+ * What `GET /api/explore/connections/:id/structure` answers: how a table is made, as Postgres
+ * describes it in its catalog. Its columns, with whether they take nulls, their default, which for
+ * an identity or generated column says so, and whether they're in its primary key. Its
+ * constraints but the not-null ones, which the columns say; its indexes, with their size; its
+ * triggers, but those Postgres keeps for itself; and the foreign keys of other tables that refer
+ * to it. A view or materialized view has its
+ * definition, and a partitioned table its partition key and partitions. `rowEstimate` is
+ * Postgres's estimate from its last `ANALYZE`, or null when it hasn't made one, and `size` is a
+ * table's or materialized view's with its indexes and TOAST, as `pg_size_pretty` writes it.
+ */
+export const tableStructure = z.object({
+  schema: z.string(),
+  name: z.string(),
+  kind: tableKind,
+  comment: z.string().nullable(),
+  rowEstimate: z.number().nullable(),
+  size: z.string().nullable(),
+  columns: z.array(
+    z.object({
+      name: z.string(),
+      type: z.string(),
+      notNull: z.boolean(),
+      default: z.string().nullable(),
+      primaryKey: z.boolean(),
+      comment: z.string().nullable(),
+    }),
+  ),
+  constraints: z.array(
+    z.object({
+      name: z.string(),
+      type: z.enum(["primary key", "unique", "foreign key", "check", "exclusion"]),
+      definition: z.string(),
+    }),
+  ),
+  indexes: z.array(
+    z.object({
+      name: z.string(),
+      definition: z.string(),
+      primary: z.boolean(),
+      unique: z.boolean(),
+      // An index left invalid by a `CREATE INDEX CONCURRENTLY` that failed, which no query uses.
+      valid: z.boolean(),
+      size: z.string().nullable(),
+    }),
+  ),
+  triggers: z.array(z.object({ name: z.string(), definition: z.string(), enabled: z.boolean() })),
+  referencedBy: z.array(
+    z.object({ name: z.string(), schema: z.string(), table: z.string(), definition: z.string() }),
+  ),
+  definition: z.string().nullable(),
+  partitionKey: z.string().nullable(),
+  partitions: z.array(z.object({ schema: z.string(), name: z.string(), bound: z.string() })),
+});
+
+/** A table's structure, as {@link tableStructure} parses it. */
+export type TableStructure = z.infer<typeof tableStructure>;
+
 /** A column of a table's rows: its name and its type as Postgres writes it, like `varchar(80)`. */
 export const resultColumn = z.object({ name: z.string(), type: z.string() });
 

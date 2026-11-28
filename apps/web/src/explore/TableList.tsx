@@ -1,9 +1,9 @@
 import type { TableKind, TargetTable } from "@pg_select1/shared";
-import { EyeIcon, LayersIcon, type LucideIcon, Table2Icon } from "lucide-react";
+import { EyeIcon, InfoIcon, LayersIcon, type LucideIcon, Table2Icon } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { Clipped } from "@/components/Clipped";
-import { CopyButton } from "@/components/CopyButton";
+import { CopyButton, hoverButton } from "@/components/CopyButton";
 import { sqlTableName } from "@/lib/sql";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,10 @@ const kindIcons: Record<TableKind, LucideIcon> = {
   "foreign table": Table2Icon,
 };
 
+// A table's buttons, side by side where its row's buttons go, however wide "Copied" makes one.
+const rowButton =
+  "static translate-y-0 group-hover/table:opacity-100 group-hover/table:transition-[color,opacity]";
+
 const itemClass =
   "relative flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left font-mono text-sm text-muted-foreground transition-colors outline-none before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-transparent before:transition-colors group-hover/table:bg-muted group-hover/table:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=page]:bg-muted aria-[current=page]:text-foreground aria-[current=page]:before:bg-highlight";
 
@@ -22,8 +26,9 @@ const itemClass =
  * A connection's tables, under each schema's name, each with an icon for its kind. `public` comes
  * first, in bold, and the other schemas follow in alphabetical order. Clicking one
  * calls `onOpen`; with `href`, each is a link there too, and otherwise a button. A name too long
- * to fit is shown whole in a tooltip, and hovering one shows a button that copies its name with
- * its schema, quoted for SQL. `current` is marked as the page shown.
+ * to fit is shown whole in a tooltip, and hovering one shows a button that calls `onDescribe`,
+ * to show how it's made, and one that copies its name with its schema, quoted for SQL. `current`
+ * is marked as the page shown.
  */
 export function TableList({
   connection,
@@ -31,12 +36,14 @@ export function TableList({
   current,
   href,
   onOpen,
+  onDescribe,
 }: {
   connection: string;
   tables: TargetTable[];
   current?: { schema: string; name: string };
   href?: (table: TargetTable) => string;
   onOpen: (table: TargetTable) => void;
+  onDescribe: (table: TargetTable) => void;
 }) {
   if (tables.length === 0) {
     return (
@@ -106,11 +113,24 @@ export function TableList({
                       {content}
                     </button>
                   )}
-                  <CopyButton
-                    value={sqlTableName(t)}
-                    label={`Copy ${t.name}`}
-                    className="group-hover/table:opacity-100 group-hover/table:transition-[color,opacity]"
-                  />
+                  <div className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-1">
+                    <button
+                      type="button"
+                      aria-label={`Structure of ${t.name}`}
+                      title="Structure"
+                      className={cn(hoverButton, rowButton)}
+                      onClick={() => {
+                        onDescribe(t);
+                      }}
+                    >
+                      <InfoIcon className="size-3.5" />
+                    </button>
+                    <CopyButton
+                      value={sqlTableName(t)}
+                      label={`Copy ${t.name}`}
+                      className={rowButton}
+                    />
+                  </div>
                 </li>
               );
             })}

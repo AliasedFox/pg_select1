@@ -6,6 +6,7 @@ import {
   type QueryDisplayType,
   type QueryResult,
   type SavedQuery,
+  type TargetTable,
 } from "@pg_select1/shared";
 import {
   ChartColumnIcon,
@@ -50,6 +51,7 @@ import { DatabaseSelect, NoDatabases } from "./DatabaseSelect";
 import { useSqlHistory } from "./history";
 import { HistoryDialog } from "./HistoryDialog";
 import { TableList } from "./TableList";
+import { TableStructureDialog } from "./TableStructureDialog";
 
 type Answer = { kind: "done"; result: QueryResult } | { kind: "failed"; message: string };
 
@@ -157,9 +159,10 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * in the {@link SqlEditor} and run it there, read-only, to see its rows, a page at a time as the
  * person scrolls down, up to {@link MAX_QUERY_ROWS}.
  * The database's tables are listed beside it. Clicking one replaces the SQL with `select * from`
- * it and runs that, shown in the grid, and each has a button to copy its name. While a query
- * runs, the last result stays on screen until the new one fades in over it. A result can be switched from its grid to
- * a {@link ResultChart}, of bars, a line, an area or a pie, or to a {@link ResultNumber}, the
+ * it and runs that, shown in the grid, and each has a button to show its structure, its columns,
+ * constraints, indexes and triggers, in a {@link TableStructureDialog}, and one to copy its name.
+ * While a query runs, the last result stays on screen until the new one fades in over it. A
+ * result can be switched from its grid to a {@link ResultChart}, of bars, a line, an area or a pie, or to a {@link ResultNumber}, the
  * value in its first row's first column, which stays switched, and on the same kind of chart,
  * for the runs after, until a table is clicked. A run can be cancelled, and is when the person
  * picks another database or leaves the page. The database is kept in the address, so a
@@ -188,6 +191,8 @@ export function ExplorePage({ user }: { user: Me }) {
   const [sql, setSql] = useState("");
   const history = useSqlHistory(sql);
   const [historyDialog, setHistoryDialog] = useState(false);
+  // The table whose structure is shown, if any.
+  const [described, setDescribed] = useState<TargetTable | undefined>(undefined);
   const [outcome, setOutcome] = useState<Outcome | undefined>(undefined);
   const [status, setStatus] = useState<Status>("idle");
   const [paging, setPaging] = useState<Paging>({ kind: "idle" });
@@ -433,6 +438,16 @@ export function ExplorePage({ user }: { user: Me }) {
                   // What's still running was for other SQL, which isn't there any more.
                   stop();
                   start(text);
+                }}
+                onDescribe={setDescribed}
+              />
+            )}
+            {described && connection && (
+              <TableStructureDialog
+                connectionId={connection.id}
+                table={described}
+                onOpenChange={(open) => {
+                  if (!open) setDescribed(undefined);
                 }}
               />
             )}

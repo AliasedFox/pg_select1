@@ -7,9 +7,10 @@ import { ResultNumber } from "@/components/ResultNumber";
 import { RowsGrid } from "@/components/RowsGrid";
 
 import preview from "../../.storybook/preview";
-import { admin, customerRows, savedQueries, viewer } from "../../test/fixtures";
+import { admin, customerRows, customerStructure, savedQueries, viewer } from "../../test/fixtures";
 import { ExplorePage } from "./ExplorePage";
 import { HistoryDialog } from "./HistoryDialog";
+import { TableStructureDialog } from "./TableStructureDialog";
 
 const meta = preview.meta({
   title: "Explore/ExplorePage",
@@ -127,6 +128,78 @@ export const History = meta.story({
       current={versions[0]?.sql ?? ""}
       onRestore={() => undefined}
       focusAfterRestore={() => undefined}
+      onOpenChange={() => undefined}
+    />
+  ),
+});
+
+// The customers' table: its columns, constraints, an invalid index, a disabled trigger and the
+// foreign key that refers to it.
+export const Structure = meta.story({
+  render: () => (
+    <TableStructureDialog
+      connectionId="0199a1b2-0000-7000-8000-0000000000c2"
+      table={{ schema: "public", name: "customers", kind: "table" }}
+      onOpenChange={() => undefined}
+    />
+  ),
+});
+
+// A materialized view: its definition, and indexes, but no constraints or triggers.
+export const StructureOfAView = meta.story({
+  beforeEach({ msw }) {
+    msw.use(
+      http.get("/api/explore/connections/:id/structure", () =>
+        HttpResponse.json({
+          ...customerStructure,
+          schema: "reporting",
+          name: "daily_sales",
+          kind: "materialized view",
+          comment: null,
+          rowEstimate: 365,
+          size: "40 kB",
+          columns: [
+            {
+              name: "day",
+              type: "date",
+              notNull: false,
+              default: null,
+              primaryKey: false,
+              comment: null,
+            },
+            {
+              name: "total",
+              type: "numeric",
+              notNull: false,
+              default: null,
+              primaryKey: false,
+              comment: null,
+            },
+          ],
+          constraints: [],
+          indexes: [
+            {
+              name: "daily_sales_day",
+              definition:
+                "CREATE UNIQUE INDEX daily_sales_day ON reporting.daily_sales USING btree (day)",
+              primary: false,
+              unique: true,
+              valid: true,
+              size: "16 kB",
+            },
+          ],
+          triggers: [],
+          referencedBy: [],
+          definition:
+            " SELECT date_trunc('day'::text, created_at)::date AS day,\n    sum(total) AS total\n   FROM orders\n  GROUP BY (date_trunc('day'::text, created_at)::date);",
+        }),
+      ),
+    );
+  },
+  render: () => (
+    <TableStructureDialog
+      connectionId="0199a1b2-0000-7000-8000-0000000000c2"
+      table={{ schema: "reporting", name: "daily_sales", kind: "materialized view" }}
       onOpenChange={() => undefined}
     />
   ),
