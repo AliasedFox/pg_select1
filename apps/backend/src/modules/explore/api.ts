@@ -4,11 +4,9 @@ import { z } from "zod";
 import { type Endpoint, parseRequest } from "../../endpoint";
 import { listExplorableConnections } from "../connection/service";
 import { catalogOf, listTables } from "./catalog";
-import { cancelQuery, defineFunction, describeTable, readTable, runQuery } from "./service";
+import { defineFunction, describeTable, readTable, runQuery } from "./service";
 
 const connectionParams = z.object({ id: z.uuid({ message: "There's no such connection" }) });
-
-const runParams = z.object({ runId: z.uuid({ message: "There's no such query running" }) });
 
 const tableQuery = z.object({
   schema: z.string({ message: "Name a schema" }).min(1, "Name a schema"),
@@ -27,8 +25,8 @@ const functionQuery = z.object({
  * an admin, the visible ones for anyone else), a connection's tables and functions, the same
  * with every table's columns, from memory, for the SQL editor to complete, a table's
  * rows and how it's made (its columns, constraints, indexes and triggers), a function's
- * definition, and running a query of their own on one, and cancelling it. It all runs directly
- * on the connection's database, read-only.
+ * definition, and running a query of their own on one. It all runs directly on the connection's
+ * database, read-only.
  */
 export const endpoints: Endpoint[] = [
   {
@@ -93,18 +91,8 @@ export const endpoints: Endpoint[] = [
     access: "user",
     handler: async (req, res, user) => {
       const { id } = parseRequest(connectionParams, req.params);
-      const { sql, runId, offset } = parseRequest(runQueryRequest, req.body);
-      res.json(await runQuery(id, sql, user, runId, offset));
-    },
-  },
-  {
-    method: "post",
-    path: "/api/explore/queries/:runId/cancel",
-    access: "user",
-    handler: (req, res, user) => {
-      const { runId } = parseRequest(runParams, req.params);
-      cancelQuery(runId, user);
-      res.status(204).end();
+      const { sql, offset } = parseRequest(runQueryRequest, req.body);
+      res.json(await runQuery(id, sql, user, offset));
     },
   },
 ];

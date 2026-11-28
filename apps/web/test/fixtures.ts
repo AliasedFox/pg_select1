@@ -433,7 +433,6 @@ export const handlers = [
   http.get("/api/explore/connections/:id/catalog", () => HttpResponse.json(catalog)),
   http.get("/api/explore/connections/:id/structure", () => HttpResponse.json(customerStructure)),
   http.post("/api/explore/connections/:id/query", () => HttpResponse.json(queryRows)),
-  http.post("/api/explore/queries/:runId/cancel", () => new HttpResponse(null, { status: 204 })),
   http.get("/api/saved-queries", () => HttpResponse.json({ savedQueries })),
   http.get("/api/saved-queries/:id", ({ params }) => {
     const found = savedQueries.find((q) => q.id === params.id);

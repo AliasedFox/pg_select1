@@ -13,6 +13,11 @@ const env = readEnv();
 // (see `prisma/contract.ts`). These map its field names to the contract's snake_case columns.
 const timestamps = { createdAt: "created_at", updatedAt: "updated_at" };
 
+const database = new Pool({ connectionString: env.DATABASE_URL, max: 5 });
+// An idle client whose server went away, as when Postgres restarts; the pool drops it and the
+// next query opens another. Unheard, the error would end the process.
+database.on("error", () => undefined);
+
 /** How long an invite or set-password link works for. */
 export const SET_PASSWORD_LINK_DAYS = 7;
 
@@ -31,7 +36,7 @@ export const auth = betterAuth({
   basePath: "/api/auth",
   trustedOrigins: env.trustedOrigins,
   secret: env.PG_SELECT1_SECRET_KEY,
-  database: new Pool({ connectionString: env.DATABASE_URL, max: 5 }),
+  database,
   emailAndPassword: {
     enabled: true,
     disableSignUp: true,
