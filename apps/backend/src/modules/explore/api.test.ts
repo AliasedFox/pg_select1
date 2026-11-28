@@ -69,6 +69,8 @@ await owner.query(`
   CREATE TABLE public.many AS SELECT n FROM generate_series(1, ${ROW_CAP + 5}) AS n;
   CREATE TABLE public."Odd ""name""" ("a b" text);
   INSERT INTO public."Odd ""name""" VALUES ('quoted');
+  CREATE TABLE shop.prices (amount numeric, product_id int8, day date,
+    PRIMARY KEY (product_id, day));
 
   -- Reading this view writes, which a read-only transaction refuses.
   CREATE TABLE public.writes (n int);
@@ -184,6 +186,7 @@ describe("tables", () => {
       { schema: "public", name: "writes", kind: "table" },
       { schema: "shop", name: "cheap", kind: "view" },
       { schema: "shop", name: "orders", kind: "table" },
+      { schema: "shop", name: "prices", kind: "table" },
       { schema: "shop", name: "products", kind: "table" },
     ]);
   });
@@ -281,6 +284,7 @@ describe("catalog", () => {
       "public.writes",
       "shop.cheap",
       "shop.orders",
+      "shop.prices",
       "shop.products",
     ]);
     expect(catalog.tables.find((t) => t.name === "products")?.columns).toEqual([
@@ -519,6 +523,7 @@ describe("structure", () => {
       referencedBy: [],
     });
     expect(body.size ?? "").toMatch(/^\d+ (bytes|kB)$/);
+    // The primary key's first, then the others by name.
     expect(body.columns).toEqual([
       {
         name: "id",
@@ -526,6 +531,22 @@ describe("structure", () => {
         notNull: true,
         default: "generated always as identity",
         primaryKey: true,
+        comment: null,
+      },
+      {
+        name: "code",
+        type: "text",
+        notNull: false,
+        default: null,
+        primaryKey: false,
+        comment: "Printed on the receipt",
+      },
+      {
+        name: "doubled",
+        type: "integer",
+        notNull: false,
+        default: "generated always as ((quantity * 2)) stored",
+        primaryKey: false,
         comment: null,
       },
       {
@@ -543,22 +564,6 @@ describe("structure", () => {
         default: "1",
         primaryKey: false,
         comment: null,
-      },
-      {
-        name: "doubled",
-        type: "integer",
-        notNull: false,
-        default: "generated always as ((quantity * 2)) stored",
-        primaryKey: false,
-        comment: null,
-      },
-      {
-        name: "code",
-        type: "text",
-        notNull: false,
-        default: null,
-        primaryKey: false,
-        comment: "Printed on the receipt",
       },
     ]);
     // By kind, as a table is written, and the not-null ones left to the columns.
@@ -610,6 +615,20 @@ describe("structure", () => {
           "CREATE TRIGGER orders_touch BEFORE UPDATE ON shop.orders FOR EACH ROW EXECUTE FUNCTION shop.touch()",
         enabled: true,
       },
+    ]);
+  });
+
+  test("a key of several columns comes first, as the key has them", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await get(structurePath(visible.id, "shop", "prices"), viewer.cookie);
+
+    const { columns } = tableStructure.parse(await res.json());
+    expect(columns.map((c) => [c.name, c.primaryKey])).toEqual([
+      ["product_id", true],
+      ["day", true],
+      ["amount", false],
     ]);
   });
 
