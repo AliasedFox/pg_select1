@@ -23,9 +23,9 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'c3259ff0428e28164a9cc5027e87d244c36bedc1fa03444103cfb14b44b3671d'>;
+  StorageHashBase<'6c8637c4a79aac05b7f0afc2952d16bc072526f518481461b9a7cd99fc7f8657'>;
 export type ExecutionHash =
-  ExecutionHashBase<'a4b48d411158f1183a65ee96f1fa288fb35c4f4c0d84cf8b582fe9bdad5e60f4'>;
+  ExecutionHashBase<'3d46110e1280628ad81e03626c8819701575e54361c882515b4538fccf0c3fe3'>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
 
@@ -476,6 +476,12 @@ export namespace Models {
     user: public_User;
     readonly [RelationKeys]?: 'user';
   };
+  export type public_Setting = {
+    catalogRefreshMinutes: FieldOutputTypes['public']['Setting']['catalogRefreshMinutes'];
+    id: FieldOutputTypes['public']['Setting']['id'];
+    updatedAt: FieldOutputTypes['public']['Setting']['updatedAt'];
+    readonly [RelationKeys]?: never;
+  };
   export type public_User = {
     createdAt: FieldOutputTypes['public']['User']['createdAt'];
     email: FieldOutputTypes['public']['User']['email'];
@@ -508,6 +514,7 @@ export declare const models: {
     SavedQuery: Models.public_SavedQuery;
     SavedQueryConnection: Models.public_SavedQueryConnection;
     Session: Models.public_Session;
+    Setting: Models.public_Setting;
     User: Models.public_User;
     Verification: Models.public_Verification;
   };
@@ -1124,6 +1131,37 @@ type ContractBase = Omit<
                 },
               ];
             };
+            readonly settings: {
+              columns: {
+                readonly catalog_refresh_minutes: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/int4@1', 15>;
+                  };
+                  readonly many: false;
+                };
+                readonly id: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly updated_at: {
+                  readonly dataType: 'pg/timestamptz';
+                  readonly codecId: 'pg/timestamptz-date@1';
+                  readonly nullable: false;
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [];
+              indexes: readonly [];
+              foreignKeys: readonly [];
+            };
             readonly users: {
               columns: {
                 readonly created_at: {
@@ -1313,6 +1351,7 @@ type ContractBase = Omit<
       readonly model: 'SavedQueryConnection';
     };
     readonly sessions: { readonly namespace: 'public' & NamespaceId; readonly model: 'Session' };
+    readonly settings: { readonly namespace: 'public' & NamespaceId; readonly model: 'Setting' };
     readonly users: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
     readonly verifications: {
       readonly namespace: 'public' & NamespaceId;
@@ -1832,6 +1871,36 @@ type ContractBase = Omit<
               };
             };
           };
+          readonly Setting: {
+            readonly fields: {
+              readonly catalogRefreshMinutes: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly updatedAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-date@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+            };
+            readonly relations: Record<string, never>;
+            readonly storage: {
+              readonly table: 'settings';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly catalogRefreshMinutes: { readonly column: 'catalog_refresh_minutes' };
+                readonly id: { readonly column: 'id' };
+                readonly updatedAt: { readonly column: 'updated_at' };
+              };
+            };
+          };
           readonly User: {
             readonly fields: {
               readonly createdAt: {
@@ -2257,6 +2326,23 @@ type ContractBase = Omit<
           };
           readonly ref: {
             readonly entry: 'sessions';
+            readonly field: 'updated_at';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: {
+            readonly id: 'timestampNow';
+            readonly kind: 'generator';
+            readonly params: { readonly precision: 3 };
+          };
+          readonly onUpdate: {
+            readonly id: 'timestampNow';
+            readonly kind: 'generator';
+            readonly params: { readonly precision: 3 };
+          };
+          readonly ref: {
+            readonly entry: 'settings';
             readonly field: 'updated_at';
             readonly namespace: 'public';
           };

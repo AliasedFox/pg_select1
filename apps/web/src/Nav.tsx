@@ -1,5 +1,11 @@
 import type { Me } from "@pg_select1/shared";
-import { ChevronDownIcon, DatabaseIcon, type LucideIcon, UsersIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  DatabaseIcon,
+  type LucideIcon,
+  SettingsIcon,
+  UsersIcon,
+} from "lucide-react";
 import { type MouseEvent, type PointerEvent, useEffect, useRef, useState } from "react";
 
 import {
@@ -44,6 +50,12 @@ const ADMIN_MENU: NavMenuItem[] = [
     label: "Users",
     description: "Who can sign in, and as what",
     icon: UsersIcon,
+  },
+  {
+    path: "/settings",
+    label: "Settings",
+    description: "How pg_select1 runs, for everyone",
+    icon: SettingsIcon,
   },
 ];
 

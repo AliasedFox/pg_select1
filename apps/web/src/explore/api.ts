@@ -36,7 +36,7 @@ export function fetchTables(connectionId: string): Promise<TargetTableList> {
 
 /**
  * Asks the API for a connection's tables, each with its columns, and its functions, as the API
- * keeps them in memory for the SQL editor to complete, read again every 15 minutes.
+ * keeps them in memory for the SQL editor to complete, read again as often as the settings say.
  */
 export function fetchCatalog(connectionId: string): Promise<TargetCatalog> {
   return callApi("GET", `/api/explore/connections/${connectionId}/catalog`, targetCatalog);

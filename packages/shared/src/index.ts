@@ -383,9 +383,10 @@ export type CatalogTable = z.infer<typeof catalogTable>;
 /**
  * What `GET /api/explore/connections/:id/catalog` answers: the tables and functions
  * `GET /api/explore/connections/:id/tables` lists, each table with its columns, as the API last
- * read them. The API keeps them in memory and reads them again every 15 minutes, so the SQL
- * editor can complete their names without asking the database each time. Both are empty for a
- * connection added or changed since the last read.
+ * read them. The API keeps them in memory and reads them again as often as the settings say,
+ * every 15 minutes unless an admin changes it, so the SQL editor can complete their names without
+ * asking the database each time. Both are empty for a connection added or changed since the last
+ * read.
  */
 export const targetCatalog = z.object({
   tables: z.array(catalogTable),
@@ -681,3 +682,37 @@ export const updateDashboardRequest = z.object({
 
 /** A change to a dashboard, as {@link updateDashboardRequest} takes it. */
 export type UpdateDashboardRequest = z.input<typeof updateDashboardRequest>;
+
+/**
+ * How often the API can read every connection's catalog again, for the SQL editor to complete,
+ * in minutes: each a cron step, so up to an hour they divide one, and past it a day.
+ */
+export const CATALOG_REFRESH_MINUTES = [5, 10, 15, 30, 60, 180, 360, 720, 1440] as const;
+
+/** One of the {@link CATALOG_REFRESH_MINUTES}. */
+export type CatalogRefreshMinutes = (typeof CATALOG_REFRESH_MINUTES)[number];
+
+/** How often the catalog is read until an admin says otherwise. */
+export const DEFAULT_CATALOG_REFRESH_MINUTES: CatalogRefreshMinutes = 15;
+
+/**
+ * pg_select1's settings, as `GET /api/settings` answers them, for admins: how often, in
+ * minutes, the API reads every connection's tables, columns and functions again for the SQL
+ * editor to complete.
+ */
+export const settings = z.object({ catalogRefreshMinutes: z.number().int() });
+
+/** pg_select1's settings, as {@link settings} parses them. */
+export type Settings = z.infer<typeof settings>;
+
+/** The body of `PATCH /api/settings`: the settings to change. */
+export const updateSettingsRequest = z.object({
+  catalogRefreshMinutes: z
+    .literal(CATALOG_REFRESH_MINUTES, {
+      message: "Read the catalog every 5, 10, 15 or 30 minutes, or every 1, 3, 6, 12 or 24 hours",
+    })
+    .optional(),
+});
+
+/** A change to pg_select1's settings, as {@link updateSettingsRequest} takes it. */
+export type UpdateSettingsRequest = z.input<typeof updateSettingsRequest>;
