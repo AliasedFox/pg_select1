@@ -427,13 +427,11 @@ const querySql = z
 export const MAX_QUERY_ROWS = 10_000;
 
 /**
- * What `POST /api/explore/connections/:id/query` takes: one SQL statement to run, an id the
- * browser picks for this run, to cancel it by with `POST /api/explore/queries/:runId/cancel`, and
- * how many of its rows to skip, for a page past the first.
+ * What `POST /api/explore/connections/:id/query` takes: one SQL statement to run, and how many
+ * of its rows to skip, for a page past the first.
  */
 export const runQueryRequest = z.object({
   sql: querySql,
-  runId: z.uuid({ message: "A run's id is a UUID" }).optional(),
   offset: z
     .number()
     .int()

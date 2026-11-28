@@ -26,7 +26,7 @@ import { RowsGrid } from "@/components/RowsGrid";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { FormError } from "@/connections/ConnectionForm";
-import { cancelQuery, newRunId, runQuery } from "@/explore/api";
+import { runQuery } from "@/explore/api";
 import { describeError } from "@/lib/api";
 import { useLoaded } from "@/lib/loaded";
 import { explorePathOf } from "@/queries/api";
@@ -103,8 +103,9 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
 }
 
 // Runs `sql` on a connection, and again whenever `refresh` changes, answering what it answered
-// last, which stays while it runs again, and whether it's running. A run still going when it's
-// run again or the page is left is cancelled.
+// last, which stays while it runs again, and whether it's running. A run's answer that comes in
+// after it's been run again, or after the page is left, isn't shown; the query itself runs on to
+// its end, or the API's statement timeout.
 function useRun(
   connectionId: string | undefined,
   sql: string,
@@ -114,14 +115,11 @@ function useRun(
   const [answer, setAnswer] = useState<Answer | undefined>(undefined);
   useEffect(() => {
     if (!key || !connectionId) return undefined;
-    const runId = newRunId();
     let wanted = true;
-    let settled = false;
     const settle = (outcome: Answer["outcome"]) => {
-      settled = true;
       if (wanted) setAnswer((last) => ({ key, n: (last?.n ?? 0) + 1, outcome }));
     };
-    runQuery(connectionId, sql, runId).then(
+    runQuery(connectionId, sql).then(
       (result) => {
         settle({ kind: "done", result });
       },
@@ -131,8 +129,6 @@ function useRun(
     );
     return () => {
       wanted = false;
-      // Nothing to tell anyone if it fails: the query still ends at the API's statement timeout.
-      if (!settled) cancelQuery(runId).catch(() => undefined);
     };
   }, [key, connectionId, sql]);
   return { running: key !== undefined && answer?.key !== key, answer };
@@ -363,11 +359,11 @@ function queryCount(items: readonly DashboardItem[]): number {
  * three in a row sit side by side. Each query runs on its database when the page opens, read-only
  * as in the explorer, and is shown as it was saved to be: as a table of its rows, a chart or a
  * number. They run again when asked, and by themselves as often as the dashboard says, while the
- * page is shown; running them again keeps their results on screen until the new ones fade in, and
- * leaving the page cancels what's still running. Those who can change the dashboard add queries,
- * each once, and titles to it, move them up and down, take them off once they've said they mean
- * it, change how often it refreshes, change its title and description where they stand, and
- * delete it; who sees it is changed from the list of dashboards. The header's buttons are icons
+ * page is shown; running them again keeps their results on screen until the new ones fade in.
+ * Those who can change the dashboard add queries, each once, and titles to it, move them up and
+ * down, take them off once they've said they mean it, change how often it refreshes, change its
+ * title and description where they stand, and delete it; who sees it is changed from the list of
+ * dashboards. The header's buttons are icons
  * alone, each named in a tooltip. Anyone else can still pick how often it refreshes for
  * themselves, while they're on the page.
  */

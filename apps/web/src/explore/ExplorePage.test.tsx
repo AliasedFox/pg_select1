@@ -721,18 +721,13 @@ test("keeps the last result on screen while the next query runs", async () => {
   expect(screen.queryByText("Running…")).toBeNull();
 });
 
-test("cancels a running query", async () => {
-  const cancelled: string[] = [];
-  let runId = "";
+test("Run waits for the query that's running", async () => {
+  let runs = 0;
   server.use(
-    http.post("/api/explore/connections/:id/query", async ({ request }) => {
-      runId = runQueryRequest.parse(await request.json()).runId ?? "";
+    http.post("/api/explore/connections/:id/query", async () => {
+      runs += 1;
       await delay("infinite");
       return HttpResponse.json(queryRows);
-    }),
-    http.post("/api/explore/queries/:runId/cancel", ({ params }) => {
-      cancelled.push(String(params.runId));
-      return new HttpResponse(null, { status: 204 });
     }),
   );
   const user = userEvent.setup();
@@ -740,11 +735,11 @@ test("cancels a running query", async () => {
 
   await user.type(await screen.findByRole("textbox", { name: "SQL" }), "select pg_sleep(60)");
   await user.click(screen.getByRole("button", { name: "Run" }));
-  await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
-  expect(await screen.findByText("The query was cancelled.")).toBeDefined();
-  expect(cancelled).toEqual([runId]);
-  expect(screen.getByRole("button", { name: "Run" })).toBeDefined();
+  expect(await screen.findByText("Running…")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Run" }).hasAttribute("disabled")).toBe(true);
+  expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+  expect(runs).toBe(1);
 });
 
 test("with only one database, it's picked already", async () => {

@@ -420,79 +420,26 @@ async function readCursor(
   }
 }
 
-// The queries running now that can be cancelled, by who runs them and the id of the run, so
-// nobody cancels anyone else's. The API is one process, so they're kept in its memory.
-const running = new Map<string, AbortController>();
-
-function runKey(runId: string, user: SessionUser): string {
-  return `${user.id}:${runId}`;
-}
-
-/**
- * Cancels a query `user` is running, by the id they gave it, if it's still running; a run that
- * has ended or never started is left alone, since the person can't tell those from a race.
- */
-export function cancelQuery(runId: string, user: SessionUser): void {
-  running.get(runKey(runId, user))?.abort();
-}
-
 /**
  * Runs one SQL statement on a connection's database, in a `READ ONLY` transaction that's rolled
  * back after, and answers the columns it returns, with their types, and up to {@link ROW_CAP} of
  * its rows after the first `offset`, each value as Postgres prints it. A page past the first runs
  * the statement again, so its rows follow the last page's only when the statement orders them
- * and the data hasn't changed. Given a `runId`, the run can be cancelled with
- * {@link cancelQuery} until it ends, which cancels the statement with `pg_cancel_backend`.
+ * and the data hasn't changed. Nothing stops it early: it runs until it ends or reaches
+ * {@link STATEMENT_TIMEOUT_MS}.
  *
  * @throws {HttpError} a 404 when `user` can't explore the connection, a 400 for SQL of several
- *   statements, a 409 when `user` is already running a query with that `runId`, a 499 when it's
- *   cancelled, a 502 when the database refuses the statement, saying why, and as
+ *   statements, a 502 when the database refuses the statement, saying why, and as
  *   {@link readTarget}.
  */
 export async function runQuery(
   connectionId: string,
   sql: string,
   user: SessionUser,
-  runId?: string,
   offset = 0,
 ): Promise<QueryResult> {
   const connection = await explorableTarget(connectionId, user);
-  const key = runId === undefined ? undefined : runKey(runId, user);
-  if (key !== undefined && running.has(key)) {
-    throw new HttpError(409, "A query with that id is running already");
-  }
-  const stop = new AbortController();
-  if (key !== undefined) running.set(key, stop);
-  try {
-    return await runStatement(connection, sql, offset, user, stop.signal);
-  } finally {
-    if (key !== undefined) running.delete(key);
-  }
-}
-
-// Runs the statement for {@link runQuery}, cancelling it on the database when `signal` aborts.
-function runStatement(
-  connection: PooledTarget,
-  sql: string,
-  offset: number,
-  user: SessionUser,
-  signal: AbortSignal,
-): Promise<QueryResult> {
   return readTarget(connection, user, async (client) => {
-    const backend = await client.query<{ pid: number }>(
-      "SELECT pg_catalog.pg_backend_pid() AS pid",
-    );
-    const pid = backend.rows[0]?.pid;
-    // A cancel comes from another client of the pool, since a role may cancel its own backends.
-    let cancelling: Promise<unknown> | undefined;
-    const cancel = () => {
-      cancelling = withTarget(connection, (other) =>
-        other.query("SELECT pg_catalog.pg_cancel_backend($1)", [pid]),
-      ).catch(() => {
-        // The statement still ends at the statement timeout.
-      });
-    };
-    signal.addEventListener("abort", cancel, { once: true });
     // A scan of a big table can start where another one running is, so the same statement would
     // answer its rows in another order each time. Off, a page's rows follow the last page's more
     // often for a statement that doesn't order them.
@@ -501,19 +448,13 @@ function runStatement(
     let read: Awaited<ReturnType<typeof readCursor>>;
     const started = performance.now();
     try {
-      if (signal.aborted) throw new HttpError(499, "The query was cancelled");
       // One row past the cap says whether there are more, as for a table.
       read = await readCursor(client, sql, offset, ROW_CAP + 1);
     } catch (error) {
-      if (signal.aborted) throw new HttpError(499, "The query was cancelled");
       if (error instanceof DatabaseError && error.message.includes("multiple commands")) {
         throw new HttpError(400, "Run one statement at a time");
       }
       throw error;
-    } finally {
-      signal.removeEventListener("abort", cancel);
-      // Before the client goes back to the pool, so a late cancel can't reach its next query.
-      await cancelling;
     }
     const durationMs = Math.round(performance.now() - started);
 

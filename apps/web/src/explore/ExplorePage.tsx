@@ -15,18 +15,9 @@ import {
   HistoryIcon,
   PlayIcon,
   SaveIcon,
-  SquareIcon,
   TableIcon,
 } from "lucide-react";
-import {
-  type ReactNode,
-  type RefObject,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Loading } from "@/components/Loading";
 import { ResultChart } from "@/components/ResultChart";
@@ -47,12 +38,10 @@ import { SaveQueryDialog, ScopeBadge } from "@/queries/SavedQueryDialogs";
 import { navigate, useSearchParams } from "@/router";
 
 import {
-  cancelQuery,
   fetchExplorableConnections,
   fetchFunctionDefinition,
   fetchCatalog,
   fetchTables,
-  newRunId,
   runQuery,
 } from "./api";
 import { DatabaseSelect, NoDatabases } from "./DatabaseSelect";
@@ -76,8 +65,8 @@ interface Outcome {
 // Below the rows: nothing, the next page loading, or why it didn't.
 type Paging = { kind: "idle" } | { kind: "loading" } | { kind: "failed"; message: string };
 
-// Beside the Run button: nothing running, a run that's been going a while, or one cancelled.
-type Status = "idle" | "running" | "cancelled";
+// Beside the Run button: nothing running, or a run that's been going a while.
+type Status = "idle" | "running";
 
 // Beside the Save button: nothing, saving the open query's changes, saved, or why not. `n`
 // counts saves, so each "Saved" fades in anew.
@@ -129,17 +118,8 @@ function ViewToggle({ value, onChange }: { value: View; onChange: (view: View) =
   );
 }
 
-// How long a run goes before it says it's running and offers to cancel, so a quick one doesn't
-// flash a Cancel button and a spinner.
+// How long a run goes before it says it's running, so a quick one doesn't flash a spinner.
 const SLOW_MS = 300;
-
-// Cancels the run that's still wanted, if any, and forgets it.
-function cancelCurrent(current: RefObject<string | undefined>): void {
-  const id = current.current;
-  current.current = undefined;
-  // Nothing to tell anyone if it fails: the query still ends at the API's statement timeout.
-  if (id) cancelQuery(id).catch(() => undefined);
-}
 
 // The explorer's address on a database, with a saved query open or not.
 function explorePath(connection: string | undefined, queryId: string | null): string {
@@ -174,9 +154,10 @@ function describeResult({ columns, rows, truncated, durationMs }: QueryResult): 
  * While a query runs, the last result stays on screen until the new one fades in over it. A
  * result can be switched from its grid to a {@link ResultChart}, of bars, a line, an area or a pie, or to a {@link ResultNumber}, the
  * value in its first row's first column, which stays switched, and on the same kind of chart,
- * for the runs after, until a table is clicked. A run can be cancelled, and is when the person
- * picks another database or leaves the page. The database is kept in the address, so a
- * reload or a link opens the same one.
+ * for the runs after, until a table is clicked. A run can't be stopped: Run waits for it, and
+ * picking another database, a table or a function, or clearing, drops its answer while it runs on
+ * to its end or the API's statement timeout. The database is kept in the address, so a reload or
+ * a link opens the same one.
  *
  * The SQL can be saved as a query, on the database picked and shown as its result is now, which
  * is how it's shown on dashboards too. A saved query is opened from the address
@@ -220,10 +201,12 @@ export function ExplorePage({ user }: { user: Me }) {
   const [chartKind, setChartKind] = useState<ChartKind>(DEFAULT_CHART_KIND);
   const [switchedOn, setSwitchedOn] = useState<number | undefined>(undefined);
   const runs = useRef(0);
-  // The run whose answer is still wanted, so a cancelled or replaced one's is dropped.
-  const current = useRef<string | undefined>(undefined);
+  // Counts runs and pages asked for, to tell them apart.
+  const asks = useRef(0);
+  // The run whose answer is still wanted, so a dropped or replaced one's isn't shown.
+  const current = useRef<number | undefined>(undefined);
   // The same for the next page's run.
-  const page = useRef<string | undefined>(undefined);
+  const page = useRef<number | undefined>(undefined);
   const editor = useRef<SqlEditorHandle>(null);
   // A column's clause copied from the result gets the SQL ready to paste it. The same function
   // every render, so the grid's headers don't render again for it.
@@ -288,28 +271,22 @@ export function ExplorePage({ user }: { user: Me }) {
     };
   }, [queryId]);
 
-  const stop = () => {
-    cancelCurrent(current);
-    cancelCurrent(page);
+  // Drops what's running, so its answers aren't shown; the queries run on to their end.
+  const drop = () => {
+    current.current = undefined;
+    page.current = undefined;
     setPaging({ kind: "idle" });
   };
-  // Leaving the page cancels what's running.
-  useEffect(
-    () => () => {
-      cancelCurrent(current);
-      cancelCurrent(page);
-    },
-    [],
-  );
 
   // Runs `text`, the SQL as written unless given.
   const start = (text = sql) => {
     if (!connectionId || !text.trim() || text === functionSql || current.current) return;
     history.keep(text);
     // The next page of the last result won't be wanted once this one's in.
-    cancelCurrent(page);
+    page.current = undefined;
     setPaging({ kind: "idle" });
-    const id = newRunId();
+    asks.current += 1;
+    const id = asks.current;
     current.current = id;
     setStatus("idle");
     const slow = setTimeout(() => {
@@ -323,7 +300,7 @@ export function ExplorePage({ user }: { user: Me }) {
       setOutcome({ answer, connectionId, sql: text, n: runs.current });
       setStatus("idle");
     };
-    runQuery(connectionId, text, id).then(
+    runQuery(connectionId, text).then(
       (result) => {
         settle({ kind: "done", result });
       },
@@ -381,11 +358,12 @@ export function ExplorePage({ user }: { user: Me }) {
     if (paging.kind === "failed" && !retry) return;
     const { result } = shown.answer;
     if (!result.truncated || result.rows.length >= MAX_QUERY_ROWS) return;
-    const id = newRunId();
+    asks.current += 1;
+    const id = asks.current;
     page.current = id;
     setPaging({ kind: "loading" });
     const { n } = shown;
-    runQuery(shown.connectionId, shown.sql, id, result.rows.length).then(
+    runQuery(shown.connectionId, shown.sql, result.rows.length).then(
       (next) => {
         if (page.current !== id) return;
         page.current = undefined;
@@ -435,7 +413,7 @@ export function ExplorePage({ user }: { user: Me }) {
               connections={list}
               value={connection?.name}
               onChange={(name) => {
-                stop();
+                drop();
                 // A saved query opened without its database isn't run on the one picked instead.
                 runOnOpen.current = undefined;
                 openings.current += 1;
@@ -466,7 +444,7 @@ export function ExplorePage({ user }: { user: Me }) {
                   // A table's rows are for reading, whatever the last result was switched to.
                   setView("table");
                   // What's still running was for other SQL, which isn't there any more.
-                  stop();
+                  drop();
                   start(text);
                 }}
                 onOpenFunction={(fn) => {
@@ -474,7 +452,7 @@ export function ExplorePage({ user }: { user: Me }) {
                   const thisOpening = openings.current;
                   // A function has no rows to show, so neither the last result nor what's
                   // running for it is wanted.
-                  stop();
+                  drop();
                   setOutcome(undefined);
                   setStatus("idle");
                   setFunctionError(undefined);
@@ -544,35 +522,23 @@ export function ExplorePage({ user }: { user: Me }) {
                 placeholder="select * from …, or choose a table"
               />
               <div className="flex flex-wrap items-center gap-3">
-                {status === "running" ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      stop();
-                      setStatus("cancelled");
-                    }}
-                  >
-                    <SquareIcon aria-hidden="true" />
-                    Cancel
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    disabled={!connection || !sql.trim() || sql === functionSql}
-                  >
-                    <PlayIcon aria-hidden="true" />
-                    Run
-                  </Button>
-                )}
+                <Button
+                  type="submit"
+                  disabled={
+                    !connection || !sql.trim() || sql === functionSql || status === "running"
+                  }
+                >
+                  <PlayIcon aria-hidden="true" />
+                  Run
+                </Button>
                 {/* Starts over: no SQL, no result and no saved query open, with what's running
-                    cancelled. */}
+                    dropped. */}
                 <Button
                   type="button"
                   variant="outline"
                   disabled={!sql && !shown && status === "idle" && !queryId}
                   onClick={() => {
-                    stop();
+                    drop();
                     history.keep(sql);
                     setSql("");
                     openings.current += 1;
@@ -636,7 +602,6 @@ export function ExplorePage({ user }: { user: Me }) {
                       <Spinner className="size-3.5" /> Running…
                     </>
                   )}
-                  {status === "cancelled" && "The query was cancelled."}
                   {status === "idle" && `${modifierKey()} Enter to execute`}
                 </span>
                 {saving.kind === "saving" && (

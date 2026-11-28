@@ -489,39 +489,12 @@ describe("rows", () => {
   });
 });
 
-function runQuery(id: string, sql: unknown, cookie: string, runId?: string, offset?: number) {
+function runQuery(id: string, sql: unknown, cookie: string, offset?: number) {
   return request(`/api/explore/connections/${id}/query`, {
     method: "POST",
-    body: JSON.stringify({ sql, runId, offset }),
+    body: JSON.stringify({ sql, offset }),
     headers: { cookie },
   });
-}
-
-function cancel(runId: string, cookie: string) {
-  return request(`/api/explore/queries/${runId}/cancel`, { method: "POST", headers: { cookie } });
-}
-
-// Whether a statement is running on the target now, as its pg_stat_activity shows.
-async function isRunning(query: string): Promise<boolean> {
-  const client = new Client({ connectionString: url.toString() });
-  await client.connect();
-  try {
-    const { rows } = await client.query(
-      "SELECT 1 FROM pg_stat_activity WHERE datname = 'explore_target' AND state = 'active' AND query = $1",
-      [query],
-    );
-    return rows.length > 0;
-  } finally {
-    await client.end();
-  }
-}
-
-async function eventually(check: () => Promise<boolean>): Promise<void> {
-  for (let tries = 0; tries < 50; tries += 1) {
-    if (await check()) return;
-    await Bun.sleep(100);
-  }
-  throw new Error("It didn't happen within 5 seconds");
 }
 
 describe("structure", () => {
@@ -774,13 +747,13 @@ describe("queries", () => {
     const sql = `select n from generate_series(1, ${ROW_CAP * 5 + 5}) as n order by n`;
 
     const second = queryResult.parse(
-      await (await runQuery(visible.id, sql, viewer.cookie, undefined, ROW_CAP)).json(),
+      await (await runQuery(visible.id, sql, viewer.cookie, ROW_CAP)).json(),
     );
     const last = queryResult.parse(
-      await (await runQuery(visible.id, sql, viewer.cookie, undefined, ROW_CAP * 5)).json(),
+      await (await runQuery(visible.id, sql, viewer.cookie, ROW_CAP * 5)).json(),
     );
     const past = queryResult.parse(
-      await (await runQuery(visible.id, sql, viewer.cookie, undefined, ROW_CAP * 10)).json(),
+      await (await runQuery(visible.id, sql, viewer.cookie, ROW_CAP * 10)).json(),
     );
 
     expect(second.rows).toHaveLength(ROW_CAP);
@@ -796,13 +769,7 @@ describe("queries", () => {
     const visible = await addConnection(true);
     const viewer = await signedInAs("viewer");
 
-    const res = await runQuery(
-      visible.id,
-      "select 1",
-      viewer.cookie,
-      undefined,
-      MAX_QUERY_ROWS + 1,
-    );
+    const res = await runQuery(visible.id, "select 1", viewer.cookie, MAX_QUERY_ROWS + 1);
 
     expect(res.status).toBe(400);
   });
@@ -864,40 +831,5 @@ describe("queries", () => {
 
     expect((await runQuery(hidden.id, "select 1", viewer.cookie)).status).toBe(404);
     expect((await runQuery(hidden.id, "select 1", admin.cookie)).status).toBe(200);
-  });
-
-  test("cancels a running query on the database", async () => {
-    const visible = await addConnection(true);
-    const viewer = await signedInAs("viewer");
-    const sql = "select pg_sleep(20) as slept";
-    const runId = crypto.randomUUID();
-
-    const run = runQuery(visible.id, sql, viewer.cookie, runId);
-    await eventually(() => isRunning(sql));
-    const again = await runQuery(visible.id, "select 1", viewer.cookie, runId);
-    const cancelled = await cancel(runId, viewer.cookie);
-    const res = await run;
-
-    expect(again.status).toBe(409);
-    expect(cancelled.status).toBe(204);
-    expect(res.status).toBe(499);
-    expect(errorResponse.parse(await res.json()).error).toBe("The query was cancelled");
-    expect(await isRunning(sql)).toBe(false);
-    // The connection's pool still answers after, and the id can be used again.
-    expect((await runQuery(visible.id, "select 1", viewer.cookie, runId)).status).toBe(200);
-  });
-
-  test("nobody cancels someone else's query", async () => {
-    const visible = await addConnection(true);
-    const viewer = await signedInAs("viewer");
-    const other = await signedInAs("viewer");
-    const sql = "select pg_sleep(0.5) as napped";
-    const runId = crypto.randomUUID();
-
-    const run = runQuery(visible.id, sql, viewer.cookie, runId);
-    await eventually(() => isRunning(sql));
-    expect((await cancel(runId, other.cookie)).status).toBe(204);
-
-    expect((await run).status).toBe(200);
   });
 });
