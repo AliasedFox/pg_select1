@@ -6,6 +6,7 @@ import { endpoints as explore } from "./explore/api";
 import { refreshCatalogsJob } from "./explore/catalog";
 import { endpoints as health } from "./health/api";
 import { endpoints as query } from "./query/api";
+import { endpoints as settings } from "./settings/api";
 import { endpoints as user } from "./user/api";
 
 /** Every module's endpoints, in the order they're mounted. */
@@ -16,6 +17,7 @@ export const endpoints: Endpoint[] = [
   ...explore,
   ...query,
   ...dashboard,
+  ...settings,
 ];
 
 /** Every module's background jobs, which the API process works. */

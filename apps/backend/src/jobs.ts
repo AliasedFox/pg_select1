@@ -37,15 +37,40 @@ export async function startJobs(jobs: readonly Job[]): Promise<void> {
   }
 
   // Schedules live in the database, so one whose job no longer has one would go on sending.
-  const schedules = new Map(
-    jobs.flatMap((job) => (job.schedule ? [[job.name, job.schedule]] : [])),
-  );
+  const schedules = new Map<string, string>();
+  for (const { name, schedule } of jobs) {
+    if (schedule) schedules.set(name, typeof schedule === "string" ? schedule : await schedule());
+  }
   for (const existing of await instance.getSchedules()) {
     if (!schedules.has(existing.name)) await instance.unschedule(existing.name, existing.key);
   }
   for (const [name, cron] of schedules) await instance.schedule(name, cron);
 
   for (const job of jobs) if (job.runOnStart) await instance.send(job.name, null);
+}
+
+/**
+ * Sends a job to a queue on `cron` from now on, in place of the schedule it had, as when the
+ * setting it's sent on changes. Does nothing when jobs haven't started: {@link startJobs} reads
+ * each job's schedule as they do.
+ */
+export async function scheduleJob(name: string, cron: string): Promise<void> {
+  await boss?.schedule(name, cron);
+}
+
+/**
+ * Answers the cron expression that sends a job every `minutes`, from the hour or from midnight
+ * UTC: each of minutes that divides an hour, of hours that divides a day, or once a day.
+ *
+ * @throws {Error} for any other number of minutes, which a cron step can't keep to.
+ */
+export function cronEvery(minutes: number): string {
+  if (minutes > 0 && minutes < 60 && 60 % minutes === 0) return `*/${minutes} * * * *`;
+  if (minutes === 60) return "0 * * * *";
+  const hours = minutes / 60;
+  if (Number.isInteger(hours) && hours < 24 && 24 % hours === 0) return `0 */${hours} * * *`;
+  if (minutes === 1440) return "0 0 * * *";
+  throw new Error(`A cron step can't send a job every ${minutes} minutes`);
 }
 
 /**

@@ -10,8 +10,11 @@ export interface Job {
   name: string;
   /** How the queue retries, expires and keeps its jobs, set when it's first created. */
   queue?: Omit<Queue, "name">;
-  /** A cron expression, in UTC, to send a job on, as for housekeeping. */
-  schedule?: string;
+  /**
+   * A cron expression, in UTC, to send a job on, as for housekeeping, or what reads it as jobs
+   * start, for one that's a setting; `scheduleJob` changes it while they run.
+   */
+  schedule?: string | (() => Promise<string>);
   /** Whether to send a job as jobs start too, as for what's kept in memory, which starts empty. */
   runOnStart?: boolean;
   /** Runs a batch of the queue's jobs; their data is whatever was sent, so parse it with Zod. */

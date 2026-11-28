@@ -1,4 +1,10 @@
-import { defineContract, enumType, member } from "@prisma/orm-postgres/contract-builder";
+import {
+  check,
+  defineContract,
+  enumType,
+  member,
+  sql,
+} from "@prisma/orm-postgres/contract-builder";
 
 /**
  * What a user may do: an admin manages users and connections, an editor also shares saved
@@ -269,6 +275,19 @@ export const contract = defineContract(
       indexes: [constraints.index([cols.dashboardId]), constraints.index([cols.savedQueryId])],
     }));
 
+    // pg_select1's settings, which admins change: one row, with `id` 1, made the first time one
+    // is changed, so until then the API goes by the columns' defaults.
+    const Setting = model("Setting", {
+      fields: {
+        id: field.column(type.Int()).id(),
+        catalogRefreshMinutes: field.column(type.Int()).default(15),
+        updatedAt: UpdatedAt,
+      },
+    }).sql({
+      table: "settings",
+      checks: [check({ expression: sql`id = 1`, name: "settings_one_row" })],
+    });
+
     return {
       enums: { Role, Theme, SslMode, QueryScope, QueryDisplay, ChartKind },
       models: {
@@ -281,6 +300,7 @@ export const contract = defineContract(
         SavedQueryConnection,
         Dashboard,
         DashboardItem,
+        Setting,
       },
     };
   },

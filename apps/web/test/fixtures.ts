@@ -21,6 +21,8 @@ import {
   updateUserRequest,
   updateConnectionRequest,
   type User,
+  type Settings,
+  updateSettingsRequest,
 } from "@pg_select1/shared";
 import { http, HttpResponse } from "msw";
 
@@ -387,6 +389,9 @@ export const dashboardSummaries: DashboardSummary[] = dashboards.map(
   ({ items: _items, ...summary }) => summary,
 );
 
+/** pg_select1's settings as `GET /api/settings` answers them by default: the defaults. */
+export const settings: Settings = { catalogRefreshMinutes: 15 };
+
 /** Answers `GET /api/me` as nobody signed in, for `server.use()` or `msw.use()`. */
 export const signedOut = http.get("/api/me", () =>
   HttpResponse.json({ error: "Sign in first" }, { status: 401 }),
@@ -543,4 +548,9 @@ export const handlers = [
   http.post("/api/connections/:id/test", () =>
     HttpResponse.json({ ok: true, serverVersion: "17.2", latencyMs: 12 }),
   ),
+  http.get("/api/settings", () => HttpResponse.json(settings)),
+  http.patch("/api/settings", async ({ request }) => {
+    const changes = updateSettingsRequest.parse(await request.json());
+    return HttpResponse.json({ ...settings, ...changes });
+  }),
 ];

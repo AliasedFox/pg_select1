@@ -32,6 +32,10 @@
       "model": "Session",
       "namespace": "public"
     },
+    "settings": {
+      "model": "Setting",
+      "namespace": "public"
+    },
     "users": {
       "model": "User",
       "namespace": "public"
@@ -1009,6 +1013,50 @@
               "table": "sessions"
             }
           },
+          "Setting": {
+            "fields": {
+              "catalogRefreshMinutes": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "updatedAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-date@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              }
+            },
+            "relations": {},
+            "storage": {
+              "fields": {
+                "catalogRefreshMinutes": {
+                  "column": "catalog_refresh_minutes"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "updatedAt": {
+                  "column": "updated_at"
+                }
+              },
+              "namespaceId": "public",
+              "table": "settings"
+            }
+          },
           "User": {
             "fields": {
               "createdAt": {
@@ -1960,6 +2008,47 @@
                 }
               ]
             },
+            "settings": {
+              "checks": [
+                {
+                  "expression": "id = 1",
+                  "name": "settings_one_row_7faf435e",
+                  "prefix": "settings_one_row"
+                }
+              ],
+              "columns": {
+                "catalog_refresh_minutes": {
+                  "codecId": "pg/int4@1",
+                  "dataType": "pg/int4",
+                  "default": {
+                    "kind": "literal",
+                    "value": 15
+                  },
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/int4@1",
+                  "dataType": "pg/int4",
+                  "nullable": false
+                },
+                "updated_at": {
+                  "codecId": "pg/timestamptz-date@1",
+                  "dataType": "pg/timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "foreignKeys": [],
+              "indexes": [],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
             "users": {
               "checks": [
                 {
@@ -2181,10 +2270,10 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "c3259ff0428e28164a9cc5027e87d244c36bedc1fa03444103cfb14b44b3671d"
+    "storageHash": "6c8637c4a79aac05b7f0afc2952d16bc072526f518481461b9a7cd99fc7f8657"
   },
   "execution": {
-    "executionHash": "a4b48d411158f1183a65ee96f1fa288fb35c4f4c0d84cf8b582fe9bdad5e60f4",
+    "executionHash": "3d46110e1280628ad81e03626c8819701575e54361c882515b4538fccf0c3fe3",
     "mutations": {
       "defaults": [
         {
@@ -2424,6 +2513,27 @@
           },
           "ref": {
             "entry": "sessions",
+            "field": "updated_at",
+            "namespace": "public"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "timestampNow",
+            "kind": "generator",
+            "params": {
+              "precision": 3
+            }
+          },
+          "onUpdate": {
+            "id": "timestampNow",
+            "kind": "generator",
+            "params": {
+              "precision": 3
+            }
+          },
+          "ref": {
+            "entry": "settings",
             "field": "updated_at",
             "namespace": "public"
           }

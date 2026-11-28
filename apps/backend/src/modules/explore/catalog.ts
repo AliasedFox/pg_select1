@@ -8,8 +8,10 @@ import type {
 
 import type { SessionUser } from "../../auth";
 import type { Job } from "../../job";
+import { cronEvery, scheduleJob } from "../../jobs";
 import type { PooledTarget } from "../../targets";
 import { explorableTarget, listTargets } from "../connection/service";
+import { readSettings } from "../settings/service";
 import { readOnly, readTableList, readTarget, relkinds } from "./service";
 
 // A connection's tables with their columns, and its functions, as last read from its database,
@@ -76,7 +78,7 @@ export async function refreshCatalogs(): Promise<void> {
       try {
         catalogs.set(connection.id, await readCatalog(connection));
       } catch {
-        // Not logged: an unreachable database would say so every 15 minutes, and the explorer
+        // Not logged: an unreachable database would say so on every read, and the explorer
         // says why to whoever opens it.
         if (catalogs.get(connection.id)?.version !== connection.updatedAt.toISOString()) {
           catalogs.delete(connection.id);
@@ -103,7 +105,7 @@ export async function listTables(
 /**
  * Answers a connection's tables, each with its columns, and its functions, as the job last read
  * them. A connection added or changed since the job last read it has none yet: it reads them
- * within 15 minutes, and the editor completes keywords meanwhile.
+ * on its next run, as often as the settings say, and the editor completes keywords meanwhile.
  *
  * @throws {HttpError} a 404 when `user` can't explore the connection.
  */
@@ -114,12 +116,27 @@ export async function catalogOf(connectionId: string, user: SessionUser): Promis
   return { tables: catalog.tables, functions: catalog.functions };
 }
 
-/** Reads every connection's catalog into memory as the API starts, and every 15 minutes. */
+const REFRESH_JOB = "explore-refresh-catalogs";
+
+/**
+ * Reads every connection's catalog into memory as the API starts, and as often as the settings
+ * say, every 15 minutes unless an admin changes it.
+ */
 export const refreshCatalogsJob: Job = {
-  name: "explore-refresh-catalogs",
-  schedule: "*/15 * * * *",
+  name: REFRESH_JOB,
+  schedule: async () => cronEvery((await readSettings()).catalogRefreshMinutes),
   runOnStart: true,
   // One refresh at a time, and one waiting at most: a second waiting would read the same.
   queue: { policy: "stately" },
   handler: refreshCatalogs,
 };
+
+/**
+ * Reads every connection's catalog every `minutes` from now on, as when an admin changes how
+ * often.
+ *
+ * @throws {Error} as {@link cronEvery}, for minutes a cron step can't keep to.
+ */
+export async function scheduleCatalogRefresh(minutes: number): Promise<void> {
+  await scheduleJob(REFRESH_JOB, cronEvery(minutes));
+}

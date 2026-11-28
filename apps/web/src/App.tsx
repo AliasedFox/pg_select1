@@ -20,6 +20,7 @@ import { SavedQueriesPage } from "@/queries/SavedQueriesPage";
 import { ResourcePage } from "@/resources/ResourcePage";
 import { findResource } from "@/resources/resources";
 import { redirect, usePath } from "@/router";
+import { SettingsPage } from "@/settings/SettingsPage";
 import { UsersPage } from "@/users/UsersPage";
 
 /** The app: who's signed in, and the shell around the page for the current path. */
@@ -129,6 +130,12 @@ function SignedInPage({ path, user }: { path: string; user: Me }) {
       return <p className="text-sm text-muted-foreground">Only admins can manage connections.</p>;
     }
     return <ConnectionsPage />;
+  }
+  if (path === "/settings") {
+    if (user.role !== "admin") {
+      return <p className="text-sm text-muted-foreground">Only admins can change settings.</p>;
+    }
+    return <SettingsPage />;
   }
   return <p className="text-sm text-muted-foreground">There's no page here.</p>;
 }
