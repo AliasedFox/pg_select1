@@ -50,6 +50,7 @@ import {
   cancelQuery,
   fetchExplorableConnections,
   fetchFunctionDefinition,
+  fetchCatalog,
   fetchTables,
   newRunId,
   runQuery,
@@ -251,6 +252,13 @@ export function ExplorePage({ user }: { user: Me }) {
     [connectionId],
   );
   const tables = useLoaded(loadTables);
+  // For the editor to complete names, columns included. Not shown when it fails: the table list
+  // says why the database can't be read, and the editor still completes keywords.
+  const loadCatalog = useMemo(
+    () => (connectionId ? () => fetchCatalog(connectionId) : null),
+    [connectionId],
+  );
+  const catalog = useLoaded(loadCatalog);
 
   // Opens the saved query in the address: its SQL goes in the editor, and its result is shown as
   // it was saved.
@@ -531,7 +539,8 @@ export function ExplorePage({ user }: { user: Me }) {
                 value={sql}
                 onChange={setSql}
                 onRun={start}
-                tables={tables.kind === "loaded" ? tables.value.tables : undefined}
+                tables={catalog.kind === "loaded" ? catalog.value.tables : undefined}
+                functions={catalog.kind === "loaded" ? catalog.value.functions : undefined}
                 placeholder="select * from …, or choose a table"
               />
               <div className="flex flex-wrap items-center gap-3">

@@ -1,6 +1,6 @@
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import type { TargetTable } from "@pg_select1/shared";
+import type { CatalogTable, TargetFunction } from "@pg_select1/shared";
 import { type Ref, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
@@ -8,8 +8,9 @@ import { cn } from "@/lib/utils";
 import { type Paste, readyForPaste } from "./paste";
 import { editorSetup, sqlLanguage } from "./sql";
 
-// One empty list, so an editor with no tables isn't reconfigured on every render.
-const NO_TABLES: readonly TargetTable[] = [];
+// Empty lists, so an editor with no tables or functions isn't reconfigured on every render.
+const NO_TABLES: readonly CatalogTable[] = [];
+const NO_FUNCTIONS: readonly TargetFunction[] = [];
 
 // The glow the editor pulses once it's ready for a paste, so it's plain where focus went.
 const GLOW = "animate-glow";
@@ -28,7 +29,7 @@ export interface SqlEditorHandle {
 
 /**
  * A SQL editor for Postgres: highlighted, indented as you go, and completing keywords, pairs of
- * them like `group by`, and the database's tables. The SQL is `value`, and every change to it
+ * them like `group by`, and the database's tables, their columns and its functions. The SQL is `value`, and every change to it
  * goes to `onChange`; ⌘ or Ctrl Enter calls `onRun`.
  */
 export function SqlEditor({
@@ -36,6 +37,7 @@ export function SqlEditor({
   onChange,
   onRun,
   tables = NO_TABLES,
+  functions = NO_FUNCTIONS,
   label,
   placeholder,
   className,
@@ -44,8 +46,10 @@ export function SqlEditor({
   value: string;
   onChange: (value: string) => void;
   onRun: () => void;
-  /** The database's tables, to complete their names. */
-  tables?: readonly TargetTable[];
+  /** The database's tables and their columns, to complete their names. */
+  tables?: readonly CatalogTable[];
+  /** The database's functions, to complete their names. */
+  functions?: readonly TargetFunction[];
   label: string;
   placeholder: string;
   className?: string;
@@ -65,7 +69,7 @@ export function SqlEditor({
       state: EditorState.create({
         doc: value,
         extensions: [
-          language.current.of(sqlLanguage(tables)),
+          language.current.of(sqlLanguage(tables, functions)),
           editorSetup({
             label,
             hint: placeholder,
@@ -97,8 +101,10 @@ export function SqlEditor({
   }, [value]);
 
   useEffect(() => {
-    view.current?.dispatch({ effects: language.current.reconfigure(sqlLanguage(tables)) });
-  }, [tables]);
+    view.current?.dispatch({
+      effects: language.current.reconfigure(sqlLanguage(tables, functions)),
+    });
+  }, [tables, functions]);
 
   useImperativeHandle(ref, () => ({
     focus: () => view.current?.focus(),

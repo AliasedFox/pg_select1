@@ -9,11 +9,13 @@ import {
   queryResult,
   tableRows,
   tableStructure,
+  targetCatalog,
   targetTableList,
 } from "@pg_select1/shared";
 import { Client } from "pg";
 
 import { request, signedInAs } from "../../../test/api";
+import { refreshCatalogs } from "./catalog";
 import { ROW_CAP } from "./service";
 
 // A database of its own in the test run's Postgres, as a target to explore, read by a role that
@@ -258,6 +260,117 @@ describe("tables", () => {
         `${c.name} can't be reached right now. An admin can test its connection.`,
       );
     }
+  });
+});
+
+describe("catalog", () => {
+  test("answers the tables with their columns in order, and the functions", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await get(`/api/explore/connections/${visible.id}/catalog`, viewer.cookie);
+
+    expect(res.status).toBe(200);
+    const catalog = targetCatalog.parse(await res.json());
+    expect(catalog.tables.map((t) => `${t.schema}.${t.name}`)).toEqual([
+      'public.Odd "name"',
+      "public.events",
+      "public.many",
+      "public.sneaky",
+      "public.writes",
+      "shop.cheap",
+      "shop.orders",
+      "shop.products",
+    ]);
+    expect(catalog.tables.find((t) => t.name === "products")?.columns).toEqual([
+      { name: "id", type: "bigint" },
+      { name: "name", type: "character varying(80)" },
+      { name: "price", type: "numeric(10,2)" },
+      { name: "added_at", type: "timestamp with time zone" },
+      { name: "details", type: "jsonb" },
+      { name: "photo", type: "bytea" },
+    ]);
+    expect(catalog.tables.find((t) => t.name === "cheap")).toEqual({
+      schema: "shop",
+      name: "cheap",
+      kind: "view",
+      columns: [
+        { name: "id", type: "bigint" },
+        { name: "name", type: "character varying(80)" },
+      ],
+    });
+    expect(catalog.tables.find((t) => t.name === "events")?.columns).toEqual([
+      { name: "id", type: "integer" },
+      { name: "at", type: "date" },
+    ]);
+    expect(catalog.functions.map((f) => `${f.schema}.${f.name}(${f.arguments})`)).toEqual([
+      "public.write_one()",
+      "shop.price_of(id bigint)",
+      "shop.price_of(name text)",
+      "shop.touch()",
+    ]);
+  });
+
+  test("is kept in memory until the job reads every connection's again", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+    const path = `/api/explore/connections/${visible.id}/catalog`;
+    const listed = async () =>
+      targetCatalog.parse(await (await get(path, viewer.cookie)).json()).tables.map((t) => t.name);
+    expect(await listed()).not.toContain("added_later");
+
+    const changer = new Client({ ...target, user: target.username });
+    await changer.connect();
+    await changer.query("CREATE TABLE public.added_later (id int)");
+    try {
+      expect(await listed()).not.toContain("added_later");
+      await refreshCatalogs();
+      expect(await listed()).toContain("added_later");
+    } finally {
+      await changer.query("DROP TABLE public.added_later");
+      await changer.end();
+    }
+  });
+
+  test("is read again as the explorer lists the connection's tables", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+    const path = `/api/explore/connections/${visible.id}/catalog`;
+    const listed = async () =>
+      targetCatalog.parse(await (await get(path, viewer.cookie)).json()).tables.map((t) => t.name);
+    expect(await listed()).not.toContain("listed_later");
+
+    const changer = new Client({ ...target, user: target.username });
+    await changer.connect();
+    await changer.query("CREATE TABLE public.listed_later (id int)");
+    try {
+      const res = await get(`/api/explore/connections/${visible.id}/tables`, viewer.cookie);
+      const { tables } = targetTableList.parse(await res.json());
+      expect(tables).toContainEqual({ schema: "public", name: "listed_later", kind: "table" });
+      expect(await listed()).toContain("listed_later");
+    } finally {
+      await changer.query("DROP TABLE public.listed_later");
+      await changer.end();
+    }
+  });
+
+  test("a hidden connection's answers 404 to anyone but an admin", async () => {
+    const hidden = await addConnection(false);
+    const viewer = await signedInAs("viewer");
+    const admin = await signedInAs("admin");
+
+    const path = `/api/explore/connections/${hidden.id}/catalog`;
+    expect((await get(path, viewer.cookie)).status).toBe(404);
+    expect((await get(path, admin.cookie)).status).toBe(200);
+  });
+
+  test("a database that can't be reached says so, as for its tables", async () => {
+    const unreachable = await addConnection(true, { host: "127.0.0.1", port: 1 });
+    const viewer = await signedInAs("viewer");
+
+    const res = await get(`/api/explore/connections/${unreachable.id}/catalog`, viewer.cookie);
+
+    expect(res.status).toBe(502);
   });
 });
 

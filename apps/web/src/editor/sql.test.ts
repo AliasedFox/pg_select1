@@ -4,7 +4,7 @@ import { insertNewlineAndIndent } from "@codemirror/commands";
 import { indentOnInput, indentUnit } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 
-import { sqlLanguage } from "./sql";
+import { sqlLanguage, tablesIn } from "./sql";
 
 // Types `text` as a person would, a key at a time, with Enter for each new line.
 function typed(text: string): string {
@@ -49,4 +49,31 @@ test("doesn't take a column starting like a keyword for a clause", () => {
 
 test("starts the next statement at the margin", () => {
   expect(typed("select 1;\nselect 2")).toBe("select 1;\nselect 2");
+});
+
+test("finds the tables a statement reads or writes, with their schema, quoted or not", () => {
+  const table = (schema: string, name: string) => ({
+    schema,
+    name,
+    kind: "table" as const,
+    columns: [],
+  });
+  const customers = table("public", "customers");
+  const products = table("shop", "products");
+  const odd = table("public", 'Odd "name"');
+  const byName = new Map([
+    ["customers", customers],
+    ["public.customers", customers],
+    ["shop.products", products],
+    ['Odd "name"', odd],
+  ]);
+
+  expect(
+    tablesIn(
+      'select * from Customers c join shop . products p on true join "Odd ""name""" o on true',
+      byName,
+    ),
+  ).toEqual([customers, products, odd]);
+  expect(tablesIn("select * from products", byName)).toEqual([]);
+  expect(tablesIn("update public.customers set a = 1", byName)).toEqual([customers]);
 });

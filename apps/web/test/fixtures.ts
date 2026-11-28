@@ -11,6 +11,7 @@ import {
   updateSavedQueryRequest,
   type TableRows,
   type TableStructure,
+  type TargetCatalog,
   type TargetFunction,
   type TargetTable,
   inviteUserRequest,
@@ -108,6 +109,30 @@ export const tables: TargetTable[] = [
 export const functions: TargetFunction[] = [
   { schema: "public", name: "order_total", arguments: "order_id bigint" },
 ];
+
+/** What `GET /api/explore/connections/:id/catalog` answers: {@link tables}, with columns. */
+export const catalog: TargetCatalog = {
+  tables: tables.map((t) => ({
+    ...t,
+    columns:
+      t.name === "customers"
+        ? [
+            { name: "id", type: "bigint" },
+            { name: "email", type: "text" },
+            { name: "name", type: "character varying(80)" },
+            { name: "created_at", type: "timestamp with time zone" },
+          ]
+        : t.name === "orders"
+          ? [
+              { name: "id", type: "bigint" },
+              { name: "customer_id", type: "bigint" },
+              { name: "total", type: "numeric(10,2)" },
+            ]
+          : [{ name: "id", type: "bigint" }],
+  })),
+  functions,
+  refreshedAt: "2026-01-05T09:00:00.000Z",
+};
 
 /** What `GET /api/explore/connections/:id/function` answers for any function: order_total's. */
 export const orderTotalDefinition = `CREATE OR REPLACE FUNCTION public.order_total(order_id bigint)
@@ -405,6 +430,7 @@ export const handlers = [
   http.get("/api/explore/connections/:id/function", () =>
     HttpResponse.json({ definition: orderTotalDefinition }),
   ),
+  http.get("/api/explore/connections/:id/catalog", () => HttpResponse.json(catalog)),
   http.get("/api/explore/connections/:id/structure", () => HttpResponse.json(customerStructure)),
   http.post("/api/explore/connections/:id/query", () => HttpResponse.json(queryRows)),
   http.post("/api/explore/queries/:runId/cancel", () => new HttpResponse(null, { status: 204 })),

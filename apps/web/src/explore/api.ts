@@ -7,6 +7,8 @@ import {
   type TableStructure,
   tableStructure,
   type TargetFunction,
+  type TargetCatalog,
+  targetCatalog,
   type TargetTable,
   targetTableList,
   type TargetTableList,
@@ -30,6 +32,14 @@ export async function fetchExplorableConnections(): Promise<ExplorableConnection
  */
 export function fetchTables(connectionId: string): Promise<TargetTableList> {
   return callApi("GET", `/api/explore/connections/${connectionId}/tables`, targetTableList);
+}
+
+/**
+ * Asks the API for a connection's tables, each with its columns, and its functions, as the API
+ * keeps them in memory for the SQL editor to complete, read again every 15 minutes.
+ */
+export function fetchCatalog(connectionId: string): Promise<TargetCatalog> {
+  return callApi("GET", `/api/explore/connections/${connectionId}/catalog`, targetCatalog);
 }
 
 /** Asks the API for a function's definition, as a `CREATE OR REPLACE FUNCTION` statement. */

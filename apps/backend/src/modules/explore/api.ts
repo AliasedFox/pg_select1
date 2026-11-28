@@ -3,14 +3,8 @@ import { z } from "zod";
 
 import { type Endpoint, parseRequest } from "../../endpoint";
 import { listExplorableConnections } from "../connection/service";
-import {
-  cancelQuery,
-  defineFunction,
-  describeTable,
-  listTables,
-  readTable,
-  runQuery,
-} from "./service";
+import { catalogOf, listTables } from "./catalog";
+import { cancelQuery, defineFunction, describeTable, readTable, runQuery } from "./service";
 
 const connectionParams = z.object({ id: z.uuid({ message: "There's no such connection" }) });
 
@@ -30,7 +24,8 @@ const functionQuery = z.object({
 
 /**
  * Exploring connections, for anyone signed in: the connections they can explore (every one for
- * an admin, the visible ones for anyone else), a connection's tables and functions, a table's
+ * an admin, the visible ones for anyone else), a connection's tables and functions, the same
+ * with every table's columns, from memory, for the SQL editor to complete, a table's
  * rows and how it's made (its columns, constraints, indexes and triggers), a function's
  * definition, and running a query of their own on one, and cancelling it. It all runs directly
  * on the connection's database, read-only.
@@ -51,6 +46,15 @@ export const endpoints: Endpoint[] = [
     handler: async (req, res, user) => {
       const { id } = parseRequest(connectionParams, req.params);
       res.json(await listTables(id, user));
+    },
+  },
+  {
+    method: "get",
+    path: "/api/explore/connections/:id/catalog",
+    access: "user",
+    handler: async (req, res, user) => {
+      const { id } = parseRequest(connectionParams, req.params);
+      res.json(await catalogOf(id, user));
     },
   },
   {

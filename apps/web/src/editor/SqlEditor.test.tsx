@@ -8,8 +8,37 @@ import { useState } from "react";
 import { SqlEditor } from "./SqlEditor";
 
 const tables = [
-  { schema: "public", name: "customers", kind: "table" as const },
-  { schema: "public", name: "orders", kind: "table" as const },
+  {
+    schema: "public",
+    name: "customers",
+    kind: "table" as const,
+    columns: [
+      { name: "id", type: "bigint" },
+      { name: "email", type: "text" },
+      { name: "Signed Up", type: "date" },
+    ],
+  },
+  {
+    schema: "public",
+    name: "orders",
+    kind: "table" as const,
+    columns: [
+      { name: "id", type: "bigint" },
+      { name: "customer_id", type: "bigint" },
+    ],
+  },
+  {
+    schema: "shop",
+    name: "products",
+    kind: "view" as const,
+    columns: [{ name: "price", type: "numeric" }],
+  },
+];
+
+const functions = [
+  { schema: "public", name: "order_total", arguments: "order_id bigint" },
+  { schema: "shop", name: "price_of", arguments: "id bigint" },
+  { schema: "shop", name: "price_of", arguments: "name text" },
 ];
 
 let runs = 0;
@@ -25,6 +54,7 @@ function Editor({ initial = "" }: { initial?: string }) {
         runs += 1;
       }}
       tables={tables}
+      functions={functions}
       placeholder="select …"
     />
   );
@@ -41,12 +71,12 @@ function setup(initial?: string) {
 // The completions offered, once they're there for what was typed, a moment after typing stops,
 // and can be taken, a moment later still (CodeMirror's `interactionDelay`, so a keystroke meant
 // for the SQL doesn't take one that just opened).
-async function offered(): Promise<string[]> {
+async function offered(): Promise<(string | undefined)[]> {
   await new Promise((resolve) => setTimeout(resolve, 200));
   const list = await screen.findByRole("listbox");
   return within(list)
     .getAllByRole("option")
-    .map((o) => o.textContent);
+    .map((o) => o.querySelector(".cm-completionLabel")?.textContent);
 }
 
 test("completes a keyword with Tab", async () => {
@@ -81,6 +111,38 @@ test("completes the database's tables", async () => {
   expect(await offered()).toContain("customers");
   await user.keyboard("{Tab}");
   expect(sql()).toBe("select * from customers");
+});
+
+test("completes a table's columns after its name or alias and a dot", async () => {
+  const { user, box, sql } = setup();
+  await user.type(box, "select * from orders o where o.cust");
+  expect(await offered()).toContain("customer_id");
+  await user.keyboard("{Tab}");
+  expect(sql()).toBe("select * from orders o where o.customer_id");
+});
+
+test("completes the columns of the tables a statement reads, quoting a name that needs it", async () => {
+  const { user, box, sql } = setup();
+  await user.type(box, "select * from customers where Sig");
+  expect(await offered()).toContain("Signed Up");
+  await user.keyboard("{Tab}");
+  expect(sql()).toBe('select * from customers where "Signed Up"');
+});
+
+test("completes another schema's tables and functions after its name", async () => {
+  const { user, box } = setup();
+  await user.type(box, "select shop.");
+  const options = await offered();
+  expect(options).toContain("products");
+  expect(options).toContain("price_of");
+});
+
+test("completes the functions in public by name", async () => {
+  const { user, box, sql } = setup();
+  await user.type(box, "select order_t");
+  expect(await offered()).toContain("order_total");
+  await user.keyboard("{Tab}");
+  expect(sql()).toBe("select order_total");
 });
 
 test("indents a clause's lines on Enter, and with Tab when nothing's offered", async () => {

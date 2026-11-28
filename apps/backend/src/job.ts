@@ -12,6 +12,8 @@ export interface Job {
   queue?: Omit<Queue, "name">;
   /** A cron expression, in UTC, to send a job on, as for housekeeping. */
   schedule?: string;
+  /** Whether to send a job as jobs start too, as for what's kept in memory, which starts empty. */
+  runOnStart?: boolean;
   /** Runs a batch of the queue's jobs; their data is whatever was sent, so parse it with Zod. */
   handler: (jobs: PgBossJob<unknown>[]) => Promise<void>;
 }

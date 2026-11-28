@@ -374,6 +374,27 @@ export const resultColumn = z.object({ name: z.string(), type: z.string() });
 /** A column, as {@link resultColumn} parses it. */
 export type ResultColumn = z.infer<typeof resultColumn>;
 
+/** A table, view or the like in a target database, with its columns in their order. */
+export const catalogTable = targetTable.extend({ columns: z.array(resultColumn) });
+
+/** A table and its columns, as {@link catalogTable} parses it. */
+export type CatalogTable = z.infer<typeof catalogTable>;
+
+/**
+ * What `GET /api/explore/connections/:id/catalog` answers: the tables and functions
+ * `GET /api/explore/connections/:id/tables` lists, each table with its columns, as the API last
+ * read them, at `refreshedAt`. The API keeps them in memory and reads them again every 15
+ * minutes, so the SQL editor can complete their names without asking the database each time.
+ */
+export const targetCatalog = z.object({
+  tables: z.array(catalogTable),
+  functions: z.array(targetFunction),
+  refreshedAt: z.iso.datetime(),
+});
+
+/** What {@link targetCatalog} parses: a connection's tables, their columns and its functions. */
+export type TargetCatalog = z.infer<typeof targetCatalog>;
+
 /**
  * What `GET /api/explore/connections/:id/rows` answers: a table's columns and its rows, each
  * value as Postgres prints it, or `null`. At most `rowCap` rows come back; `truncated` says
