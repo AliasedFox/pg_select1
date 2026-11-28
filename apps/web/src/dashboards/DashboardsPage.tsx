@@ -1,7 +1,8 @@
 import type { DashboardSummary, Me } from "@pg_select1/shared";
-import { MoreHorizontalIcon } from "lucide-react";
+import { MoreHorizontalIcon, PlusIcon } from "lucide-react";
 import { type MouseEvent, useState } from "react";
 
+import { IconButton } from "@/components/IconButton";
 import { Loading } from "@/components/Loading";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,14 +69,13 @@ export function DashboardsPage({ user }: { user: Me }) {
             yours alone; a global one everyone signed in sees.
           </p>
         </div>
-        <Button
-          variant="outline"
+        <IconButton
+          label="New dashboard"
+          icon={<PlusIcon />}
           onClick={() => {
             setOpen({ kind: "new" });
           }}
-        >
-          New dashboard
-        </Button>
+        />
       </div>
 
       {loaded.kind === "loading" && <Loading />}

@@ -492,6 +492,13 @@
                   "kind": "scalar"
                 }
               },
+              "refreshMinutes": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
               "scope": {
                 "nullable": false,
                 "type": {
@@ -551,6 +558,9 @@
                 "ownerId": {
                   "column": "owner_id"
                 },
+                "refreshMinutes": {
+                  "column": "refresh_minutes"
+                },
                 "scope": {
                   "column": "scope"
                 },
@@ -586,9 +596,16 @@
                 }
               },
               "savedQueryId": {
-                "nullable": false,
+                "nullable": true,
                 "type": {
                   "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "title": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
                   "kind": "scalar"
                 }
               }
@@ -612,7 +629,7 @@
               },
               "savedQuery": {
                 "cardinality": "N:1",
-                "nullable": false,
+                "nullable": true,
                 "on": {
                   "localFields": [
                     "savedQueryId"
@@ -640,6 +657,9 @@
                 },
                 "savedQueryId": {
                   "column": "saved_query_id"
+                },
+                "title": {
+                  "column": "title"
                 }
               },
               "namespaceId": "public",
@@ -1436,7 +1456,12 @@
                 "saved_query_id": {
                   "codecId": "pg/uuid@1",
                   "dataType": "pg/uuid",
-                  "nullable": false
+                  "nullable": true
+                },
+                "title": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
                 }
               },
               "foreignKeys": [
@@ -1541,6 +1566,11 @@
                 "owner_id": {
                   "codecId": "pg/uuid@1",
                   "dataType": "pg/uuid",
+                  "nullable": true
+                },
+                "refresh_minutes": {
+                  "codecId": "pg/int4@1",
+                  "dataType": "pg/int4",
                   "nullable": true
                 },
                 "scope": {
@@ -2151,7 +2181,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "5e05024350a46c468507619ad6ba4c0281b627b33a1ba8efca4266f49e4cc265"
+    "storageHash": "c3259ff0428e28164a9cc5027e87d244c36bedc1fa03444103cfb14b44b3671d"
   },
   "execution": {
     "executionHash": "a4b48d411158f1183a65ee96f1fa288fb35c4f4c0d84cf8b582fe9bdad5e60f4",

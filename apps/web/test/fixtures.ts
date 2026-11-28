@@ -3,6 +3,7 @@ import {
   createConnectionRequest,
   createDashboardRequest,
   type Dashboard,
+  type DashboardItemInput,
   type DashboardSummary,
   updateDashboardRequest,
   createSavedQueryRequest,
@@ -182,14 +183,24 @@ export const savedQueries: SavedQuery[] = [
   },
 ];
 
-// A dashboard's queries as the API answers them, from the saved queries above by id, and as
-// someone else's personal query for any other.
-function itemsOf(items: { savedQueryId: string }[], prefix: string): Dashboard["items"] {
-  return items.map((item, index) => ({
-    id: `${prefix}${index}`,
-    ...item,
-    savedQuery: savedQueries.find((q) => q.id === item.savedQueryId) ?? null,
-  }));
+// A dashboard's queries and titles as the API answers them, each query from the saved queries
+// above by id, and as someone else's personal query for any other.
+function itemsOf(items: DashboardItemInput[], prefix: string): Dashboard["items"] {
+  return items.map(({ savedQueryId, title }, index) =>
+    savedQueryId
+      ? {
+          kind: "query",
+          id: `${prefix}${index}`,
+          savedQueryId,
+          savedQuery: savedQueries.find((q) => q.id === savedQueryId) ?? null,
+        }
+      : { kind: "title", id: `${prefix}${index}`, title: title ?? "" },
+  );
+}
+
+// How many queries are among `items`, titles aside.
+function queryCount(items: DashboardItemInput[]): number {
+  return items.filter((item) => item.savedQueryId).length;
 }
 
 /**
@@ -203,6 +214,7 @@ export const dashboards: Dashboard[] = [
     description: "How the shop's doing: who signs up, and what's waiting to ship",
     scope: "global",
     itemCount: 3,
+    refreshMinutes: null,
     owner: { id: admin.id, name: admin.name },
     canEdit: true,
     createdAt: "2026-01-08T09:00:00.000Z",
@@ -222,6 +234,7 @@ export const dashboards: Dashboard[] = [
     description: null,
     scope: "personal",
     itemCount: 0,
+    refreshMinutes: null,
     owner: { id: admin.id, name: admin.name },
     canEdit: true,
     createdAt: "2026-01-09T09:00:00.000Z",
@@ -330,7 +343,7 @@ export const handlers = [
       id: "0199a1b2-0000-7000-8000-0000000000d9",
       ...body,
       description: description ?? null,
-      itemCount: items.length,
+      itemCount: queryCount(items),
       owner: { id: admin.id, name: admin.name },
       canEdit: true,
       createdAt: "2026-01-10T09:00:00.000Z",
@@ -350,7 +363,7 @@ export const handlers = [
       ...Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined)),
       ...(items && {
         items: itemsOf(items, "0199a1b2-0000-7000-8000-00000000030"),
-        itemCount: items.length,
+        itemCount: queryCount(items),
       }),
       updatedAt: "2026-01-10T09:00:00.000Z",
     });

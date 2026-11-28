@@ -460,23 +460,35 @@ export const updateSavedQueryRequest = z.object({
 export type UpdateSavedQueryRequest = z.input<typeof updateSavedQueryRequest>;
 
 /**
- * A saved query on a dashboard, shown as the query's `display` says. `savedQuery` is `null` when
- * the caller doesn't see it, as with someone else's personal query on a global dashboard; `savedQueryId`
- * is there all the same, so the dashboard can be changed without losing it.
+ * What's on a dashboard, one under another: a saved query, shown as the query's `display` says,
+ * or a title over the queries after it. A query's `savedQuery` is `null` when the caller doesn't
+ * see it, as with someone else's personal query on a global dashboard; `savedQueryId` is there
+ * all the same, so the dashboard can be changed without losing it.
  */
-export const dashboardItem = z.object({
-  id: z.string(),
-  savedQueryId: z.string(),
-  savedQuery: savedQuery.nullable(),
-});
+export const dashboardItem = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("query"),
+    id: z.string(),
+    savedQueryId: z.string(),
+    savedQuery: savedQuery.nullable(),
+  }),
+  z.object({ kind: z.literal("title"), id: z.string(), title: z.string() }),
+]);
 
-/** A saved query on a dashboard, as {@link dashboardItem} parses it. */
+/** A saved query or a title on a dashboard, as {@link dashboardItem} parses it. */
 export type DashboardItem = z.infer<typeof dashboardItem>;
+
+/** How often a dashboard can run its queries again by itself, in minutes. */
+export const DASHBOARD_REFRESH_MINUTES = [3, 5, 10, 15, 30, 60] as const;
+
+/** One of the {@link DASHBOARD_REFRESH_MINUTES}. */
+export type DashboardRefreshMinutes = (typeof DASHBOARD_REFRESH_MINUTES)[number];
 
 /**
  * A dashboard as `GET /api/dashboards` answers it: its title, description and who sees it, as
- * for a saved query, and how many queries are on it. `owner` is who made it, `null` once they've
- * been deleted, and `canEdit` whether the caller can change or delete it.
+ * for a saved query, how many queries are on it, titles aside, and how often it runs them again
+ * by itself while it's open, in minutes, `null` for only when asked. `owner` is who made it,
+ * `null` once they've been deleted, and `canEdit` whether the caller can change or delete it.
  */
 export const dashboardSummary = z.object({
   id: z.string(),
@@ -484,6 +496,7 @@ export const dashboardSummary = z.object({
   description: z.string().nullable(),
   scope: queryScope,
   itemCount: z.number().int(),
+  refreshMinutes: z.number().int().nullable(),
   owner: z.object({ id: z.string(), name: z.string() }).nullable(),
   canEdit: z.boolean(),
   createdAt: z.iso.datetime(),
@@ -502,24 +515,46 @@ export const dashboard = dashboardSummary.extend({ items: z.array(dashboardItem)
 /** A dashboard, as {@link dashboard} parses it. */
 export type Dashboard = z.infer<typeof dashboard>;
 
-/** The most queries a dashboard can have. */
+/** The most queries and titles a dashboard can have, together. */
 export const MAX_DASHBOARD_ITEMS = 50;
 
 const dashboardName = z.string().trim().min(1, "Give the dashboard a title").max(200);
 
-// The queries on a dashboard, first one first, each replacing what was there.
+/** A saved query to put on a dashboard, by its id, or a title: one or the other. */
+export const dashboardItemInput = z
+  .object({
+    savedQueryId: z.uuid({ message: "There's no such saved query" }).optional(),
+    title: z.string().trim().min(1, "Give the title some text").max(200).optional(),
+  })
+  .refine((item) => (item.savedQueryId === undefined) !== (item.title === undefined), {
+    message: "Put a saved query or a title on a dashboard",
+  });
+
+/** A saved query or a title to put on a dashboard, as {@link dashboardItemInput} takes it. */
+export type DashboardItemInput = z.input<typeof dashboardItemInput>;
+
+// What's on a dashboard, first one first, each replacing what was there.
 const dashboardItems = z
-  .array(z.object({ savedQueryId: z.uuid({ message: "There's no such saved query" }) }))
-  .max(MAX_DASHBOARD_ITEMS, `A dashboard has at most ${MAX_DASHBOARD_ITEMS} queries`);
+  .array(dashboardItemInput)
+  .max(MAX_DASHBOARD_ITEMS, `A dashboard has at most ${MAX_DASHBOARD_ITEMS} queries and titles`);
+
+// How often a dashboard runs its queries again by itself, or `null` for only when asked.
+const dashboardRefresh = z
+  .literal(DASHBOARD_REFRESH_MINUTES, {
+    message: "Run them again every 3, 5, 10, 15 or 30 minutes, or every hour",
+  })
+  .nullable();
 
 /**
  * The body of `POST /api/dashboards`: a dashboard to make, personal unless `scope` says global,
- * with the saved queries on it, if any yet, first one first.
+ * with the saved queries and titles on it, if any yet, first one first, each query once. It runs
+ * its queries again only when asked unless `refreshMinutes` says how often.
  */
 export const createDashboardRequest = z.object({
   name: dashboardName,
   description: savedQueryDescription,
   scope: queryScope.default("personal"),
+  refreshMinutes: dashboardRefresh.default(null),
   items: dashboardItems.default([]),
 });
 
@@ -528,13 +563,15 @@ export type CreateDashboardRequest = z.input<typeof createDashboardRequest>;
 
 /**
  * The body of `PATCH /api/dashboards/:id`: the fields to change. `items`, when given, replaces
- * every query on it, in the order given, so it's how queries are added, removed and moved. A
- * blank or `null` `description` removes it.
+ * every query and title on it, in the order given, so it's how they're added, removed and moved;
+ * a query that's on it already can't be added again. A blank or `null` `description` removes it,
+ * and a `null` `refreshMinutes` has it run its queries again only when asked.
  */
 export const updateDashboardRequest = z.object({
   name: dashboardName.optional(),
   description: savedQueryDescription,
   scope: queryScope.optional(),
+  refreshMinutes: dashboardRefresh.optional(),
   items: dashboardItems.optional(),
 });
 

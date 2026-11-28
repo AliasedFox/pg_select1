@@ -1,7 +1,8 @@
 import type { Me, SavedQuery } from "@pg_select1/shared";
-import { MoreHorizontalIcon } from "lucide-react";
+import { MoreHorizontalIcon, PlusIcon } from "lucide-react";
 import { type MouseEvent, useState } from "react";
 
+import { IconButton } from "@/components/IconButton";
 import { Loading } from "@/components/Loading";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,14 +79,13 @@ export function SavedQueriesPage({ user }: { user: Me }) {
             in sees.
           </p>
         </div>
-        <Button
-          variant="outline"
+        <IconButton
+          label="New query"
+          icon={<PlusIcon />}
           onClick={() => {
             navigate("/explore");
           }}
-        >
-          New query
-        </Button>
+        />
       </div>
 
       {loaded.kind === "loading" && <Loading />}

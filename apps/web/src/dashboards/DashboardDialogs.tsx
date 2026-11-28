@@ -29,7 +29,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { FormError } from "@/connections/ConnectionForm";
 import { describeError } from "@/lib/api";
 import { useLoaded } from "@/lib/loaded";
@@ -43,7 +42,8 @@ interface Fields {
   scope: QueryScope;
 }
 
-// A dashboard's title, description and who sees it, as a saved query's are: `canShare` is false
+// A dashboard's title, description (one line, as it's shown and changed on its page) and who
+// sees it, as a saved query's are: `canShare` is false
 // for a viewer, and without `showScope`, as for someone else's dashboard, who sees it isn't shown.
 function DashboardForm({
   initial,
@@ -95,8 +95,9 @@ function DashboardForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor={`${id}-description`}>Description</Label>
-        <Textarea
+        <Input
           id={`${id}-description`}
+          autoComplete="off"
           maxLength={2000}
           placeholder="Optional: what it shows, and who it's for"
           value={fields.description}
@@ -281,20 +282,32 @@ export function DeleteDashboardDialog({
   );
 }
 
+// What the Add dialog puts on the dashboard.
+type AddKind = "query" | "title";
+
 /**
- * Picks one of the saved queries the signed-in user sees and hands it to `onAdd`, which adds it
- * to the dashboard; it closes once that's done. It's shown there as the query was saved to be.
+ * Adds a saved query or a title at the bottom of the dashboard, picked at the top of the dialog,
+ * handing a query the signed-in user sees to `onAddQuery`, or the title's text to `onAddTitle`;
+ * it closes once that's done. A query is shown there as it was saved to be. Those in `added`,
+ * the ids of the queries on the dashboard already, are listed but can't be picked, since a query
+ * goes on a dashboard once.
  */
-export function AddQueryDialog({
+export function AddItemDialog({
+  added,
   onOpenChange,
-  onAdd,
+  onAddQuery,
+  onAddTitle,
 }: {
+  added: ReadonlySet<string>;
   onOpenChange: (open: boolean) => void;
-  onAdd: (query: SavedQuery) => Promise<void>;
+  onAddQuery: (query: SavedQuery) => Promise<void>;
+  onAddTitle: (title: string) => Promise<void>;
 }) {
   const id = useId();
   const queries = useLoaded(fetchSavedQueries);
+  const [kind, setKind] = useState<AddKind>("query");
   const [queryId, setQueryId] = useState("");
+  const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const list = queries.kind === "loaded" ? queries.value : [];
@@ -302,14 +315,15 @@ export function AddQueryDialog({
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     const query = list.find((q) => q.id === queryId);
-    if (!query) {
+    if (kind === "query" && !query) {
       setError("Pick a query");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      await onAdd(query);
+      if (query && kind === "query") await onAddQuery(query);
+      else await onAddTitle(title.trim());
       onOpenChange(false);
     } catch (failure) {
       setError(describeError(failure));
@@ -317,48 +331,139 @@ export function AddQueryDialog({
     }
   }
 
+  const ready = kind === "query" ? Boolean(queryId) : Boolean(title.trim());
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add a query</DialogTitle>
+          <DialogTitle>Add to the dashboard</DialogTitle>
           <DialogDescription>
-            It goes at the bottom of the dashboard, shown as it was saved, and runs each time it's
-            opened.
+            {kind === "query"
+              ? "It goes at the bottom, shown as it was saved, and runs each time the dashboard's opened."
+              : "It goes at the bottom, over the queries you put after it."}
           </DialogDescription>
         </DialogHeader>
-        <form aria-label="Add a query" className="grid gap-4" onSubmit={(e) => void submit(e)}>
-          <div className="grid gap-2">
-            <Label htmlFor={`${id}-query`}>Saved query</Label>
-            <Select value={queryId} onValueChange={setQueryId}>
-              <SelectTrigger id={`${id}-query`} className="w-full">
-                <SelectValue
-                  placeholder={queries.kind === "loading" ? "Loading…" : "Choose a query"}
+        <form
+          aria-label="Add to the dashboard"
+          className="grid gap-4"
+          onSubmit={(e) => void submit(e)}
+        >
+          <fieldset className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+            <legend className="sr-only">What to add</legend>
+            {(
+              [
+                ["query", "Saved query"],
+                ["title", "Title"],
+              ] as const
+            ).map(([value, label]) => (
+              <label
+                key={value}
+                className="cursor-pointer rounded-md px-3 py-1.5 text-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground has-checked:bg-background has-checked:text-foreground has-checked:shadow-xs has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
+              >
+                <input
+                  type="radio"
+                  name={`${id}-kind`}
+                  value={value}
+                  className="sr-only"
+                  checked={kind === value}
+                  onChange={() => {
+                    setKind(value);
+                    setError(null);
+                  }}
                 />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                {list.map((query) => (
-                  <SelectItem key={query.id} value={query.id}>
-                    {query.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {queries.kind === "loaded" && list.length === 0 && (
-              <p className="animate-fade-in text-xs text-muted-foreground">
-                No saved queries yet. Save one from the explorer first.
-              </p>
-            )}
-            {queries.kind === "failed" && <FormError message={queries.message} />}
-          </div>
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          {kind === "query" ? (
+            <div key="query" className="grid animate-fade-in gap-2">
+              <Label htmlFor={`${id}-query`}>Saved query</Label>
+              <Select value={queryId} onValueChange={setQueryId}>
+                <SelectTrigger id={`${id}-query`} className="w-full">
+                  <SelectValue
+                    placeholder={queries.kind === "loading" ? "Loading…" : "Choose a query"}
+                  />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  {list.map((query) => (
+                    <SelectItem key={query.id} value={query.id} disabled={added.has(query.id)}>
+                      {query.name}
+                      {added.has(query.id) && (
+                        <span className="text-xs text-muted-foreground">On the dashboard</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {queries.kind === "loaded" && list.length === 0 && (
+                <p className="animate-fade-in text-xs text-muted-foreground">
+                  No saved queries yet. Save one from the explorer first.
+                </p>
+              )}
+              {queries.kind === "failed" && <FormError message={queries.message} />}
+            </div>
+          ) : (
+            <div key="title" className="grid animate-fade-in gap-2">
+              <Label htmlFor={`${id}-title`}>Title</Label>
+              <Input
+                id={`${id}-title`}
+                autoComplete="off"
+                maxLength={200}
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                }}
+              />
+            </div>
+          )}
           <FormError message={error} />
           <div className="flex justify-end">
-            <Button type="submit" disabled={busy || !queryId}>
+            <Button type="submit" disabled={busy || !ready}>
               {busy ? "Adding…" : "Add"}
             </Button>
           </div>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Asks before taking a saved query or a title, `name`, off the dashboard, then calls
+ * `onRemove`. A query taken off stays saved.
+ */
+export function RemoveItemDialog({
+  name,
+  isTitle,
+  onOpenChange,
+  onRemove,
+}: {
+  name: string;
+  isTitle: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <AlertDialog open onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove {name} from the dashboard?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {isTitle
+              ? "The queries under it stay on the dashboard."
+              : "The saved query stays, and so does every other dashboard it's on."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-white hover:bg-destructive/90"
+            onClick={onRemove}
+          >
+            Remove
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

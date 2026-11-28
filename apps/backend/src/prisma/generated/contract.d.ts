@@ -23,7 +23,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'5e05024350a46c468507619ad6ba4c0281b627b33a1ba8efca4266f49e4cc265'>;
+  StorageHashBase<'c3259ff0428e28164a9cc5027e87d244c36bedc1fa03444103cfb14b44b3671d'>;
 export type ExecutionHash =
   ExecutionHashBase<'a4b48d411158f1183a65ee96f1fa288fb35c4f4c0d84cf8b582fe9bdad5e60f4'>;
 export type ProfileHash =
@@ -426,6 +426,7 @@ export namespace Models {
     id: FieldOutputTypes['public']['Dashboard']['id'];
     name: FieldOutputTypes['public']['Dashboard']['name'];
     ownerId: FieldOutputTypes['public']['Dashboard']['ownerId'];
+    refreshMinutes: FieldOutputTypes['public']['Dashboard']['refreshMinutes'];
     scope: FieldOutputTypes['public']['Dashboard']['scope'];
     updatedAt: FieldOutputTypes['public']['Dashboard']['updatedAt'];
     owner: public_User | null;
@@ -436,8 +437,9 @@ export namespace Models {
     id: FieldOutputTypes['public']['DashboardItem']['id'];
     position: FieldOutputTypes['public']['DashboardItem']['position'];
     savedQueryId: FieldOutputTypes['public']['DashboardItem']['savedQueryId'];
+    title: FieldOutputTypes['public']['DashboardItem']['title'];
     dashboard: public_Dashboard;
-    savedQuery: public_SavedQuery;
+    savedQuery: public_SavedQuery | null;
     readonly [RelationKeys]?: 'dashboard' | 'savedQuery';
   };
   export type public_SavedQuery = {
@@ -746,7 +748,13 @@ type ContractBase = Omit<
                 readonly saved_query_id: {
                   readonly dataType: 'pg/uuid';
                   readonly codecId: 'pg/uuid@1';
-                  readonly nullable: false;
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly title: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
                   readonly many: false;
                 };
               };
@@ -823,6 +831,12 @@ type ContractBase = Omit<
                 readonly owner_id: {
                   readonly dataType: 'pg/uuid';
                   readonly codecId: 'pg/uuid@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly refresh_minutes: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
                   readonly nullable: true;
                   readonly many: false;
                 };
@@ -1511,6 +1525,10 @@ type ContractBase = Omit<
                 readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
               };
+              readonly refreshMinutes: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
               readonly scope: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
@@ -1544,6 +1562,7 @@ type ContractBase = Omit<
                 readonly id: { readonly column: 'id' };
                 readonly name: { readonly column: 'name' };
                 readonly ownerId: { readonly column: 'owner_id' };
+                readonly refreshMinutes: { readonly column: 'refresh_minutes' };
                 readonly scope: { readonly column: 'scope' };
                 readonly updatedAt: { readonly column: 'updated_at' };
               };
@@ -1564,8 +1583,12 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
               readonly savedQueryId: {
-                readonly nullable: false;
+                readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/uuid@1' };
+              };
+              readonly title: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
             };
             readonly relations: {
@@ -1587,7 +1610,7 @@ type ContractBase = Omit<
                   readonly model: 'SavedQuery';
                 };
                 readonly cardinality: 'N:1';
-                readonly nullable: false;
+                readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['savedQueryId'];
                   readonly targetFields: readonly ['id'];
@@ -1602,6 +1625,7 @@ type ContractBase = Omit<
                 readonly id: { readonly column: 'id' };
                 readonly position: { readonly column: 'position' };
                 readonly savedQueryId: { readonly column: 'saved_query_id' };
+                readonly title: { readonly column: 'title' };
               };
             };
           };

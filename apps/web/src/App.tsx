@@ -113,7 +113,7 @@ function SignedInPage({ path, user }: { path: string; user: Me }) {
   if (path === "/queries") return <SavedQueriesPage user={user} />;
   if (path === "/dashboards") return <DashboardsPage user={user} />;
   if (path.startsWith("/dashboards/")) {
-    return <DashboardPage id={path.slice("/dashboards/".length)} user={user} />;
+    return <DashboardPage id={path.slice("/dashboards/".length)} />;
   }
   // The query page was merged into the explorer: its links open it, on the same database.
   if (path === "/query") return <Redirect to={`/explore${window.location.search}`} />;
