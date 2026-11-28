@@ -337,9 +337,9 @@ test("shows a table's structure in a dialog, without running it", async () => {
   expect(rows.map((row) => row.textContent)).toEqual([
     "NameTypeNullableDefault",
     "id, primary keybigintnot nullgenerated always as identity",
+    "created_attimestamp with time zonenot nullnow()",
     "emailtextnot null",
     "nameAs they'd like to be calledcharacter varying(80)null",
-    "created_attimestamp with time zonenot nullnow()",
   ]);
 
   const constraints = within(dialog).getByRole("region", { name: "Constraints" });

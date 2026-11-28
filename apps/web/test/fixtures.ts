@@ -179,6 +179,14 @@ export const customerStructure: TableStructure = {
       primaryKey: true,
       comment: null,
     },
+    {
+      name: "created_at",
+      type: "timestamp with time zone",
+      notNull: true,
+      default: "now()",
+      primaryKey: false,
+      comment: null,
+    },
     { name: "email", type: "text", notNull: true, default: null, primaryKey: false, comment: null },
     {
       name: "name",
@@ -187,14 +195,6 @@ export const customerStructure: TableStructure = {
       default: null,
       primaryKey: false,
       comment: "As they'd like to be called",
-    },
-    {
-      name: "created_at",
-      type: "timestamp with time zone",
-      notNull: true,
-      default: "now()",
-      primaryKey: false,
-      comment: null,
     },
   ],
   constraints: [

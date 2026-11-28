@@ -235,9 +235,9 @@ const constraintTypes: Record<string, TableStructure["constraints"][number]["typ
 };
 
 /**
- * Answers how one of a connection's tables is made: its columns, constraints, indexes, triggers
- * and the foreign keys that refer to it, a view's definition and a partitioned table's
- * partitions, as Postgres's catalog has them.
+ * Answers how one of a connection's tables is made: its columns, the primary key's first and the
+ * others by name, its constraints, indexes, triggers and the foreign keys that refer to it, a
+ * view's definition and a partitioned table's partitions, as Postgres's catalog has them.
  *
  * @throws {HttpError} a 404 when `user` can't explore the connection or there's no such table,
  *   and as {@link readTarget}.
@@ -294,7 +294,11 @@ export async function describeTable(
          FROM pg_catalog.pg_attribute a
          LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
         WHERE a.attrelid = $1 AND a.attnum > 0 AND NOT a.attisdropped
-        ORDER BY a.attnum`,
+        -- The primary key's columns as the key has them, then the others by name.
+        ORDER BY (SELECT array_position(k.conkey, a.attnum)
+                    FROM pg_catalog.pg_constraint k
+                   WHERE k.conrelid = a.attrelid AND k.contype = 'p') NULLS LAST,
+                 a.attname`,
       [oid],
     );
     const constraints = await client.query<{ name: string; type: string; definition: string }>(
