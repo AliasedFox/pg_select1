@@ -10,6 +10,7 @@ import {
   type SavedQuery,
   updateSavedQueryRequest,
   type TableRows,
+  type TableStructure,
   type TargetTable,
   inviteUserRequest,
   type Me,
@@ -116,6 +117,106 @@ export const customerRows: TableRows = {
   ],
   truncated: false,
   rowCap: 200,
+};
+
+/**
+ * What `GET /api/explore/connections/:id/structure` answers for any table: how the customers'
+ * table is made.
+ */
+export const customerStructure: TableStructure = {
+  schema: "public",
+  name: "customers",
+  kind: "table",
+  comment: "Everyone who has signed up",
+  rowEstimate: 1234,
+  size: "248 kB",
+  columns: [
+    {
+      name: "id",
+      type: "bigint",
+      notNull: true,
+      default: "generated always as identity",
+      primaryKey: true,
+      comment: null,
+    },
+    { name: "email", type: "text", notNull: true, default: null, primaryKey: false, comment: null },
+    {
+      name: "name",
+      type: "character varying(80)",
+      notNull: false,
+      default: null,
+      primaryKey: false,
+      comment: "As they'd like to be called",
+    },
+    {
+      name: "created_at",
+      type: "timestamp with time zone",
+      notNull: true,
+      default: "now()",
+      primaryKey: false,
+      comment: null,
+    },
+  ],
+  constraints: [
+    { name: "customers_pkey", type: "primary key", definition: "PRIMARY KEY (id)" },
+    { name: "customers_email_key", type: "unique", definition: "UNIQUE (email)" },
+    {
+      name: "customers_email_check",
+      type: "check",
+      definition: "CHECK (email ~~ '%@%'::text)",
+    },
+  ],
+  indexes: [
+    {
+      name: "customers_pkey",
+      definition: "CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)",
+      primary: true,
+      unique: true,
+      valid: true,
+      size: "48 kB",
+    },
+    {
+      name: "customers_email_key",
+      definition: "CREATE UNIQUE INDEX customers_email_key ON public.customers USING btree (email)",
+      primary: false,
+      unique: true,
+      valid: true,
+      size: "64 kB",
+    },
+    {
+      name: "customers_created_at",
+      definition: "CREATE INDEX customers_created_at ON public.customers USING btree (created_at)",
+      primary: false,
+      unique: false,
+      valid: false,
+      size: "8192 bytes",
+    },
+  ],
+  triggers: [
+    {
+      name: "customers_audit",
+      definition:
+        "CREATE TRIGGER customers_audit AFTER INSERT OR UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION audit.log_change()",
+      enabled: true,
+    },
+    {
+      name: "customers_touch",
+      definition:
+        "CREATE TRIGGER customers_touch BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION touch_updated_at()",
+      enabled: false,
+    },
+  ],
+  referencedBy: [
+    {
+      name: "orders_customer_id_fkey",
+      schema: "public",
+      table: "orders",
+      definition: "FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE",
+    },
+  ],
+  definition: null,
+  partitionKey: null,
+  partitions: [],
 };
 
 /** What `POST /api/explore/connections/:id/query` answers for any query: the customers' rows. */
@@ -287,6 +388,7 @@ export const handlers = [
     HttpResponse.json({ connections: connections.map(({ id, name }) => ({ id, name })) }),
   ),
   http.get("/api/explore/connections/:id/tables", () => HttpResponse.json({ tables })),
+  http.get("/api/explore/connections/:id/structure", () => HttpResponse.json(customerStructure)),
   http.post("/api/explore/connections/:id/query", () => HttpResponse.json(queryRows)),
   http.post("/api/explore/queries/:runId/cancel", () => new HttpResponse(null, { status: 204 })),
   http.get("/api/saved-queries", () => HttpResponse.json({ savedQueries })),

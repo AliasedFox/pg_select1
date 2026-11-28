@@ -10,7 +10,13 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 
-import { connections, queryRows, savedQueries, viewer } from "../../test/fixtures";
+import {
+  connections,
+  customerStructure,
+  queryRows,
+  savedQueries,
+  viewer,
+} from "../../test/fixtures";
 import { renderApp } from "../../test/render";
 import { server } from "../../test/server";
 import { SETTLE_MS } from "./history";
@@ -195,6 +201,114 @@ test("copies a table's name with its schema, quoted, without running it", async 
   expect(await navigator.clipboard.readText()).toBe('"user"."order"');
   expect(sqlOf(screen.getByRole("textbox", { name: "SQL" }))).toBe("");
   expect(asked).toEqual([]);
+});
+
+test("shows a table's structure in a dialog, without running it", async () => {
+  const asked: string[] = [];
+  const described: (string | null)[][] = [];
+  server.use(
+    http.post("/api/explore/connections/:id/query", async ({ request }) => {
+      asked.push(runQueryRequest.parse(await request.json()).sql);
+      return HttpResponse.json(queryRows);
+    }),
+    http.get("/api/explore/connections/:id/structure", ({ params, request }) => {
+      const { searchParams } = new URL(request.url);
+      described.push([String(params.id), searchParams.get("schema"), searchParams.get("table")]);
+      return HttpResponse.json(customerStructure);
+    }),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  const tables = await screen.findByRole("navigation", { name: "Tables" });
+  await user.click(within(tables).getByRole("button", { name: "Structure of customers" }));
+
+  const dialog = await screen.findByRole("dialog", { name: "public.customers" });
+  expect(await within(dialog).findByText("table · about 1,234 rows · 248 kB")).toBeDefined();
+  expect(described).toEqual([[shop?.id ?? "", "public", "customers"]]);
+
+  const columns = within(dialog).getByRole("region", { name: "Columns" });
+  const rows = within(columns).getAllByRole("row");
+  expect(rows.map((row) => row.textContent)).toEqual([
+    "NameTypeNullableDefault",
+    "id, primary keybigintnot nullgenerated always as identity",
+    "emailtextnot null",
+    "nameAs they'd like to be calledcharacter varying(80)null",
+    "created_attimestamp with time zonenot nullnow()",
+  ]);
+
+  const constraints = within(dialog).getByRole("region", { name: "Constraints" });
+  expect(within(constraints).getByText("CHECK (email ~~ '%@%'::text)")).toBeDefined();
+  const indexes = within(dialog).getByRole("region", { name: "Indexes" });
+  expect(within(indexes).getByText("invalid")).toBeDefined();
+  const triggers = within(dialog).getByRole("region", { name: "Triggers" });
+  expect(within(triggers).getByText("disabled")).toBeDefined();
+  const referencedBy = within(dialog).getByRole("region", { name: "Referenced by" });
+  expect(within(referencedBy).getByText("public.orders")).toBeDefined();
+  // A table has no definition of its own to show, nor partitions.
+  expect(within(dialog).queryByRole("region", { name: "Definition" })).toBeNull();
+  expect(within(dialog).queryByRole("region", { name: "Partitions" })).toBeNull();
+
+  await user.keyboard("{Escape}");
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+  expect(asked).toEqual([]);
+});
+
+test("shows a view's definition, and not what it can't have", async () => {
+  server.use(
+    http.get("/api/explore/connections/:id/structure", () =>
+      HttpResponse.json({
+        ...customerStructure,
+        schema: "reporting",
+        name: "open_orders",
+        kind: "view",
+        comment: null,
+        rowEstimate: null,
+        size: null,
+        constraints: [],
+        indexes: [],
+        triggers: [],
+        referencedBy: [],
+        definition: " SELECT id,\n    total\n   FROM orders\n  WHERE NOT shipped;",
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  const tables = await screen.findByRole("navigation", { name: "Tables" });
+  await user.click(within(tables).getByRole("button", { name: "Structure of open_orders" }));
+
+  const dialog = await screen.findByRole("dialog", { name: "reporting.open_orders" });
+  const definition = await within(dialog).findByRole("region", { name: "Definition" });
+  expect(definition.textContent).toContain("FROM orders");
+  expect(within(dialog).getByText("view")).toBeDefined();
+  // A view can have triggers, which it has none of, but never constraints or indexes.
+  expect(
+    within(within(dialog).getByRole("region", { name: "Triggers" })).getByText("None."),
+  ).toBeDefined();
+  expect(within(dialog).queryByRole("region", { name: "Constraints" })).toBeNull();
+  expect(within(dialog).queryByRole("region", { name: "Indexes" })).toBeNull();
+});
+
+test("says why a table's structure couldn't be loaded", async () => {
+  server.use(
+    http.get("/api/explore/connections/:id/structure", () =>
+      HttpResponse.json({ error: "There's no table public.customers" }, { status: 404 }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderApp("/explore?connection=shop");
+
+  const tables = await screen.findByRole("navigation", { name: "Tables" });
+  await user.click(within(tables).getByRole("button", { name: "Structure of customers" }));
+
+  const dialog = await screen.findByRole("dialog", { name: "public.customers" });
+  expect((await within(dialog).findByRole("alert")).textContent).toBe(
+    "Couldn't load its structure: There's no table public.customers",
+  );
 });
 
 test("shows a table's name whole in a tooltip when it doesn't fit", async () => {

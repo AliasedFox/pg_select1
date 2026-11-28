@@ -7,6 +7,7 @@ import {
   MAX_QUERY_ROWS,
   queryResult,
   tableRows,
+  tableStructure,
   targetTableList,
 } from "@pg_select1/shared";
 import { Client } from "pg";
@@ -43,6 +44,22 @@ await owner.query(`
     (1, 'Kettle', 24.50, '2026-01-02 03:04:05+00', '{"color": "red"}', '\\x0102'),
     (2, NULL, NULL, NULL, NULL, NULL);
   CREATE VIEW shop.cheap AS SELECT id, name FROM shop.products WHERE price < 10;
+  CREATE TABLE shop.orders (
+    id int8 GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    product_id int8 NOT NULL REFERENCES shop.products (id) ON DELETE CASCADE,
+    quantity int NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    doubled int GENERATED ALWAYS AS (quantity * 2) STORED,
+    code text UNIQUE
+  );
+  COMMENT ON TABLE shop.orders IS 'What people bought';
+  COMMENT ON COLUMN shop.orders.code IS 'Printed on the receipt';
+  CREATE INDEX orders_product_id ON shop.orders (product_id);
+  CREATE FUNCTION shop.touch() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$;
+  CREATE TRIGGER orders_touch BEFORE UPDATE ON shop.orders
+    FOR EACH ROW EXECUTE FUNCTION shop.touch();
+  CREATE TRIGGER orders_off AFTER INSERT ON shop.orders
+    FOR EACH ROW EXECUTE FUNCTION shop.touch();
+  ALTER TABLE shop.orders DISABLE TRIGGER orders_off;
   CREATE TABLE public.events (id int, at date) PARTITION BY RANGE (at);
   CREATE TABLE public.events_2026 PARTITION OF public.events
     FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
@@ -82,6 +99,11 @@ function get(path: string, cookie: string): Promise<Response> {
 function rowsPath(id: string, schema: string, table: string): string {
   const query = new URLSearchParams({ schema, table });
   return `/api/explore/connections/${id}/rows?${query.toString()}`;
+}
+
+function structurePath(id: string, schema: string, table: string): string {
+  const query = new URLSearchParams({ schema, table });
+  return `/api/explore/connections/${id}/structure?${query.toString()}`;
 }
 
 describe("which connections someone can explore", () => {
@@ -144,6 +166,7 @@ describe("tables", () => {
       { schema: "public", name: "sneaky", kind: "view" },
       { schema: "public", name: "writes", kind: "table" },
       { schema: "shop", name: "cheap", kind: "view" },
+      { schema: "shop", name: "orders", kind: "table" },
       { schema: "shop", name: "products", kind: "table" },
     ]);
   });
@@ -325,6 +348,181 @@ async function eventually(check: () => Promise<boolean>): Promise<void> {
   }
   throw new Error("It didn't happen within 5 seconds");
 }
+
+describe("structure", () => {
+  test("answers a table's columns, constraints, indexes and triggers", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await get(structurePath(visible.id, "shop", "orders"), viewer.cookie);
+
+    expect(res.status).toBe(200);
+    const body = tableStructure.parse(await res.json());
+    expect(body).toMatchObject({
+      schema: "shop",
+      name: "orders",
+      kind: "table",
+      comment: "What people bought",
+      definition: null,
+      partitionKey: null,
+      partitions: [],
+      referencedBy: [],
+    });
+    expect(body.size ?? "").toMatch(/^\d+ (bytes|kB)$/);
+    expect(body.columns).toEqual([
+      {
+        name: "id",
+        type: "bigint",
+        notNull: true,
+        default: "generated always as identity",
+        primaryKey: true,
+        comment: null,
+      },
+      {
+        name: "product_id",
+        type: "bigint",
+        notNull: true,
+        default: null,
+        primaryKey: false,
+        comment: null,
+      },
+      {
+        name: "quantity",
+        type: "integer",
+        notNull: true,
+        default: "1",
+        primaryKey: false,
+        comment: null,
+      },
+      {
+        name: "doubled",
+        type: "integer",
+        notNull: false,
+        default: "generated always as ((quantity * 2)) stored",
+        primaryKey: false,
+        comment: null,
+      },
+      {
+        name: "code",
+        type: "text",
+        notNull: false,
+        default: null,
+        primaryKey: false,
+        comment: "Printed on the receipt",
+      },
+    ]);
+    // By kind, as a table is written, and the not-null ones left to the columns.
+    expect(body.constraints).toEqual([
+      { name: "orders_pkey", type: "primary key", definition: "PRIMARY KEY (id)" },
+      { name: "orders_code_key", type: "unique", definition: "UNIQUE (code)" },
+      {
+        name: "orders_product_id_fkey",
+        type: "foreign key",
+        definition: "FOREIGN KEY (product_id) REFERENCES shop.products(id) ON DELETE CASCADE",
+      },
+      { name: "orders_quantity_check", type: "check", definition: "CHECK (quantity > 0)" },
+    ]);
+    expect(body.indexes).toMatchObject([
+      {
+        name: "orders_pkey",
+        definition: "CREATE UNIQUE INDEX orders_pkey ON shop.orders USING btree (id)",
+        primary: true,
+        unique: true,
+        valid: true,
+      },
+      {
+        name: "orders_code_key",
+        definition: "CREATE UNIQUE INDEX orders_code_key ON shop.orders USING btree (code)",
+        primary: false,
+        unique: true,
+        valid: true,
+      },
+      {
+        name: "orders_product_id",
+        definition: "CREATE INDEX orders_product_id ON shop.orders USING btree (product_id)",
+        primary: false,
+        unique: false,
+        valid: true,
+      },
+    ]);
+    expect(body.indexes.every((index) => index.size !== null)).toBe(true);
+    // Not the ones Postgres makes to check the foreign key.
+    expect(body.triggers).toEqual([
+      {
+        name: "orders_off",
+        definition:
+          "CREATE TRIGGER orders_off AFTER INSERT ON shop.orders FOR EACH ROW EXECUTE FUNCTION shop.touch()",
+        enabled: false,
+      },
+      {
+        name: "orders_touch",
+        definition:
+          "CREATE TRIGGER orders_touch BEFORE UPDATE ON shop.orders FOR EACH ROW EXECUTE FUNCTION shop.touch()",
+        enabled: true,
+      },
+    ]);
+  });
+
+  test("answers the foreign keys of other tables that refer to a table", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await get(structurePath(visible.id, "shop", "products"), viewer.cookie);
+
+    expect(tableStructure.parse(await res.json()).referencedBy).toEqual([
+      {
+        name: "orders_product_id_fkey",
+        schema: "shop",
+        table: "orders",
+        definition: "FOREIGN KEY (product_id) REFERENCES shop.products(id) ON DELETE CASCADE",
+      },
+    ]);
+  });
+
+  test("answers a view's definition, and no size or rows", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await get(structurePath(visible.id, "shop", "cheap"), viewer.cookie);
+
+    const body = tableStructure.parse(await res.json());
+    expect(body).toMatchObject({ kind: "view", size: null, rowEstimate: null, indexes: [] });
+    expect(body.definition).toContain("FROM shop.products");
+  });
+
+  test("answers a partitioned table's partition key and partitions", async () => {
+    const visible = await addConnection(true);
+    const viewer = await signedInAs("viewer");
+
+    const res = await get(structurePath(visible.id, "public", "events"), viewer.cookie);
+
+    expect(tableStructure.parse(await res.json())).toMatchObject({
+      kind: "partitioned table",
+      size: null,
+      partitionKey: "RANGE (at)",
+      partitions: [
+        {
+          schema: "public",
+          name: "events_2026",
+          bound: "FOR VALUES FROM ('2026-01-01') TO ('2027-01-01')",
+        },
+      ],
+    });
+  });
+
+  test("a table that isn't there says so, and a hidden connection's answer 404", async () => {
+    const visible = await addConnection(true);
+    const hidden = await addConnection(false);
+    const viewer = await signedInAs("viewer");
+
+    const missing = await get(structurePath(visible.id, "shop", "nope"), viewer.cookie);
+    const elsewhere = await get(structurePath(hidden.id, "shop", "orders"), viewer.cookie);
+
+    expect(missing.status).toBe(404);
+    expect(errorResponse.parse(await missing.json()).error).toBe("There's no table shop.nope");
+    expect(elsewhere.status).toBe(404);
+  });
+});
 
 describe("queries", () => {
   test("answers a statement's columns with their types, and its rows as Postgres prints them", async () => {

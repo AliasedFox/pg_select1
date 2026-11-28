@@ -3,6 +3,8 @@ import {
   explorableConnectionList,
   type QueryResult,
   queryResult,
+  type TableStructure,
+  tableStructure,
   type TargetTable,
   targetTableList,
 } from "@pg_select1/shared";
@@ -27,6 +29,19 @@ export async function fetchTables(connectionId: string): Promise<TargetTable[]> 
     targetTableList,
   );
   return tables;
+}
+
+/**
+ * Asks the API how one of a connection's tables is made: its columns, constraints, indexes,
+ * triggers and the like, as the database's catalog has them.
+ */
+export function fetchStructure(connectionId: string, table: TargetTable): Promise<TableStructure> {
+  const query = new URLSearchParams({ schema: table.schema, table: table.name });
+  return callApi(
+    "GET",
+    `/api/explore/connections/${connectionId}/structure?${query.toString()}`,
+    tableStructure,
+  );
 }
 
 /**
