@@ -1,27 +1,29 @@
-import type { Dashboard, DashboardItem, Me, QueryResult, SavedQuery } from "@pg_select1/shared";
+import {
+  type Dashboard,
+  type DashboardItem,
+  type DashboardItemInput,
+  type DashboardRefreshMinutes,
+  type QueryResult,
+  type SavedQuery,
+  type UpdateDashboardRequest,
+} from "@pg_select1/shared";
 import {
   ArrowDownIcon,
   ArrowLeftIcon,
   ArrowUpIcon,
-  MoreHorizontalIcon,
   PlusIcon,
   RotateCwIcon,
+  Trash2Icon,
   XIcon,
 } from "lucide-react";
 import { type MouseEvent, useEffect, useMemo, useState } from "react";
 
+import { IconButton } from "@/components/IconButton";
 import { Loading } from "@/components/Loading";
 import { ResultChart } from "@/components/ResultChart";
 import { ResultNumber } from "@/components/ResultNumber";
 import { RowsGrid } from "@/components/RowsGrid";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { FormError } from "@/connections/ConnectionForm";
 import { cancelQuery, newRunId, runQuery } from "@/explore/api";
@@ -32,10 +34,12 @@ import { ScopeBadge } from "@/queries/SavedQueryDialogs";
 import { navigate } from "@/router";
 
 import { fetchDashboard, updateDashboard } from "./api";
-import { AddQueryDialog, DeleteDashboardDialog, EditDashboardDialog } from "./DashboardDialogs";
+import { AddItemDialog, DeleteDashboardDialog, RemoveItemDialog } from "./DashboardDialogs";
+import { InlineEdit } from "./InlineEdit";
+import { RefreshDial } from "./RefreshDial";
 
 // The one dialog open at a time.
-type Open = "none" | "add" | "edit" | "delete";
+type Open = "none" | "add" | "delete";
 
 // What a query's last run answered. `n` counts the answers, so each fades in anew, and `key` is
 // what was run, to tell whether it's what's asked for now.
@@ -47,14 +51,45 @@ interface Answer {
 
 // A key for each item that stays as items are moved, added and removed, unlike their ids, which
 // are new each time the dashboard is saved, so a moved query keeps its rows rather than running
-// again. The same query a second time is told apart by how many times it came before.
+// again. The same query a second time, on a dashboard from before a query could go on only once,
+// is told apart by how many times it came before, and so are titles, which run nothing.
 function itemKeys(items: readonly DashboardItem[]): string[] {
   const seen = new Map<string, number>();
   return items.map((item) => {
-    const n = seen.get(item.savedQueryId) ?? 0;
-    seen.set(item.savedQueryId, n + 1);
-    return `${item.savedQueryId}:${n}`;
+    const of = item.kind === "query" ? item.savedQueryId : "title";
+    const n = seen.get(of) ?? 0;
+    seen.set(of, n + 1);
+    return `${of}:${n}`;
   });
+}
+
+// Runs the queries again, by moving `refresh` on, `minutes` after they last ran, so running them
+// again by hand starts the wait over. While the page is hidden, as in another tab, it waits until
+// it's shown again, so a dashboard nobody's looking at doesn't keep its databases busy.
+function useAutoRefresh(
+  minutes: number | null | undefined,
+  refresh: number,
+  setRefresh: (refresh: number) => void,
+): void {
+  useEffect(() => {
+    if (!minutes) return undefined;
+    let due = false;
+    const runAgain = () => {
+      setRefresh(refresh + 1);
+    };
+    const timer = setTimeout(() => {
+      if (document.visibilityState === "visible") runAgain();
+      else due = true;
+    }, minutes * 60_000);
+    const onVisibilityChange = () => {
+      if (due && document.visibilityState === "visible") runAgain();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [minutes, refresh, setRefresh]);
 }
 
 // How many rows a result has, and how long the database took for them.
@@ -103,22 +138,36 @@ function useRun(
   return { running: key !== undefined && answer?.key !== key, answer };
 }
 
-// Moving a query up or down, or taking it off: what `canEdit` shows beside its name.
+// Moving a query or title up or down, or taking either off: what `canEdit` shows beside its
+// name. A title's changed where it stands, with `onRename`.
 interface ItemControls {
   first: boolean;
   last: boolean;
   busy: boolean;
   onMove: (by: -1 | 1) => void;
+  onRename: (title: string) => void;
   onRemove: () => void;
 }
 
-function ItemButtons({ name, controls }: { name: string; controls: ItemControls }) {
+// The buttons beside an item, shown while it's hovered or has focus within it, or always where
+// there's no mouse to hover with, as on a phone. Taking it off asks first.
+function ItemButtons({
+  name,
+  isTitle = false,
+  controls,
+}: {
+  name: string;
+  isTitle?: boolean;
+  controls: ItemControls;
+}) {
   const { first, last, busy, onMove, onRemove } = controls;
+  const [confirming, setConfirming] = useState(false);
   return (
-    <div className="flex shrink-0 gap-1">
+    <div className="flex shrink-0 gap-1 pointer-fine:opacity-0 pointer-fine:group-focus-within/item:opacity-100 pointer-fine:group-hover/item:animate-fade-in pointer-fine:group-hover/item:opacity-100">
       <Button
         variant="ghost"
         size="icon"
+        className="cursor-pointer"
         aria-label={`Move ${name} up`}
         title="Move up"
         disabled={busy || first}
@@ -131,6 +180,7 @@ function ItemButtons({ name, controls }: { name: string; controls: ItemControls 
       <Button
         variant="ghost"
         size="icon"
+        className="cursor-pointer"
         aria-label={`Move ${name} down`}
         title="Move down"
         disabled={busy || last}
@@ -143,13 +193,24 @@ function ItemButtons({ name, controls }: { name: string; controls: ItemControls 
       <Button
         variant="ghost"
         size="icon"
+        className="cursor-pointer"
         aria-label={`Remove ${name}`}
         title="Remove from the dashboard"
         disabled={busy}
-        onClick={onRemove}
+        onClick={() => {
+          setConfirming(true);
+        }}
       >
         <XIcon />
       </Button>
+      {confirming && (
+        <RemoveItemDialog
+          name={name}
+          isTitle={isTitle}
+          onOpenChange={setConfirming}
+          onRemove={onRemove}
+        />
+      )}
     </div>
   );
 }
@@ -185,7 +246,7 @@ function QueryItem({
   return (
     <section
       aria-label={query.name}
-      className={`grid min-w-0 content-start gap-3 ${isNumber ? "sm:col-span-1" : "sm:col-span-3"}`}
+      className={`group/item grid min-w-0 content-start gap-3 ${isNumber ? "sm:col-span-1" : "sm:col-span-3"}`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
@@ -250,7 +311,7 @@ function HiddenItem({ controls }: { controls?: ItemControls }) {
   return (
     <section
       aria-label="A query you can't see"
-      className="flex items-center justify-between gap-4 rounded-lg border border-dashed p-4 text-sm text-muted-foreground sm:col-span-3"
+      className="group/item flex items-center justify-between gap-4 rounded-lg border border-dashed p-4 text-sm text-muted-foreground sm:col-span-3"
     >
       Someone's personal query, which only they see.
       {controls && <ItemButtons name="this query" controls={controls} />}
@@ -258,32 +319,74 @@ function HiddenItem({ controls }: { controls?: ItemControls }) {
   );
 }
 
-// What the API takes for a dashboard's queries.
-function itemsInput(items: readonly DashboardItem[]) {
-  return items.map(({ savedQueryId }) => ({ savedQueryId }));
+// A title over the queries after it, the whole width of the dashboard, changed where it stands
+// by those who can change the dashboard.
+function TitleItem({ title, controls }: { title: string; controls?: ItemControls }) {
+  return (
+    <section
+      aria-label={title}
+      className="group/item flex min-w-0 items-end justify-between gap-4 border-b pt-2 pb-2 sm:col-span-3"
+    >
+      <h2 className="min-w-0 text-base font-semibold break-words">
+        {controls ? (
+          <InlineEdit
+            value={title}
+            label="Title"
+            required
+            maxLength={200}
+            onSave={controls.onRename}
+          />
+        ) : (
+          title
+        )}
+      </h2>
+      {controls && <ItemButtons name={title} isTitle controls={controls} />}
+    </section>
+  );
+}
+
+// What the API takes for a dashboard's queries and titles.
+function itemsInput(items: readonly DashboardItem[]): DashboardItemInput[] {
+  return items.map((item) =>
+    item.kind === "query" ? { savedQueryId: item.savedQueryId } : { title: item.title },
+  );
+}
+
+// How many queries are among `items`, titles aside.
+function queryCount(items: readonly DashboardItem[]): number {
+  return items.filter((item) => item.kind === "query").length;
 }
 
 /**
- * A dashboard: its title and description, then each of its saved queries, one under another, the
- * whole width of the page but for numbers, which take a third of it so that two or three in a row
- * sit side by side, each run on its database when the page opens, read-only as in the
- * explorer, and shown as the query was saved to be: as a table of its rows, a chart or a number.
- * Running them again keeps their results on screen until the new ones fade in, and leaving the
- * page cancels what's still running. Those who can change the dashboard add queries to it, move
- * them up and down, take them off, and change its title, description and who sees it, or delete
- * it.
+ * A dashboard: its title and description, then each of its saved queries and titles, one under
+ * another, the whole width of the page but for numbers, which take a third of it so that two or
+ * three in a row sit side by side. Each query runs on its database when the page opens, read-only
+ * as in the explorer, and is shown as it was saved to be: as a table of its rows, a chart or a
+ * number. They run again when asked, and by themselves as often as the dashboard says, while the
+ * page is shown; running them again keeps their results on screen until the new ones fade in, and
+ * leaving the page cancels what's still running. Those who can change the dashboard add queries,
+ * each once, and titles to it, move them up and down, take them off once they've said they mean
+ * it, change how often it refreshes, change its title and description where they stand, and
+ * delete it; who sees it is changed from the list of dashboards. The header's buttons are icons
+ * alone, each named in a tooltip. Anyone else can still pick how often it refreshes for
+ * themselves, while they're on the page.
  */
-export function DashboardPage({ id, user }: { id: string; user: Me }) {
+export function DashboardPage({ id }: { id: string }) {
   const load = useMemo(() => () => fetchDashboard(id), [id]);
   const loaded = useLoaded(load);
   // The dashboard as changed here since it loaded.
   const [changed, setChanged] = useState<Dashboard | undefined>(undefined);
   const [open, setOpen] = useState<Open>("none");
   const [refresh, setRefresh] = useState(0);
+  // How often someone who can't change the dashboard has picked to refresh it, for as long as
+  // they're on the page.
+  const [ownRefresh, setOwnRefresh] = useState<number | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const dashboard = changed ?? (loaded.kind === "loaded" ? loaded.value : undefined);
+  const refreshMinutes = ownRefresh === undefined ? dashboard?.refreshMinutes : ownRefresh;
+  useAutoRefresh(refreshMinutes, refresh, setRefresh);
   const closeDialog = (nextOpen: boolean) => {
     if (!nextOpen) setOpen("none");
   };
@@ -317,20 +420,29 @@ export function DashboardPage({ id, user }: { id: string; user: Me }) {
     );
   }
 
-  // Shows the queries in their new order at once, and puts them back if saving it fails.
-  const saveItems = async (items: DashboardItem[]) => {
+  // Shows the dashboard as `next` at once, and puts it back if saving `changes` fails.
+  const save = async (next: Dashboard, changes: UpdateDashboardRequest) => {
     const before = dashboard;
-    setChanged({ ...dashboard, items, itemCount: items.length });
+    setChanged(next);
     setSaving(true);
     setError(null);
     try {
-      setChanged(await updateDashboard(dashboard.id, { items: itemsInput(items) }));
+      setChanged(await updateDashboard(dashboard.id, changes));
     } catch (failure) {
       setChanged(before);
       setError(`Couldn't save the dashboard: ${describeError(failure)}`);
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveItems = (items: DashboardItem[]) =>
+    save({ ...dashboard, items, itemCount: queryCount(items) }, { items: itemsInput(items) });
+
+  const pickRefresh = (minutes: DashboardRefreshMinutes | null) => {
+    if (dashboard.canEdit)
+      void save({ ...dashboard, refreshMinutes: minutes }, { refreshMinutes: minutes });
+    else setOwnRefresh(minutes);
   };
 
   const controlsOf = (index: number): ItemControls | undefined => {
@@ -347,82 +459,97 @@ export function DashboardPage({ id, user }: { id: string; user: Me }) {
         next.splice(index + by, 0, moved);
         void saveItems(next);
       },
+      onRename: (title) => {
+        void saveItems(
+          items.map((item, i) =>
+            i === index && item.kind === "title" ? { ...item, title } : item,
+          ),
+        );
+      },
       onRemove: () => {
         void saveItems(items.filter((_, i) => i !== index));
       },
     };
   };
 
+  // Saves the dashboard with `items` in place of its own, for a dialog to say why if it fails.
+  const saveFromDialog = async (items: DashboardItemInput[]) => {
+    setChanged(await updateDashboard(dashboard.id, { items }));
+  };
+
   const keys = itemKeys(dashboard.items);
+  const hasQueries = dashboard.items.some((item) => item.kind === "query");
   return (
     <div className="grid gap-6">
       <div className="grid gap-4">
         {back}
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="grid gap-1">
+          <div className="grid min-w-0 flex-1 gap-1">
             <h1 className="flex items-center gap-2 text-lg font-semibold">
-              {dashboard.name}
+              {dashboard.canEdit ? (
+                <InlineEdit
+                  value={dashboard.name}
+                  label="Title"
+                  required
+                  maxLength={200}
+                  onSave={(name) => void save({ ...dashboard, name }, { name })}
+                />
+              ) : (
+                dashboard.name
+              )}
               <ScopeBadge scope={dashboard.scope} />
             </h1>
-            {dashboard.description && (
-              <p className="max-w-prose text-sm whitespace-pre-line text-muted-foreground">
-                {dashboard.description}
-              </p>
+            {dashboard.canEdit ? (
+              <div className="max-w-prose text-sm whitespace-pre-line text-muted-foreground">
+                <InlineEdit
+                  value={dashboard.description ?? ""}
+                  label="Description"
+                  placeholder="Add a description"
+                  maxLength={2000}
+                  onSave={(description) =>
+                    void save({ ...dashboard, description: description || null }, { description })
+                  }
+                />
+              </div>
+            ) : (
+              dashboard.description && (
+                <p className="max-w-prose text-sm whitespace-pre-line text-muted-foreground">
+                  {dashboard.description}
+                </p>
+              )
             )}
           </div>
-          <div className="flex gap-2">
-            {dashboard.items.length > 0 && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setRefresh((n) => n + 1);
-                }}
-              >
-                <RotateCwIcon />
-                Run again
-              </Button>
+          <div className="flex items-center gap-2">
+            {hasQueries && (
+              <>
+                <RefreshDial minutes={refreshMinutes ?? null} onChange={pickRefresh} />
+                <IconButton
+                  label="Run again"
+                  icon={<RotateCwIcon />}
+                  onClick={() => {
+                    setRefresh((n) => n + 1);
+                  }}
+                />
+              </>
             )}
             {dashboard.canEdit && (
               <>
-                <Button
-                  variant="outline"
+                <IconButton
+                  label="Add a query or title"
+                  icon={<PlusIcon />}
                   disabled={saving}
                   onClick={() => {
                     setOpen("add");
                   }}
-                >
-                  <PlusIcon />
-                  Add query
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Actions for ${dashboard.name}`}
-                    >
-                      <MoreHorizontalIcon />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setOpen("edit");
-                      }}
-                    >
-                      Edit details
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onSelect={() => {
-                        setOpen("delete");
-                      }}
-                    >
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                />
+                <IconButton
+                  label="Delete the dashboard"
+                  icon={<Trash2Icon />}
+                  destructive
+                  onClick={() => {
+                    setOpen("delete");
+                  }}
+                />
               </>
             )}
           </div>
@@ -442,6 +569,9 @@ export function DashboardPage({ id, user }: { id: string; user: Me }) {
           {dashboard.items.map((item, index) => {
             const key = keys[index];
             const controls = controlsOf(index);
+            if (item.kind === "title") {
+              return <TitleItem key={key} title={item.title} controls={controls} />;
+            }
             return item.savedQuery ? (
               <QueryItem key={key} query={item.savedQuery} refresh={refresh} controls={controls} />
             ) : (
@@ -452,22 +582,17 @@ export function DashboardPage({ id, user }: { id: string; user: Me }) {
       )}
 
       {open === "add" && (
-        <AddQueryDialog
+        <AddItemDialog
+          added={
+            new Set(
+              dashboard.items.flatMap((item) => (item.kind === "query" ? [item.savedQueryId] : [])),
+            )
+          }
           onOpenChange={closeDialog}
-          onAdd={async (query) => {
-            const saved = await updateDashboard(dashboard.id, {
-              items: [...itemsInput(dashboard.items), { savedQueryId: query.id }],
-            });
-            setChanged(saved);
-          }}
-        />
-      )}
-      {open === "edit" && (
-        <EditDashboardDialog
-          user={user}
-          dashboard={dashboard}
-          onOpenChange={closeDialog}
-          onSaved={setChanged}
+          onAddQuery={(query) =>
+            saveFromDialog([...itemsInput(dashboard.items), { savedQueryId: query.id }])
+          }
+          onAddTitle={(title) => saveFromDialog([...itemsInput(dashboard.items), { title }])}
         />
       )}
       {open === "delete" && (

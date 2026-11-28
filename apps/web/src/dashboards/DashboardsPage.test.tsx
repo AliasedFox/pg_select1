@@ -61,6 +61,7 @@ test("makes a dashboard with a title and description, and opens it", async () =>
     name: "Ops",
     description: "For on-call",
     scope: "personal",
+    refreshMinutes: null,
     items: [],
   });
 });

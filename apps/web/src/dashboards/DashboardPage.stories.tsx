@@ -3,15 +3,8 @@ import { delay, http, HttpResponse } from "msw";
 import { fn } from "storybook/test";
 
 import preview from "../../.storybook/preview";
-import {
-  admin,
-  dashboards,
-  queryRows,
-  savedQueries,
-  signupRows,
-  viewer,
-} from "../../test/fixtures";
-import { AddQueryDialog } from "./DashboardDialogs";
+import { dashboards, queryRows, savedQueries, signupRows } from "../../test/fixtures";
+import { AddItemDialog } from "./DashboardDialogs";
 import { DashboardPage } from "./DashboardPage";
 
 const [overview, weekly] = dashboards;
@@ -19,7 +12,7 @@ const [overview, weekly] = dashboards;
 const meta = preview.meta({
   title: "Dashboards/DashboardPage",
   component: DashboardPage,
-  args: { id: overview?.id ?? "", user: admin },
+  args: { id: overview?.id ?? "" },
 });
 
 export const Default = meta.story();
@@ -28,7 +21,6 @@ export const Empty = meta.story({ args: { id: weekly?.id ?? "" } });
 
 // Someone who can't change it sees its rows, and can run them again, but nothing else.
 export const ForAViewer = meta.story({
-  args: { user: viewer },
   beforeEach({ msw }) {
     msw.use(
       http.get("/api/dashboards/:id", () => HttpResponse.json({ ...overview, canEdit: false })),
@@ -49,7 +41,7 @@ export const ShownAsSaved = meta.story({
         HttpResponse.json({
           ...overview,
           items: overview?.items.map((item, index) =>
-            item.savedQuery && index < 2
+            item.kind === "query" && item.savedQuery && index < 2
               ? {
                   ...item,
                   savedQuery: {
@@ -72,6 +64,7 @@ export const Numbers = meta.story({
     const [signups, customers] = savedQueries;
     const number = (name: string, index: number) =>
       customers && {
+        kind: "query" as const,
         id: `0199a1b2-0000-7000-8000-00000000040${index}`,
         savedQueryId: customers.id,
         savedQuery: { ...customers, name, display: { type: "number" as const } },
@@ -90,11 +83,35 @@ export const Numbers = meta.story({
             number("Waiting to ship", 2),
             number("Refunds", 3),
             signups && {
+              kind: "query" as const,
               id: "0199a1b2-0000-7000-8000-000000000404",
               savedQueryId: signups.id,
               savedQuery: { ...signups, display: { type: "chart", kind: "line" } },
             },
             number("Open tickets", 5),
+          ],
+        }),
+      ),
+    );
+  },
+});
+
+// Titles over the queries after them, the whole width of the dashboard, and how often it
+// refreshes, picked in the header.
+export const WithTitles = meta.story({
+  beforeEach({ msw }) {
+    const [first, second, hidden] = overview?.items ?? [];
+    msw.use(
+      http.get("/api/dashboards/:id", () =>
+        HttpResponse.json({
+          ...overview,
+          refreshMinutes: 5,
+          items: [
+            { kind: "title", id: "0199a1b2-0000-7000-8000-000000000501", title: "Customers" },
+            first,
+            { kind: "title", id: "0199a1b2-0000-7000-8000-000000000502", title: "Shipping" },
+            second,
+            hidden,
           ],
         }),
       ),
@@ -126,5 +143,12 @@ export const QueryFailed = meta.story({
 export const NotFound = meta.story({ args: { id: "0199a1b2-0000-7000-8000-0000000000ff" } });
 
 export const AddDialog = meta.story({
-  render: () => <AddQueryDialog onOpenChange={fn()} onAdd={fn()} />,
+  render: () => (
+    <AddItemDialog
+      added={new Set([savedQueries[1]?.id ?? ""])}
+      onOpenChange={fn()}
+      onAddQuery={fn()}
+      onAddTitle={fn()}
+    />
+  ),
 });

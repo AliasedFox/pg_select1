@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   connection,
+  type Dashboard,
   dashboard,
   dashboardList,
   errorResponse,
@@ -76,6 +77,20 @@ function itemsOf(...ids: string[]) {
   return ids.map((savedQueryId) => ({ savedQueryId }));
 }
 
+// What's on a dashboard: each query's id, and each title as `title: <text>`.
+function contents({ items }: Dashboard) {
+  return items.map((item) => (item.kind === "query" ? item.savedQueryId : `title: ${item.title}`));
+}
+
+// The saved queries on a dashboard, as the caller sees them.
+function queriesOn({ items }: Dashboard) {
+  return items.flatMap((item) => (item.kind === "query" ? [item.savedQuery] : []));
+}
+
+async function patch(id: string, body: unknown, cookie: string) {
+  return request(`/api/dashboards/${id}`, json(body, cookie, "PATCH"));
+}
+
 async function errorOf(res: Response) {
   return errorResponse.parse(await res.json()).error;
 }
@@ -104,8 +119,8 @@ describe("making", () => {
       owner: { id: viewer.id },
       canEdit: true,
     });
-    expect(made.items.map((item) => item.savedQueryId)).toEqual([second.id, first.id]);
-    expect(made.items[0]?.savedQuery).toMatchObject({ id: second.id, sql: "select 1" });
+    expect(contents(made)).toEqual([second.id, first.id]);
+    expect(queriesOn(made)[0]).toMatchObject({ id: second.id, sql: "select 1" });
   });
 
   test("a query on a dashboard is shown as the query says", async () => {
@@ -116,22 +131,36 @@ describe("making", () => {
 
     const made = await make(editor.cookie, { items: itemsOf(charted.id, plain.id) });
 
-    expect(made.items.map((item) => item.savedQuery?.display)).toEqual([
-      display,
-      { type: "table" },
-    ]);
+    expect(queriesOn(made).map((query) => query?.display)).toEqual([display, { type: "table" }]);
   });
 
-  test("a dashboard needs a title, and at most so many queries", async () => {
+  test("titles go between a dashboard's queries, which they don't count among", async () => {
+    const editor = await signedInAs("editor");
+    const query = await saveQuery(editor.cookie);
+
+    const made = await make(editor.cookie, {
+      items: [{ title: " Signups " }, { savedQueryId: query.id }, { title: "Revenue" }],
+    });
+
+    expect(contents(made)).toEqual(["title: Signups", query.id, "title: Revenue"]);
+    expect(made.itemCount).toBe(1);
+    expect((await list(editor.cookie)).find((d) => d.id === made.id)?.itemCount).toBe(1);
+  });
+
+  test("a dashboard needs a title, and at most so many queries and titles", async () => {
     const editor = await signedInAs("editor");
     const query = await saveQuery(editor.cookie);
     const tries = [
       { name: " " },
       {
         name: "D",
-        items: itemsOf(...Array.from({ length: MAX_DASHBOARD_ITEMS + 1 }, () => query.id)),
+        items: Array.from({ length: MAX_DASHBOARD_ITEMS + 1 }, () => ({ title: "T" })),
       },
       { name: "D", items: [{ savedQueryId: "not-a-uuid" }] },
+      { name: "D", items: [{ title: " " }] },
+      { name: "D", items: [{}] },
+      { name: "D", items: [{ savedQueryId: query.id, title: "T" }] },
+      { name: "D", refreshMinutes: 7 },
     ];
 
     for (const body of tries) {
@@ -200,10 +229,8 @@ describe("who sees what", () => {
 
     const seen = dashboard.parse(await (await get(made.id, viewer.cookie)).json());
 
-    expect(seen.items.map((item) => [item.savedQueryId, item.savedQuery?.id ?? null])).toEqual([
-      [personal.id, null],
-      [shared.id, shared.id],
-    ]);
+    expect(contents(seen)).toEqual([personal.id, shared.id]);
+    expect(queriesOn(seen).map((query) => query?.id ?? null)).toEqual([null, shared.id]);
   });
 });
 
@@ -238,8 +265,59 @@ describe("changing and deleting", () => {
     );
 
     const changed = dashboard.parse(await res.json());
-    expect(changed.items.map((item) => item.savedQueryId)).toEqual([c.id, a.id]);
+    expect(contents(changed)).toEqual([c.id, a.id]);
     expect(changed.itemCount).toBe(2);
+  });
+
+  test("a query goes on a dashboard once", async () => {
+    const editor = await signedInAs("editor");
+    const [a, b] = await Promise.all([saveQuery(editor.cookie), saveQuery(editor.cookie)]);
+    const made = await make(editor.cookie, { items: itemsOf(a.id) });
+
+    const twiceAtFirst = await request(
+      "/api/dashboards",
+      json({ name: "D", items: itemsOf(a.id, a.id) }, editor.cookie),
+    );
+    const addedAgain = await patch(made.id, { items: itemsOf(a.id, b.id, a.id) }, editor.cookie);
+
+    expect(twiceAtFirst.status).toBe(400);
+    expect(addedAgain.status).toBe(400);
+    expect(await errorOf(addedAgain)).toBe("That query is on the dashboard already");
+  });
+
+  test("a dashboard that had a query twice before keeps it, but gets no third", async () => {
+    const editor = await signedInAs("editor");
+    const [a, b] = await Promise.all([saveQuery(editor.cookie), saveQuery(editor.cookie)]);
+    const made = await make(editor.cookie, { items: itemsOf(a.id, b.id) });
+    await db.orm.public.DashboardItem.create({
+      dashboardId: made.id,
+      savedQueryId: a.id,
+      title: null,
+      position: 2,
+    });
+
+    const moved = await patch(made.id, { items: itemsOf(a.id, a.id, b.id) }, editor.cookie);
+    const third = await patch(made.id, { items: itemsOf(a.id, a.id, a.id) }, editor.cookie);
+
+    expect(moved.status).toBe(200);
+    expect(contents(dashboard.parse(await moved.json()))).toEqual([a.id, a.id, b.id]);
+    expect(third.status).toBe(400);
+  });
+
+  test("a dashboard runs its queries again only when asked, unless it says how often", async () => {
+    const viewer = await signedInAs("viewer");
+    const made = await make(viewer.cookie);
+
+    const every5 = await patch(made.id, { refreshMinutes: 5 }, viewer.cookie);
+    const renamed = await patch(made.id, { name: "Renamed" }, viewer.cookie);
+    const odd = await patch(made.id, { refreshMinutes: 7 }, viewer.cookie);
+    const off = await patch(made.id, { refreshMinutes: null }, viewer.cookie);
+
+    expect(made.refreshMinutes).toBeNull();
+    expect(dashboard.parse(await every5.json()).refreshMinutes).toBe(5);
+    expect(dashboard.parse(await renamed.json()).refreshMinutes).toBe(5);
+    expect(odd.status).toBe(400);
+    expect(dashboard.parse(await off.json()).refreshMinutes).toBeNull();
   });
 
   test("an editor keeps someone else's personal query on a dashboard they change", async () => {
@@ -256,7 +334,7 @@ describe("changing and deleting", () => {
 
     expect(res.status).toBe(200);
     const changed = dashboard.parse(await res.json());
-    expect(changed.items.map((item) => item.savedQueryId)).toEqual([shared.id, personal.id]);
+    expect(contents(changed)).toEqual([shared.id, personal.id]);
   });
 
   test("an editor changes and deletes anyone's global dashboard; a viewer can't", async () => {
@@ -331,7 +409,7 @@ describe("what goes with what", () => {
       headers: { cookie: editor.cookie },
     });
 
-    expect(after.items.map((item) => item.savedQueryId)).toEqual([kept.id]);
+    expect(contents(after)).toEqual([kept.id]);
     expect(await db.orm.public.SavedQuery.select("id").first({ id: kept.id })).not.toBeNull();
   });
 

@@ -221,13 +221,15 @@ export const contract = defineContract(
       }));
 
     // Saved queries shown together, one under another. Who sees it and who can change it go as
-    // for a saved query, and so does what happens to it when its owner is deleted.
+    // for a saved query, and so does what happens to it when its owner is deleted. Its queries
+    // run again every `refreshMinutes` while it's open, or only when asked to without it.
     const Dashboard = model("Dashboard", {
       fields: {
         id: Id,
         name: field.column(type.String()),
         description: field.column(type.String()).optional(),
         scope: field.namedType(QueryScope).default("personal"),
+        refreshMinutes: field.column(type.Int()).optional(),
         ownerId: field.column(type.Uuid()).optional(),
         createdAt: CreatedAt,
         updatedAt: UpdatedAt,
@@ -242,13 +244,16 @@ export const contract = defineContract(
       indexes: [constraints.index([cols.ownerId])],
     }));
 
-    // A saved query on a dashboard, first one first, shown as the query's `display` says. The same
-    // query can be on a dashboard more than once. Deleting the query takes it off its dashboards.
+    // A saved query on a dashboard, shown as the query's `display` says, or a title over the
+    // queries after it: one of `savedQueryId` and `title`. First one first. A query is put on a
+    // dashboard only once, though dashboards from before that rule may have one twice. Deleting
+    // the query takes it off its dashboards.
     const DashboardItem = model("DashboardItem", {
       fields: {
         id: Id,
         dashboardId: field.column(type.Uuid()),
-        savedQueryId: field.column(type.Uuid()),
+        savedQueryId: field.column(type.Uuid()).optional(),
+        title: field.column(type.String()).optional(),
         position: field.column(type.Int()),
       },
       relations: {
